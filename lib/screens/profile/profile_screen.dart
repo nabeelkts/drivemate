@@ -1,22 +1,34 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:mds/constants/colors.dart';
+import 'package:mds/controller/app_controller.dart';
 import 'package:mds/screens/authentication/google_sign_in.dart';
 import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
+  
+  
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser!;
+    AppController appController=Get.put(AppController());
     return SafeArea(
       child: Scaffold(
           appBar: AppBar(
             title: const Text(
               'Profile',
             ),
-            actions: [
+            actions: [GestureDetector(onTap: () {
+                
+                  appController.checkUpdate();
+                },
+                child: const Icon(
+                  Icons.update,
+                ),
+                ),
               GestureDetector(
                 onTap: () {
                   final provider =
@@ -59,7 +71,8 @@ class ProfileScreen extends StatelessWidget {
                 Text('Email: ${user.email!}')
               ],
             ),
-          )),
+          ),
+          ),
     );
   }
 }

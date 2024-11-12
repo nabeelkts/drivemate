@@ -12,7 +12,7 @@ import 'package:mds/screens/dashboard/list/students_list.dart';
 import 'package:mds/screens/dashboard/list/vehicle_details_list.dart';
 import 'package:mds/screens/onboarding/splash_screen.dart';
 import 'package:provider/provider.dart';
-import 'package:upgrader/upgrader.dart';
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -50,9 +50,8 @@ class MyApp extends StatelessWidget {
                   userId: '',
                 ),
           },
-          home: UpgradeAlert(
-            child: const SplashScreen(),
-          ),
+          home:  const SplashScreen(),
+          
         ),
       );
 }
