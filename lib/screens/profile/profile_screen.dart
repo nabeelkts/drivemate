@@ -22,8 +22,8 @@ class ProfileScreen extends StatelessWidget {
               'Profile',
             ),
             actions: [GestureDetector(onTap: () {
-                
-                  appController.checkUpdate();
+   final appController = Get.find<AppController>();
+          appController.checkForUpdate(); 
                 },
                 child: const Icon(
                   Icons.update,
