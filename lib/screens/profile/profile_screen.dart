@@ -8,71 +8,103 @@ import 'package:provider/provider.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
-  
-  
 
   @override
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser!;
-    AppController appController=Get.put(AppController());
+    final AppController appController = Get.put(AppController());
+
     return SafeArea(
       child: Scaffold(
-          appBar: AppBar(
-            title: const Text(
-              'Profile',
+        appBar: AppBar(
+          title: const Text(
+            'Profile',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
+          actions: [
+      
+            GestureDetector(
+              onTap: () {
+                
+              },
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 16),
+                child: Icon(Icons.settings),
+              ),
             ),
-            actions: [GestureDetector(onTap: () {
-   final appController = Get.find<AppController>();
-          appController.checkForUpdate(); 
-                },
-                child: const Icon(
-                  Icons.update,
-                ),
-                ),
+          ],
+        ),
+        body: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          color: kWhite,
+          child: Column(
+            
+            children: [
+              
+              const SizedBox(height: 20),
+              CircleAvatar(
+                radius: 50,
+                backgroundImage: user.photoURL != null
+                    ? NetworkImage(user.photoURL!)
+                    : null,
+                child: user.photoURL == null ? const Icon(Icons.person, size: 50) : null,
+              ),
+              const SizedBox(height: 16),
+               Text(
+                'Name: ${user.displayName ?? "N/A"}',
+                style: const TextStyle(fontSize: 18),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Email: ${user.email!}',
+                style: const TextStyle(fontSize: 16, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
               GestureDetector(
                 onTap: () {
-                  final provider =
-                      Provider.of<GoogleSignInProvider>(context, listen: false);
+                  appController.checkForUpdate();
+                },
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: const [
+                    Icon(Icons.info_outline, color: Colors.blueAccent),
+                    SizedBox(width: 8),
+                    Text(
+                      'Check for updates',
+                      style: TextStyle(fontSize: 16, color: Colors.blueAccent),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 10),
+              // Display the version number from the AppController
+              Obx(() => Text(
+                    'App Version: ${appController.currentVersion.value}',
+                    style: const TextStyle(fontSize: 14, color: Colors.grey),
+                  ),
+                  ),
+                   const SizedBox(height: 30),
+                   ElevatedButton.icon(
+                onPressed: () {
+                  final provider = Provider.of<GoogleSignInProvider>(context, listen: false);
                   provider.logout();
                   FirebaseAuth.instance.signOut();
                 },
-                child: const Icon(
-                  Icons.logout,
+                icon: const Icon(Icons.logout, color: Colors.white),
+                label: const Text('Logout'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
             ],
           ),
-          body: Container(
-            alignment: Alignment.center,
-            color: kWhite,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  'Profile',
-                  style: TextStyle(
-                    fontSize: 24,
-                  ),
-                ),
-                const SizedBox(
-                  height: 16,
-                ),
-                CircleAvatar(
-                  radius: 40,
-                  backgroundImage: NetworkImage(user.photoURL!),
-                ),
-                const SizedBox(
-                  height: 8,
-                ),
-                Text('Name: ${user.displayName!}'),
-                const SizedBox(
-                  height: 8,
-                ),
-                Text('Email: ${user.email!}')
-              ],
-            ),
-          ),
-          ),
+        ),
+      ),
     );
   }
 }
