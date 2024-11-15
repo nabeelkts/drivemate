@@ -3,7 +3,7 @@ import 'package:mds/screens/authentication/login_page.dart';
 import 'package:mds/screens/authentication/signup.dart';
 
 class LoginOrRegisterScreen extends StatefulWidget {
-  const LoginOrRegisterScreen({Key? key}) : super(key: key);
+  const LoginOrRegisterScreen({super.key});
 
   @override
   State<LoginOrRegisterScreen> createState() => _LoginOrRegisterScreenState();

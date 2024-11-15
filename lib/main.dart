@@ -13,7 +13,6 @@ import 'package:mds/screens/dashboard/list/vehicle_details_list.dart';
 import 'package:mds/screens/onboarding/splash_screen.dart';
 import 'package:provider/provider.dart';
 
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
@@ -29,7 +28,6 @@ Future<void> main() async {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) => ChangeNotifierProvider(
         create: (context) => GoogleSignInProvider(),
@@ -37,21 +35,12 @@ class MyApp extends StatelessWidget {
           title: 'MDS MANAGEMENT',
           debugShowCheckedModeBanner: false,
           routes: {
-            '/students': (context) => const StudentList(
-                  userId: '',
-                ),
-            '/license': (context) => const LicenseOnlyList(
-                  userId: '',
-                ),
-            '/endorse': (context) => const EndorsementList(
-                  userId: '',
-                ),
-            '/rc': (context) => const VehicleDetailsList(
-                  userId: '',
-                ),
+            '/students': (context) => const StudentList(userId: ''),
+            '/license': (context) => const LicenseOnlyList(userId: ''),
+            '/endorse': (context) => const EndorsementList(userId: ''),
+            '/rc': (context) => const VehicleDetailsList(userId: ''),
           },
-          home:  const SplashScreen(),
-          
+          home: const SplashScreen(),
         ),
       );
 }

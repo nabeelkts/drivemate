@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:http/http.dart' as http;
@@ -17,8 +18,10 @@ class AppController extends GetxController {
     super.onInit();
     PackageInfo packageInfo = await PackageInfo.fromPlatform();
     currentVersion.value = packageInfo.version;
-    print("Current version: ${currentVersion.value}");
-    // No longer calling checkLatestVersion() in onInit.
+    if (kDebugMode) {
+      print("Current version: ${currentVersion.value}");
+    }
+    checkLatestVersion(); // Automatically check for updates when initialized
   }
 
   // Trigger the version check manually when user clicks the "Update" icon
@@ -44,29 +47,13 @@ class AppController extends GetxController {
               Get.snackbar("Error", "Update URL is not available");
             }
           },
-          child: Text("Update"),
+          child: const Text("Update"),
         ),
-        duration: Duration(days: 1),
-        icon: Icon(Icons.update_sharp),
+        duration: const Duration(days: 1),
+        icon: const Icon(Icons.update_sharp),
         snackStyle: SnackStyle.FLOATING,
         barBlur: 20,
         leftBarIndicatorColor: Colors.blue,
-      );
-    } else {
-      // If no update is available
-      Get.rawSnackbar(
-        message: "You are using the latest version",
-        mainButton: TextButton(
-          onPressed: () {
-            Get.back();  // Close the snackbar
-          },
-          child: Text("Dismiss"),
-        ),
-        duration: Duration(seconds: 3),  // Adjust duration for dismissal
-        icon: Icon(Icons.check_circle),
-        snackStyle: SnackStyle.FLOATING,
-        barBlur: 20,
-        leftBarIndicatorColor: Colors.green,
       );
     }
   }
@@ -86,7 +73,6 @@ class AppController extends GetxController {
       oldVersion.value = tagName;
       final assets = data['assets'] as List<dynamic>;
       for (final asset in assets) {
-        final assetName = asset['name'];
         final assetDownloadUrl = asset['browser_download_url'];
         newAppUrl.value = assetDownloadUrl;
       }
@@ -97,12 +83,13 @@ class AppController extends GetxController {
         isLatestVersion.value = false;
         checkUpdate(); // Show update prompt if versions don't match
       } else {
-        // If latest version, mark as true and show a "You are up-to-date" message
+        // If latest version, mark as true
         isLatestVersion.value = true;
-        checkUpdate(); // If on the latest version, show the "You are using the latest version" message
       }
     } else {
-      print('Failed to fetch GitHub release info. Status code: ${response.statusCode}');
+      if (kDebugMode) {
+        print('Failed to fetch GitHub release info. Status code: ${response.statusCode}');
+      }
     }
   }
 }

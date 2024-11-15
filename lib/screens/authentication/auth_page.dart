@@ -1,3 +1,5 @@
+// ignore_for_file: library_private_types_in_public_api
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mds/screens/authentication/email_verification.dart';
@@ -5,6 +7,7 @@ import 'package:mds/screens/authentication/login_or_register.dart';
 import 'package:mds/screens/navigation_screen.dart';
 
 class AuthPage extends StatefulWidget {
+  // ignore: use_key_in_widget_constructors
   const AuthPage({Key? key});
 
   @override

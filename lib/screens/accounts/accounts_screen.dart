@@ -1,46 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:mds/screens/authentication/auth_page.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
-class OnboardingScreen extends StatefulWidget {
-  @override
-  _OnboardingScreenState createState() => _OnboardingScreenState();
-}
 
-class _OnboardingScreenState extends State<OnboardingScreen> {
-  bool _isFirstLaunch = true;
 
-  @override
-  void initState() {
-    super.initState();
-    _checkFirstLaunch();
-  }
 
-  Future<void> _checkFirstLaunch() async {
-    final prefs = await SharedPreferences.getInstance();
-    final isFirstLaunch = prefs.getBool('isFirstLaunch') ?? true;
-
-    if (!isFirstLaunch) {
-      _navigateToAuthPage();
-    } else {
-      setState(() {
-        _isFirstLaunch = isFirstLaunch;
-      });
-      prefs.setBool('isFirstLaunch', false);
-    }
-  }
-
-  void _navigateToAuthPage() {
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AuthPage()));
-  }
+class AccountsScreen extends StatelessWidget {
+  const AccountsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Ensuring the widget tree builds the right page based on the launch state
-    if (!_isFirstLaunch) {
-      return const AuthPage();
-    }
-
     return Scaffold(
       backgroundColor: Colors.white,
       body: Center(
@@ -54,6 +21,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           child: Column(
             children: [
+             
               const SizedBox(height: 40),
               Text(
                 'Drivemate',
@@ -72,38 +40,35 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
-              Expanded(
+            Expanded(
                 child: PageView(
                   children: [
+                   Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child:Image.asset(
+                      'assets/images/onboard1.png',
+                      width: 350,
+                      height: 306,
+                    ),),
+                  Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child:  Image.asset(
+                      'assets/images/onboard2.png',
+                      width: 350,
+                      height: 306,
+                    ),),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Image.asset(
-                        'assets/images/onboard1.png',
-                        width: 350,
-                        height: 306,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Image.asset(
-                        'assets/images/onboard2.png',
-                        width: 350,
-                        height: 306,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Image.asset(
-                        'assets/images/onboard3.png',
-                        width: 350,
-                        height: 306,
-                      ),
-                    ),
+                      child:Image.asset(
+                      'assets/images/onboard3.png',
+                      width: 350,
+                      height: 306,
+                    ),),
                   ],
                 ),
               ),
               const SizedBox(height: 40),
-              Padding(
+          Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
                   'Effortless student management. Simplify enrollment, track progress, and nurture relationships with Drivemate’s comprehensive database',
@@ -117,7 +82,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(height: 40),
+              SizedBox(height: 40),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
@@ -132,28 +97,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(height: 40),
-              GestureDetector(
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (_) => const AuthPage()),
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 146),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFFBF7),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: const Text(
-                    'Get Started',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                      color: Color(0xFFF46B45),
-                    ),
+              SizedBox(height: 40),
+              Container(
+                padding: EdgeInsets.symmetric(vertical: 10, horizontal: 146),
+                decoration: BoxDecoration(
+                  color: Color(0xFFFFFBF7),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: const Text(
+                  'Get Started',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    color: Color(0xFFF46B45),
                   ),
                 ),
               ),
@@ -165,3 +122,4 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 }
+

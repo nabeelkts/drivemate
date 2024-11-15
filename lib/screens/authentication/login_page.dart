@@ -56,7 +56,7 @@ class _LoginPageState extends State<LoginPage> {
             "Authenticated as ${user?.email!}",
           ),
           duration:
-              Duration(seconds: 2), // You can adjust the duration as needed
+              const Duration(seconds: 2), // You can adjust the duration as needed
         ),
       );
     } on FirebaseAuthException catch (e) {
@@ -383,7 +383,7 @@ class _LoginPageState extends State<LoginPage> {
   }
 
   void login() {
-    if (isChecked && emailController != null && passwordController != null) {
+    if (isChecked) {
       box1.put('email', emailController.text);
       box1.put('pass', passwordController.text);
     }

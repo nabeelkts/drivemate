@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:iconly/iconly.dart';
+import 'package:mds/screens/accounts/accounts_screen.dart';
 import 'package:mds/screens/dashboard/dashboard.dart';
 import 'package:mds/screens/profile/profile_screen.dart';
 import 'package:mds/screens/statistics/stats_screen.dart';
@@ -15,7 +16,7 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
   final List<Widget> _screens = [
     const Dashboard(),
     const StatsScreen(),
-    const Scaffold(),
+    AccountsScreen(),
     const ProfileScreen(),
   ];
   int _currentIndex = 0;

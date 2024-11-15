@@ -6,7 +6,7 @@ import 'package:shimmer/shimmer.dart';
 
 class CarouselSliderCard extends StatefulWidget {
   final List<CarouselModel> data;
-  const CarouselSliderCard({Key? key, required this.data}) : super(key: key);
+  const CarouselSliderCard({super.key, required this.data});
 
   @override
   State<CarouselSliderCard> createState() => _CarouselSliderCardState();

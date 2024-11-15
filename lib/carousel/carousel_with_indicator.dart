@@ -20,70 +20,67 @@ class _CarouselWithIndicatorState extends State<CarouselWithIndicator> {
   @override
   void initState() {
     imageSliders = widget.data.map((item) {
-      return Container(
-        // margin: const EdgeInsets.all(10),
-        child: ClipRRect(
-          // borderRadius: const BorderRadius.all(Radius.circular(10.0)),
-          child: Stack(
-            children: <Widget>[
-              CachedNetworkImage(
-                imageUrl: item.image,
-                errorWidget: (context, url, error) => const Icon(Icons.error),
-                progressIndicatorBuilder: (context, url, downloadProgress) =>
-                    Shimmer.fromColors(
-                  highlightColor: Colors.white,
-                  baseColor: Colors.grey.shade300,
-                  child: Container(
-                    decoration: const BoxDecoration(
-                      color: Colors.grey,
-                      borderRadius: BorderRadius.all(Radius.circular(10.0)),
-                    ),
-                    child: ClipRRect(
-                      borderRadius:
-                          const BorderRadius.all(Radius.circular(10.0)),
-                      child: AspectRatio(
-                        aspectRatio: 16 / 9,
-                        child: Container(
-                          color: Colors.grey,
-                        ),
+      return ClipRRect(
+        // borderRadius: const BorderRadius.all(Radius.circular(10.0)),
+        child: Stack(
+          children: <Widget>[
+            CachedNetworkImage(
+              imageUrl: item.image,
+              errorWidget: (context, url, error) => const Icon(Icons.error),
+              progressIndicatorBuilder: (context, url, downloadProgress) =>
+                  Shimmer.fromColors(
+                highlightColor: Colors.white,
+                baseColor: Colors.grey.shade300,
+                child: Container(
+                  decoration: const BoxDecoration(
+                    color: Colors.grey,
+                    borderRadius: BorderRadius.all(Radius.circular(10.0)),
+                  ),
+                  child: ClipRRect(
+                    borderRadius:
+                        const BorderRadius.all(Radius.circular(10.0)),
+                    child: AspectRatio(
+                      aspectRatio: 16 / 9,
+                      child: Container(
+                        color: Colors.grey,
                       ),
                     ),
                   ),
                 ),
-                fit: BoxFit.cover,
-                width: double.infinity,
               ),
-              Positioned(
-                bottom: 0.0,
-                left: 0.0,
-                right: 0.0,
-                child: Container(
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        Color.fromARGB(200, 0, 0, 0),
-                        Color.fromARGB(0, 0, 0, 0)
-                      ],
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                    ),
+              fit: BoxFit.cover,
+              width: double.infinity,
+            ),
+            Positioned(
+              bottom: 0.0,
+              left: 0.0,
+              right: 0.0,
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      Color.fromARGB(200, 0, 0, 0),
+                      Color.fromARGB(0, 0, 0, 0)
+                    ],
+                    begin: Alignment.bottomCenter,
+                    end: Alignment.topCenter,
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    vertical: 10.0,
-                    horizontal: 10.0,
-                  ),
-                  child: Text(
-                    item.id,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20.0,
-                      fontWeight: FontWeight.w600,
-                    ),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10.0,
+                  horizontal: 10.0,
+                ),
+                child: Text(
+                  item.id,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20.0,
+                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }).toList();

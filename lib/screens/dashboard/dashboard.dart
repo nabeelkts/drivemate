@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:mds/controller/app_controller.dart';
 import 'package:mds/screens/dashboard/widgets/appbar.dart';
 import 'package:mds/screens/dashboard/widgets/first_image_container.dart';
 import 'package:mds/screens/dashboard/widgets/registration_header_widget.dart';
@@ -9,6 +11,8 @@ class Dashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppController appController = Get.put(AppController());
+
     return SafeArea(
       child: Scaffold(
         body: SingleChildScrollView(

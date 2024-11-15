@@ -44,7 +44,7 @@ class DashAppBar extends StatelessWidget {
           const Text(
             'Drivemate',
             style: TextStyle(
-              color: Colors.black,
+              color: kBlack,
               fontSize: 21.40,
               fontFamily: 'Inter',
               fontWeight: FontWeight.w600,
@@ -58,7 +58,7 @@ class DashAppBar extends StatelessWidget {
             ),
             clipBehavior: Clip.antiAlias,
             decoration: ShapeDecoration(
-              color: Colors.white,
+              color: kWhite,
               shape: RoundedRectangleBorder(
                 side: const BorderSide(width: 0.30, color: Color(0xFFF46B45)),
                 borderRadius: BorderRadius.circular(100),
