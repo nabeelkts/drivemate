@@ -1,19 +1,24 @@
-import 'package:cloud_firestore/cloud_firestore.dart'; // Import the Cloud Firestore package
+/* lib/screens/dashboard/form/new_forms/rc_details_form.dart */
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:mds/screens/authentication/widgets/my_button.dart';
 import 'package:mds/screens/dashboard/list/details/rc_details_page.dart';
 
 class RcDetails extends StatefulWidget {
-  const RcDetails({Key? key});
+  const RcDetails({super.key});
 
   @override
-  State<RcDetails> createState() => _LicenseOnlyState();
+  State<RcDetails> createState() => _RcDetailsState();
 }
 
-class _LicenseOnlyState extends State<RcDetails> {
+class _RcDetailsState extends State<RcDetails> {
+  final formKey = GlobalKey<FormState>();
+  bool isLoading = false;
+
   late TextEditingController vehicleNumberController;
   late TextEditingController chassisNumberController;
   late TextEditingController engineNumberController;
@@ -24,11 +29,10 @@ class _LicenseOnlyState extends State<RcDetails> {
   late TextEditingController balanceAmountController;
 
   late FixedExtentScrollController scrollController;
-  final formKey = GlobalKey<FormState>();
   final items = [
-    'Transfer of Ownership ',
+    'Transfer of Ownership',
     'Change of Address',
-    'Hypothecation Termination ',
+    'Hypothecation Termination',
     'Hypothecation Addition',
     'TO + HP Cancellation',
     'NOC',
@@ -44,14 +48,18 @@ class _LicenseOnlyState extends State<RcDetails> {
   ];
   int index = 0;
 
-  // Add the CollectionReference for Firestore
   final CollectionReference usersCollection =
       FirebaseFirestore.instance.collection('users');
 
   @override
   void initState() {
     super.initState();
-    vehicleNumberController = TextEditingController(); // Initialize controllers
+    initializeControllers();
+    setupListeners();
+  }
+
+  void initializeControllers() {
+    vehicleNumberController = TextEditingController();
     chassisNumberController = TextEditingController();
     engineNumberController = TextEditingController();
     mobileNumberController = TextEditingController();
@@ -60,6 +68,9 @@ class _LicenseOnlyState extends State<RcDetails> {
     totalAmountController = TextEditingController();
     advanceAmountController = TextEditingController();
     balanceAmountController = TextEditingController();
+  }
+
+  void setupListeners() {
     totalAmountController.addListener(updateBalanceAmount);
     advanceAmountController.addListener(updateBalanceAmount);
   }
@@ -73,7 +84,11 @@ class _LicenseOnlyState extends State<RcDetails> {
 
   @override
   void dispose() {
-    // Dispose controllers
+    disposeControllers();
+    super.dispose();
+  }
+
+  void disposeControllers() {
     vehicleNumberController.dispose();
     chassisNumberController.dispose();
     engineNumberController.dispose();
@@ -83,320 +98,235 @@ class _LicenseOnlyState extends State<RcDetails> {
     advanceAmountController.dispose();
     balanceAmountController.dispose();
     scrollController.dispose();
-    super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => CupertinoPageScaffold(
-        backgroundColor: CupertinoColors.systemGroupedBackground,
-        child: NestedScrollView(
-          headerSliverBuilder: (context, innerBoxIsScrolled) => [
-            const CupertinoSliverNavigationBar(
-              backgroundColor: Colors.transparent,
-              largeTitle: Text(
-                'Rc Details',
-                style: TextStyle(fontSize: 25),
-              ),
-              border: Border(),
-            ),
-          ],
-          body: Form(
-            key: formKey,
-            child: ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                CupertinoFormSection.insetGrouped(
-                    margin: const EdgeInsets.all(12),
-                    header: const Text(
-                      'Vehicle Details',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    children: [
-                      CupertinoFormRow(
-                        prefix: const Text('Vehicle Number'),
-                        child: CupertinoTextFormFieldRow(
-                            textInputAction: TextInputAction.next,
-                            placeholder: 'KL10AA1111',
-                            controller: vehicleNumberController,
-                            autovalidateMode:
-                                AutovalidateMode.onUserInteraction,
-                            validator: (vehicleNumber) {
-                              if (vehicleNumber == null ||
-                                  vehicleNumber.isEmpty) {
-                                return 'Enter Vehicle Number';
-                              } else if (vehicleNumber.length < 4) {
-                                return 'Must be at least 4 characters long';
-                              } else {
-                                return null;
-                              }
-                            }),
-                      ),
-                      CupertinoFormRow(
-                        prefix: const Text("Chassis Number"),
-                        child: CupertinoTextFormFieldRow(
-                          textInputAction: TextInputAction.next,
-                          placeholder: 'Last 5 digits',
-                          controller: chassisNumberController,
-                          maxLength: 5,
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (chassisNumber) {
-                            if (chassisNumber == null ||
-                                chassisNumber.isEmpty) {
-                              return 'Enter Chassis Name';
-                            } else if (chassisNumber.length < 5) {
-                              return 'Must be at least 5 characters long';
-                            } else {
-                              return null;
-                            }
-                          },
-                        ),
-                      ),
-                      CupertinoFormRow(
-                        prefix: const Text("Engine Number"),
-                        child: CupertinoTextFormFieldRow(
-                          textInputAction: TextInputAction.next,
-                          placeholder: 'Last 5 digits',
-                          controller: engineNumberController,
-                          maxLength: 5,
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (engineNumber) {
-                            if (engineNumber == null || engineNumber.isEmpty) {
-                              return 'Enter Engine Number';
-                            } else if (engineNumber.length < 5) {
-                              return 'Must be at least 5 characters long';
-                            } else {
-                              return null;
-                            }
-                          },
-                        ),
-                      ),
-                      CupertinoFormRow(
-                        prefix: const Text('Mobile Number'),
-                        child: CupertinoTextFormFieldRow(
-                          textInputAction: TextInputAction.next,
-                          placeholder: 'Mobile Number',
-                          controller: mobileNumberController,
-                          keyboardType: TextInputType.number,
-                          maxLength: 10,
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (mobileNumber) {
-                            if (mobileNumber == null || mobileNumber.isEmpty) {
-                              return 'Enter Valid Mobile Number';
-                            } else if (mobileNumber.length < 10) {
-                              return 'Must be at least 10 characters long';
-                            } else {
-                              return null;
-                            }
-                          },
-                        ),
-                      ),
-                    ]),
-                CupertinoFormSection.insetGrouped(
-                    margin: const EdgeInsets.all(12),
-                    header: const Text(
-                      'Service',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    children: [
-                      CupertinoFormRow(
-                        padding: EdgeInsets.all(8),
-                        child: Center(
-                          child: CupertinoTextField(
-                            onTap: () {
-                              scrollController.dispose();
-                              scrollController = FixedExtentScrollController(
-                                  initialItem: index);
-                              showCupertinoModalPopup(
-                                  context: context,
-                                  builder: (context) => CupertinoActionSheet(
-                                        actions: [buildPicker()],
-                                        cancelButton:
-                                            CupertinoActionSheetAction(
-                                          child: const Text('Done'),
-                                          onPressed: () =>
-                                              Navigator.pop(context),
-                                        ),
-                                      ));
-                            },
-                            controller: serviceController,
-                            readOnly: true,
-                            enableInteractiveSelection: false,
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ]),
-                CupertinoFormSection.insetGrouped(
-                    margin: const EdgeInsets.all(12),
-                    header: const Text(
-                      'Fees',
-                      style: TextStyle(fontSize: 16),
-                    ),
-                    children: [
-                      CupertinoFormRow(
-                        prefix: const Text('Total'),
-                        child: CupertinoTextFormFieldRow(
-                          keyboardType: TextInputType.number,
-                          controller: totalAmountController,
-                          maxLength: 5,
-                          textInputAction: TextInputAction.next,
-                          placeholder: 'Total Amount',
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (totalAmount) {
-                            if (totalAmount == null || totalAmount.isEmpty) {
-                              return 'Enter Total Amount';
-                            } else {
-                              return null;
-                            }
-                          },
-                        ),
-                      ),
-                      CupertinoFormRow(
-                        prefix: const Text('Advance'),
-                        child: CupertinoTextFormFieldRow(
-                          keyboardType: TextInputType.number,
-                          maxLength: 5,
-                          controller: advanceAmountController,
-                          placeholder: 'Advance Amount',
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (advanceAmount) {
-                            if (advanceAmount == null ||
-                                advanceAmount.isEmpty) {
-                              return 'Enter Advance Amount';
-                            } else {
-                              return null;
-                            }
-                          },
-                        ),
-                      ),
-                      CupertinoFormRow(
-                        prefix: const Text('Balance'),
-                        child: CupertinoTextFormFieldRow(
-                          keyboardType: TextInputType.number,
-                          maxLength: 5,
-                          readOnly: true,
-                          enableInteractiveSelection: false,
-                          controller: balanceAmountController,
-                          textInputAction: TextInputAction.next,
-                          placeholder: 'Balance Amount',
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                          validator: (totalAmount) {
-                            if (totalAmount == null || totalAmount.isEmpty) {
-                              return 'Enter Total Amount';
-                            } else {
-                              return null;
-                            }
-                          },
-                        ),
-                      ),
-                    ]),
-                Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 12),
-                  width: double.infinity,
-                  child: CupertinoButton.filled(
-                    child: const Text('Submit'),
-                    onPressed: () {
-                      final form = formKey.currentState!;
-                      if (form.validate()) {
-                        User? user = FirebaseAuth.instance.currentUser;
-                        String vehicleNumber = vehicleNumberController.text;
-                        String chassisNumber = chassisNumberController.text;
-                        String engineNumber = engineNumberController.text;
-                        String mobileNumber = mobileNumberController.text;
-                        String service = serviceController.text;
-                        String totalAmount = totalAmountController.text;
-                        String advanceAmount = advanceAmountController.text;
-                        String balanceAmount = balanceAmountController.text;
-                        Map<String, dynamic> vehicleDetails = {
-                          'vehicleNumber': vehicleNumber,
-                          'chassisNumber': chassisNumber,
-                          'engineNumber': engineNumber,
-                          'mobileNumber': mobileNumber,
-                          'totalAmount': totalAmount,
-                          'advanceAmount': advanceAmount,
-                          'balanceAmount': balanceAmount,
-                          'service': service,
-                        };
-                        String documentId = vehicleDetails['vehicleNumber'];
-// Get the current date and time
-                        DateTime currentDate = DateTime.now();
-                        String formattedDate = currentDate.toLocal().toString();
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
 
-                        // Include the date and time in the student data
-                        vehicleDetails['registrationDate'] = formattedDate;
-                        // ignore: avoid_single_cascade_in_expression_statements
-                        usersCollection
-                            .doc(user?.uid)
-                            .collection('vehicleDetails')
-                          ..doc(documentId) // Set the document ID as the studentId
-                              .set(vehicleDetails)
-                              .then((value) {
-                            Fluttertoast.showToast(
-                              msg: 'Registration is Successful',
-                              fontSize: 18,
-                            );
-                            // Navigate to the dashboard
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (context) => RCDetailsPage(
-                                      vehicleDetails: vehicleDetails)),
-                            );
-                          }).catchError((error) {
-                            // Handle errors
-                            if (kDebugMode) {
-                              print('Failed to add vehicle details: $error');
-                            }
-                          });
-                      }
-                    },
-                  ),
-                ),
-                const SizedBox(
-                  height: 30,
-                )
-              ],
-            ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('RC Details'),
+        backgroundColor: theme.appBarTheme.backgroundColor,
+        elevation: 0,
+        iconTheme: IconThemeData(color: textColor),
+      ),
+      body: Form(
+        key: formKey,
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            buildVehicleDetailsSection(textColor),
+            buildServiceSection(textColor),
+            buildFeesSection(textColor),
+            buildSubmitButton(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget buildVehicleDetailsSection(Color textColor) {
+    return buildSection('Vehicle Details', [
+      buildTextField('Vehicle Number', vehicleNumberController, 'KL10AA1111', textColor),
+      buildTextField('Chassis Number', chassisNumberController, 'Last 5 digits', textColor, maxLength: 5),
+      buildTextField('Engine Number', engineNumberController, 'Last 5 digits', textColor, maxLength: 5),
+      buildTextField('Mobile Number', mobileNumberController, 'Mobile Number', textColor, keyboardType: TextInputType.number, maxLength: 10),
+    ]);
+  }
+
+  Widget buildServiceSection(Color textColor) {
+    return buildSectionContainer(
+      children: [
+        Text(
+          'Service',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: textColor,
           ),
         ),
-      );
+        const SizedBox(height: 10),
+        CupertinoTextField(
+          onTap: () {
+            scrollController.dispose();
+            scrollController = FixedExtentScrollController(initialItem: index);
+            showCupertinoModalPopup(
+              context: context,
+              builder: (context) => buildPicker(),
+            );
+          },
+          controller: serviceController,
+          readOnly: true,
+          enableInteractiveSelection: false,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: textColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildFeesSection(Color textColor) {
+    return buildSection('Fees', [
+      buildTextField('Total', totalAmountController, 'Total Amount', textColor, keyboardType: TextInputType.number),
+      buildTextField('Advance', advanceAmountController, 'Advance Amount', textColor, keyboardType: TextInputType.number),
+      buildTextField('Balance', balanceAmountController, 'Balance Amount', textColor, readOnly: true),
+    ]);
+  }
+
+  Widget buildTextField(String label, TextEditingController controller, String placeholder, Color textColor,
+      {TextInputType keyboardType = TextInputType.text, bool readOnly = false, int? maxLength}) {
+    return CupertinoFormRow(
+      prefix: Text(label, style: TextStyle(color: textColor)),
+      child: CupertinoTextFormFieldRow(
+        controller: controller,
+        placeholder: placeholder,
+        keyboardType: keyboardType,
+        readOnly: readOnly,
+        maxLength: maxLength,
+        autovalidateMode: AutovalidateMode.onUserInteraction,
+        validator: (value) {
+          if (value == null || value.isEmpty) {
+            return 'Enter $label';
+          }
+          return null;
+        },
+        style: TextStyle(color: textColor),
+      ),
+    );
+  }
+
+  Widget buildSubmitButton() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: MyButton(
+        onTap: isLoading ? null : handleSubmit,
+        text: 'Submit',
+        isLoading: isLoading,
+        isEnabled: !isLoading,
+      ),
+    );
+  }
+
+  Widget buildSection(String title, List<Widget> children) {
+    return buildSectionContainer(
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).textTheme.bodyLarge?.color,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ...children,
+      ],
+    );
+  }
+
+  Widget buildSectionContainer({required List<Widget> children}) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.5),
+            spreadRadius: 2,
+            blurRadius: 5,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
 
   Widget buildPicker() => SizedBox(
-        height: 350,
-        child: StatefulBuilder(
-          builder: (context, setState) => CupertinoPicker(
-            scrollController: scrollController,
-            looping: true,
-            itemExtent: 64,
-            children: List.generate(items.length, (index) {
-              final isSelected = this.index == index;
-              final item = items[index];
-              final color = isSelected
-                  ? CupertinoColors.activeBlue
-                  : CupertinoColors.black;
-              return Center(
-                child: Text(
-                  item,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 18,
-                  ),
-                ),
-              );
-            }),
-            onSelectedItemChanged: (index) {
-              setState(() => this.index = index);
-              final item = items[index];
-              serviceController.text = item;
-              if (kDebugMode) {
-                print('Selected Item: $item');
-              }
-            },
-          ),
+        height: 250,
+        child: CupertinoPicker(
+          scrollController: scrollController,
+          itemExtent: 64,
+          onSelectedItemChanged: (index) {
+            setState(() {
+              this.index = index;
+              serviceController.text = items[index];
+            });
+          },
+          children: items.map((item) => Center(child: Text(item, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)))).toList(),
         ),
       );
+
+  Future<void> handleSubmit() async {
+    if (!formKey.currentState!.validate()) return;
+
+    setState(() {
+      isLoading = true;
+    });
+
+    try {
+      User? user = FirebaseAuth.instance.currentUser;
+      String vehicleNumber = vehicleNumberController.text;
+      String chassisNumber = chassisNumberController.text;
+      String engineNumber = engineNumberController.text;
+      String mobileNumber = mobileNumberController.text;
+      String service = serviceController.text;
+      String totalAmount = totalAmountController.text;
+      String advanceAmount = advanceAmountController.text;
+      String balanceAmount = balanceAmountController.text;
+
+      Map<String, dynamic> vehicleDetails = {
+        'vehicleNumber': vehicleNumber,
+        'chassisNumber': chassisNumber,
+        'engineNumber': engineNumber,
+        'mobileNumber': mobileNumber,
+        'totalAmount': totalAmount,
+        'advanceAmount': advanceAmount,
+        'balanceAmount': balanceAmount,
+        'service': service,
+        'image': 'assets/icons/vehicle_rc.png', // Default image
+      };
+
+      String documentId = vehicleDetails['vehicleNumber'];
+      DateTime currentDate = DateTime.now();
+      String formattedDate = currentDate.toLocal().toString();
+      vehicleDetails['registrationDate'] = formattedDate;
+
+      await usersCollection
+          .doc(user?.uid)
+          .collection('vehicleDetails')
+          .doc(documentId)
+          .set(vehicleDetails);
+
+      Fluttertoast.showToast(
+        msg: 'Registration is Successful',
+        fontSize: 18,
+      );
+      // ignore: use_build_context_synchronously
+      Navigator.pushReplacement(
+        context,
+        CupertinoPageRoute(
+            builder: (context) => RCDetailsPage(vehicleDetails: vehicleDetails)),
+      );
+    } catch (error) {
+      if (kDebugMode) {
+        print('Failed to add vehicle details: $error');
+      }
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
+  }
 }

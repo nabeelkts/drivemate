@@ -10,16 +10,17 @@ class MyFormTextField extends StatefulWidget {
   final String? Function(String?)? validator;
 
   const MyFormTextField({
-    Key? key,
+    super.key,
     required this.controller,
     required this.hintText,
     required this.labelText,
     required this.obscureText,
     required this.onTapEyeIcon,
     required this.validator,
-  }) : super(key: key);
+  });
 
   @override
+  // ignore: library_private_types_in_public_api
   _MyFormTextFieldState createState() => _MyFormTextFieldState();
 }
 

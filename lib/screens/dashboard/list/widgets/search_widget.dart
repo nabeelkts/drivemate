@@ -6,7 +6,7 @@ class SearchWidget extends StatelessWidget {
   final String placeholder;
   final ValueChanged<String> onChanged;
 
-  const SearchWidget({
+  const SearchWidget({super.key, 
     required this.controller,
     required this.onChanged,
     required this.placeholder,

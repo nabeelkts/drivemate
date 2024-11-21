@@ -8,118 +8,117 @@ class AccountsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white,
-      body: Center(
-        child: Container(
-          width: 430,
-          height: 932,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(30),
-          ),
+    return SafeArea(
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        body: Padding(
+          padding: const EdgeInsets.all(16.0),
           child: Column(
             children: [
-             
-              const SizedBox(height: 40),
-              Text(
-                'Drivemate',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontWeight: FontWeight.w600,
-                  fontSize: 36,
-                  foreground: Paint()
-                    ..shader = const LinearGradient(
-                      colors: <Color>[
-                        Color(0xFFF46B45),
-                        Color(0xFFEEA849),
-                      ],
-                    ).createShader(Rect.fromLTWH(0.0, 0.0, 200.0, 70.0)),
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 40),
-            Expanded(
-                child: PageView(
-                  children: [
-                   Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child:Image.asset(
-                      'assets/images/onboard1.png',
-                      width: 350,
-                      height: 306,
-                    ),),
-                  Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child:  Image.asset(
-                      'assets/images/onboard2.png',
-                      width: 350,
-                      height: 306,
-                    ),),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child:Image.asset(
-                      'assets/images/onboard3.png',
-                      width: 350,
-                      height: 306,
-                    ),),
-                  ],
+              buildTransactionHeader(),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: 20, // Example count
+                  itemBuilder: (context, index) {
+                    return buildTransactionRow(
+                      '1015',
+                      '10-05-2022',
+                      index % 2 == 0 ? 'Abin Muhammed Bukhari' : 'Muhammed Nabeel',
+                      'Rs.7,500',
+                    );
+                  },
                 ),
               ),
-              const SizedBox(height: 40),
-          Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  'Effortless student management. Simplify enrollment, track progress, and nurture relationships with Drivemate’s comprehensive database',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w400,
-                    fontSize: 12,
-                    color: Colors.black,
-                    height: 1.21,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              SizedBox(height: 40),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Text(
-                  'Financial clarity at your fingertips. Manage fees, generate reports, and stay ahead of outstanding payments with Drivemate’s intuitive accounting tools',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w400,
-                    fontSize: 12,
-                    color: Colors.black,
-                    height: 1.21,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              SizedBox(height: 40),
-              Container(
-                padding: EdgeInsets.symmetric(vertical: 10, horizontal: 146),
-                decoration: BoxDecoration(
-                  color: Color(0xFFFFFBF7),
-                  borderRadius: BorderRadius.circular(15),
-                ),
-                child: const Text(
-                  'Get Started',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Color(0xFFF46B45),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
             ],
           ),
         ),
       ),
     );
   }
-}
 
+  Widget buildTransactionHeader() {
+    return const Padding(
+      padding: EdgeInsets.all(8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.calendar_today, color: Color(0xFF1E1E1E)),
+              SizedBox(width: 8),
+              Text(
+                'Today’s Transactions',
+                style: TextStyle(
+                  fontFamily: 'Inter',
+                  fontWeight: FontWeight.w600,
+                  fontSize: 16,
+                  color: Color(0xFF1E1E1E),
+                ),
+              ),
+            ],
+          ),
+          Text(
+            'Rs.16500',
+            style: TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w600,
+              fontSize: 16,
+              color: Color(0xFF1E1E1E),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildTransactionRow(String id, String date, String name, String amount) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            id,
+            style: const TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: Color(0xFF1E1E1E),
+            ),
+          ),
+          Text(
+            date,
+            style: const TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: Color(0xFF1E1E1E),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              name,
+              style: const TextStyle(
+                fontFamily: 'Inter',
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+                color: Color(0xFF1E1E1E),
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Text(
+            amount,
+            style: const TextStyle(
+              fontFamily: 'Inter',
+              fontWeight: FontWeight.w600,
+              fontSize: 13,
+              color: Color(0xFF1E1E1E),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

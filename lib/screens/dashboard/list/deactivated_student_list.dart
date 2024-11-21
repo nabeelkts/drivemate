@@ -48,9 +48,9 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Color.fromRGBO(255, 251, 247, 1),
+      backgroundColor: const Color.fromRGBO(255, 251, 247, 1),
       appBar: AppBar(
-        backgroundColor: Color.fromRGBO(255, 251, 247, 1),
+        backgroundColor: const Color.fromRGBO(255, 251, 247, 1),
         title: const Text(
           'Deactivated Students List',
           style: TextStyle(
@@ -123,7 +123,7 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
                       child: Padding(
                         padding: const EdgeInsets.only(right: 16, left: 16),
                         child: Card(
-                          shadowColor: Color.fromARGB(238, 168, 73, 1),
+                          shadowColor: const Color.fromARGB(238, 168, 73, 1),
                           color: Colors.white,
                           child: Row(
                             children: [
@@ -133,7 +133,7 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
                                 child: Center(
                                   child: CircleAvatar(
                                     backgroundColor:
-                                        Color.fromRGBO(221, 104, 98, 1),
+                                        const Color.fromRGBO(221, 104, 98, 1),
                                     radius: 50,
                                     child: Center(
                                       child: CircleAvatar(
@@ -168,14 +168,14 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
                                         children: [
                                           Text(
                                             docs[index]['fullName'],
-                                            style: TextStyle(
+                                            style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.w600,
                                             ),
                                           ),
                                           Text(
                                             'BL: ${docs[index]['balanceAmount']}',
-                                            style: TextStyle(
+                                            style: const TextStyle(
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.w500,
                                                 color: Color.fromRGBO(
@@ -185,14 +185,14 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
                                       ),
                                       Text(
                                         '${docs[index]['mobileNumber']}',
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
                                         ),
                                       ),
                                       Text(
                                         '${docs[index]['cov']}',
-                                        style: TextStyle(
+                                        style: const TextStyle(
                                           fontSize: 12,
                                           fontWeight: FontWeight.w500,
                                         ),
@@ -224,7 +224,7 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
                                                 },
                                                 child: Container(
                                                   decoration: BoxDecoration(
-                                                    gradient: LinearGradient(
+                                                    gradient: const LinearGradient(
                                                       begin:
                                                           AlignmentDirectional
                                                               .topCenter,
@@ -241,12 +241,12 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
                                                         BorderRadius.circular(
                                                             8),
                                                   ),
-                                                  child: Center(
+                                                  child: const Center(
                                                     child: Padding(
                                                       padding:
-                                                          const EdgeInsets.all(
+                                                          EdgeInsets.all(
                                                               8.0),
-                                                      child: const Text(
+                                                      child: Text(
                                                         'Update',
                                                         style: TextStyle(
                                                           color: Colors.white,
@@ -268,18 +268,18 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
                                                 },
                                                 child: Container(
                                                   decoration: BoxDecoration(
-                                                    color: Color.fromRGBO(
+                                                    color: const Color.fromRGBO(
                                                         254, 243, 237, 1),
                                                     borderRadius:
                                                         BorderRadius.circular(
                                                             8),
                                                   ),
-                                                  child: Center(
+                                                  child: const Center(
                                                     child: Padding(
                                                       padding:
-                                                          const EdgeInsets.all(
+                                                          EdgeInsets.all(
                                                               8.0),
-                                                      child: const Text(
+                                                      child: Text(
                                                         'Activate',
                                                         style: TextStyle(
                                                             color:
@@ -364,13 +364,15 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
             TextButton(
               onPressed: () async {
                 await _activateData(documentId);
+                // ignore: use_build_context_synchronously
                 Navigator.of(context).pop(); // Close the dialog
 
                 // Navigate to the "Deactivated List" page
+                // ignore: use_build_context_synchronously
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => DeactivatedStudentList(),
+                    builder: (context) => const DeactivatedStudentList(),
                   ),
                 );
               },

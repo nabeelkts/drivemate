@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 
 class ShortcutIcon extends StatelessWidget {
+  // ignore: use_key_in_widget_constructors
   const ShortcutIcon({Key? key});
 
   @override
@@ -20,7 +21,7 @@ class ShortcutIcon extends StatelessWidget {
   Widget buildIconContainer(String imagePath, String text) {
     return Container(
       width: 85.0,
-      height: 180.0,
+      height: 95.0,
       // padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5.50),
       decoration: ShapeDecoration(
         color: Colors.white,

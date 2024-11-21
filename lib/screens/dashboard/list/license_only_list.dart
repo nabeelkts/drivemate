@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -16,7 +18,7 @@ import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 class LicenseOnlyList extends StatefulWidget {
   final String userId;
 
-  const LicenseOnlyList({required this.userId, Key? key}) : super(key: key);
+  const LicenseOnlyList({required this.userId, super.key});
 
   @override
   State<LicenseOnlyList> createState() => _LicenseOnlyListState();
@@ -31,7 +33,7 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
   late StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
       _userStreamSubscription;
 
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _allLicenseEntries = [];
 
   @override
@@ -69,9 +71,9 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+     // backgroundColor: kBackgroundColor,
       appBar: AppBar(
-        backgroundColor: kBackgroundColor,
+       // backgroundColor: kBackgroundColor,
         elevation: 0,
         title: const Text(
           'License Only List',
@@ -81,26 +83,21 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
         ),
         leading: Center(
           child: CircleAvatar(
-            backgroundColor: kWhite,
-            child: CircleAvatar(
-              backgroundColor: kPrimaryColor,
-              radius:
-                  15, // Increase the radius to provide enough space for the IconButton
-              child: Center(
-                child: CircleAvatar(
-                  radius:
-                      14, // Adjust the radius to make the inner CircleAvatar smaller
-                  backgroundColor: kWhite,
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios,
-                      color: kPrimaryColor,
-                      size: 15,
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
+            backgroundColor: kPrimaryColor,
+            radius: 15,
+            child: Center(
+              child: CircleAvatar(
+                radius: 14,
+                backgroundColor: kWhite,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios,
+                    color: kPrimaryColor,
+                    size: 15,
                   ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
                 ),
               ),
             ),
@@ -132,16 +129,20 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
               setState(() {});
             },
           ),
-          MyButton(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const LicenseOnly()),
-              );
-            },
-            text: 'Create New License Only',
-            isLoading: isLoading,
-            isEnabled: true,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            child: MyButton(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LicenseOnly()),
+                );
+              },
+              text: 'Create New License Only',
+              isLoading: isLoading,
+              isEnabled: true,
+              width: double.infinity, // Ensure full width
+            ),
           ),
           const SizedBox(
             height: 4,
@@ -185,10 +186,9 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
                         ),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: kWhite, // Set the card background color
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: kPrimaryColor, // Set the border color
+                              color: kPrimaryColor,
                               width: 1,
                             ),
                           ),
@@ -210,7 +210,7 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
                                             ? CachedNetworkImageProvider(
                                                     docs[index]['image'])
                                                 as ImageProvider
-                                            : AssetImage(
+                                            : const AssetImage(
                                                 'assets/icons/user.png'),
                                       ),
                                     ),
@@ -234,7 +234,7 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
                                         children: [
                                           Text(
                                             docs[index]['fullName'],
-                                            style: TextStyle(
+                                            style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.w600,
                                             ),
@@ -373,14 +373,12 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
 
   Future<void> _deleteData(String studentId) async {
     if (studentId.isNotEmpty) {
-      // Get the student data
       var studentData = await FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
           .collection('licenseonly')
           .doc(studentId)
           .get();
-      // Move the student data to the "deactivated_students" collection
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
@@ -408,18 +406,14 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
           actions: <Widget>[
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop();
               },
               child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: () async {
                 await _deleteData(documentId);
-                // ignore: use_build_context_synchronously
-                Navigator.of(context).pop(); // Close the dialog
-
-                // Navigate to the "Deactivated List" page
-                // ignore: use_build_context_synchronously
+                Navigator.of(context).pop();
                 Navigator.pushReplacement(
                   context,
                   MaterialPageRoute(

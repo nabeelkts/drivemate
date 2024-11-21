@@ -6,7 +6,7 @@ class ActionButton extends StatelessWidget {
   final Color textColor;
   final VoidCallback onPressed;
 
-  const ActionButton({
+  const ActionButton({super.key, 
     required this.text,
     required this.backgroundColor,
     required this.textColor,

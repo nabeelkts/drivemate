@@ -3,7 +3,10 @@ import 'package:mds/screens/authentication/auth_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class OnboardingScreen extends StatefulWidget {
+  const OnboardingScreen({super.key});
+
   @override
+  // ignore: library_private_types_in_public_api
   _OnboardingScreenState createState() => _OnboardingScreenState();
 }
 
@@ -67,7 +70,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         Color(0xFFF46B45),
                         Color(0xFFEEA849),
                       ],
-                    ).createShader(Rect.fromLTWH(0.0, 0.0, 200.0, 70.0)),
+                    ).createShader(const Rect.fromLTWH(0.0, 0.0, 200.0, 70.0)),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -103,8 +106,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
                   'Effortless student management. Simplify enrollment, track progress, and nurture relationships with Drivemate’s comprehensive database',
                   style: TextStyle(
@@ -118,8 +121,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ),
               ),
               const SizedBox(height: 40),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
                   'Financial clarity at your fingertips. Manage fees, generate reports, and stay ahead of outstanding payments with Drivemate’s intuitive accounting tools',
                   style: TextStyle(

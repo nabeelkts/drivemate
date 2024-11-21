@@ -1,6 +1,7 @@
+// ignore_for_file: unnecessary_cast, use_build_context_synchronously
+
 import 'dart:async';
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +17,7 @@ import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 class VehicleDetailsList extends StatefulWidget {
   final String userId;
 
-  const VehicleDetailsList({required this.userId, Key? key}) : super(key: key);
+  const VehicleDetailsList({required this.userId, super.key});
 
   @override
   State<VehicleDetailsList> createState() => _VehicleDetailsListState();
@@ -31,7 +32,7 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
   late StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
       _userStreamSubscription;
 
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _allVehicleDetails = [];
 
   @override
@@ -69,9 +70,9 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+    
       appBar: AppBar(
-        backgroundColor: kBackgroundColor,
+       
         elevation: 0,
         title: const Text(
           'Vehicle Details List',
@@ -81,26 +82,21 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
         ),
         leading: Center(
           child: CircleAvatar(
-            backgroundColor: kWhite,
-            child: CircleAvatar(
-              backgroundColor: kPrimaryColor,
-              radius:
-                  15, // Increase the radius to provide enough space for the IconButton
-              child: Center(
-                child: CircleAvatar(
-                  radius:
-                      14, // Adjust the radius to make the inner CircleAvatar smaller
-                  backgroundColor: kWhite,
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios,
-                      color: kPrimaryColor,
-                      size: 15,
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
+            backgroundColor: kPrimaryColor,
+            radius: 15,
+            child: Center(
+              child: CircleAvatar(
+                radius: 14,
+                backgroundColor: kWhite,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios,
+                    color: kPrimaryColor,
+                    size: 15,
                   ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
                 ),
               ),
             ),
@@ -132,16 +128,20 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
               setState(() {});
             },
           ),
-          MyButton(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const RcDetails()),
-              );
-            },
-            text: 'Create New RC Details',
-            isLoading: isLoading,
-            isEnabled: true,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            child: MyButton(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const RcDetails()),
+                );
+              },
+              text: 'Create New RC Details',
+              isLoading: isLoading,
+              isEnabled: true,
+              width: double.infinity, // Ensure full width
+            ),
           ),
           const SizedBox(
             height: 4,
@@ -155,7 +155,7 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
                 }
 
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return ShimmerLoadingList();
+                  return const ShimmerLoadingList();
                 }
 
                 var docs = _searchController.text.isNotEmpty
@@ -188,17 +188,16 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
                         ),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: kWhite, // Set the card background color
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: kPrimaryColor, // Set the border color
+                              color: kPrimaryColor,
                               width: 1,
                             ),
                           ),
                           child: Row(
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.only(
+                              const Padding(
+                                padding: EdgeInsets.only(
                                     top: 8, bottom: 8, left: 16, right: 16),
                                 child: Center(
                                   child: CircleAvatar(
@@ -207,15 +206,8 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
                                     child: Center(
                                       child: CircleAvatar(
                                         radius: 48,
-                                        backgroundImage: docs[index]['image'] !=
-                                                    null &&
-                                                docs[index]['image'].isNotEmpty
-                                            ? CachedNetworkImageProvider(
-                                                    docs[index]['image'])
-                                                as ImageProvider
-                                            : AssetImage(
-                                                'assets/icons/vehicle_rc.png'),
-                                      ),
+                                        backgroundImage:AssetImage('assets/icons/vehicle_rc.png'),
+),
                                     ),
                                   ),
                                 ),
@@ -237,7 +229,7 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
                                         children: [
                                           Text(
                                             docs[index]['vehicleNumber'],
-                                            style: TextStyle(
+                                            style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.w600,
                                             ),
@@ -253,11 +245,11 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
                                       ),
                                       Text(
                                         'Mobile: ${docs[index]['mobileNumber']}',
-                                        style: TextStyle(fontSize: 14),
+                                        style: const TextStyle(fontSize: 14),
                                       ),
                                       Text(
                                         'Service: ${docs[index]['service']}',
-                                        style: TextStyle(fontSize: 14),
+                                        style: const TextStyle(fontSize: 14),
                                       ),
                                       Padding(
                                         padding: const EdgeInsets.only(
@@ -267,7 +259,6 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
                                             Expanded(
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  // Handle edit action
                                                   Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
@@ -384,20 +375,20 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
       context: context,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: Text('Confirmation'),
+          title: const Text('Confirmation'),
           content:
-              Text('Are you sure you want to delete this vehicle details?'),
+              const Text('Are you sure you want to delete this vehicle details?'),
           actions: <Widget>[
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop();
               },
               child: const Text('Cancel'),
             ),
             TextButton(
               onPressed: () async {
                 await _deleteData(documentId);
-                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop();
               },
               child: const Text('Delete'),
             ),

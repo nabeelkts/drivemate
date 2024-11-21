@@ -1,90 +1,198 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:mds/constants/colors.dart';
+import 'package:mds/screens/authentication/widgets/my_button.dart';
+import 'package:mds/screens/dashboard/form/edit_forms/edit_endorsement_details_form.dart';
 
 class EndorsementDetailsPage extends StatelessWidget {
   final Map<String, dynamic> endorsementDetails;
 
-  EndorsementDetailsPage({required this.endorsementDetails, Key? key})
-      : super(key: key);
+  const EndorsementDetailsPage({required this.endorsementDetails, super.key});
 
-  final TextStyle textStyle = TextStyle(
-    fontSize: 18,
-    fontWeight: FontWeight.normal,
+  final TextStyle labelStyle = const TextStyle(
+    fontFamily: 'Inter',
+    fontSize: 13,
+    fontWeight: FontWeight.w500,
+    color: Color(0xFF000000),
+    height: 15.73 / 13,
+  );
+  final TextStyle valueStyle = const TextStyle(
+    fontFamily: 'Inter',
+    fontSize: 13,
+    fontWeight: FontWeight.w500,
+    color: Color(0xFF747474),
+    height: 15.73 / 13,
   );
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Endorsement Details'),
+        title: const Text('Endorsement Details'),
+        elevation: 0,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Container(
-          width: MediaQuery.of(context).size.width * 0.95,
-          height: MediaQuery.of(context).size.height * 0.95,
-          decoration: BoxDecoration(
-            shape: BoxShape.rectangle,
-            border: Border.all(),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          padding: EdgeInsets.all(8),
-          child: Table(
-            columnWidths: {
-              0: FlexColumnWidth(2),
-              1: FlexColumnWidth(2),
-            },
-            children: [
-              buildTableRow('Student Id', endorsementDetails['studentId']),
-              buildTableRow('Full Name', endorsementDetails['fullName']),
-              buildTableRow(
-                  'Guardian Name', endorsementDetails['guardianName']),
-              buildTableRow('Date of Birth', endorsementDetails['dob']),
-              buildTableRow(
-                  'Mobile Number', endorsementDetails['mobileNumber']),
-              buildTableRow(
-                  'Emergency Number', endorsementDetails['emergencyNumber']),
-              buildTableRow('Blood Group', endorsementDetails['bloodGroup']),
-              buildTableRow('Class of Vehicle', endorsementDetails['cov']),
-              buildTableRow('House', endorsementDetails['house']),
-              buildTableRow('Place', endorsementDetails['place']),
-              buildTableRow('Post', endorsementDetails['post']),
-              buildTableRow('District', endorsementDetails['district']),
-              buildTableRow('Pin', endorsementDetails['pin']),
-              buildTableRow('License', endorsementDetails['license']),
-              buildTableRow('Total Amount', endorsementDetails['totalAmount']),
-              buildTableRow(
-                  'Advance Amount', endorsementDetails['advanceAmount']),
-              buildTableRow(
-                  'Balance Amount', endorsementDetails['balanceAmount']),
-            ],
-          ),
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            const SizedBox(height: 20),
+            Stack(
+              children: [
+                CircleAvatar(
+                  radius: 60,
+                  backgroundImage: endorsementDetails['image'] != null &&
+                          endorsementDetails['image'].isNotEmpty
+                      ? CachedNetworkImageProvider(endorsementDetails['image'])
+                      : const AssetImage('assets/icons/user.png') as ImageProvider,
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(15),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.grey.withOpacity(0.5),
+                    spreadRadius: 2,
+                    blurRadius: 5,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Column(
+                children: [
+                  buildTableRow('Student Id', endorsementDetails['studentId']),
+                  const Divider(color: kDivider),
+                  buildTableRow('Full Name', endorsementDetails['fullName']),
+                  const Divider(color: kDivider),
+                  buildTableRow('Guardian Name', endorsementDetails['guardianName']),
+                  const Divider(color: kDivider),
+                  buildTableRow('Date of Birth', endorsementDetails['dob']),
+                  const Divider(color: kDivider),
+                  buildTableRow('Mobile Number', endorsementDetails['mobileNumber']),
+                  const Divider(color: kDivider),
+                  buildTableRow('Emergency Number', endorsementDetails['emergencyNumber']),
+                  const Divider(color: kDivider),
+                  buildTableRow('Blood Group', endorsementDetails['bloodGroup']),
+                  const Divider(color: kDivider),
+                  buildTableRow('Class of Vehicle', endorsementDetails['cov']),
+                  const Divider(color: kDivider),
+                  buildAddressRow(),
+                  const Divider(color: kDivider),
+                  buildTableRow('License', endorsementDetails['license']),
+                  const Divider(color: kDivider),
+                  buildTableRow('Total Amount', endorsementDetails['totalAmount']),
+                  const Divider(color: kDivider),
+                  buildTableRow('Advance Amount', endorsementDetails['advanceAmount']),
+                  const Divider(color: kDivider),
+                  buildTableRow('Balance Amount', endorsementDetails['balanceAmount']),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+              child: MyButton(
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditEndorsementDetailsForm(
+                        initialValues: endorsementDetails,
+                        items: const [
+                          'M/C',
+                          'LMV',
+                          'LMV + M/C ',
+                          'TRANS',
+                          'TRANS + M/C',
+                          'EXCAVATOR',
+                          'TRACTOR',
+                        ],
+                      ),
+                    ),
+                  );
+                },
+                text: 'Update Endorsements',
+                isLoading: false,
+                isEnabled: true,
+                width: double.infinity, // Adjust width as needed
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
         ),
       ),
     );
   }
 
-  TableRow buildTableRow(String label, dynamic value) {
-    return TableRow(
-      children: [
-        TableCell(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5),
-            child: Text(
-              '$label:',
-              style: textStyle,
-            ),
+  Widget buildTableRow(String label, dynamic value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            '$label:',
+            style: labelStyle,
           ),
-        ),
-        TableCell(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 5),
+          Flexible(
             child: Text(
               '$value',
-              style: textStyle.copyWith(fontWeight: FontWeight.bold),
+              style: valueStyle,
+              textAlign: TextAlign.right,
             ),
           ),
-        ),
-      ],
+        ],
+      ),
+    );
+  }
+
+  Widget buildAddressRow() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Address:',
+            style: labelStyle,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    endorsementDetails['house'] ?? '',
+                    style: valueStyle,
+                  ),
+                  Text(
+                    endorsementDetails['place'] ?? '',
+                    style: valueStyle,
+                  ),
+                  Text(
+                    endorsementDetails['post'] ?? '',
+                    style: valueStyle,
+                  ),
+                  Text(
+                    endorsementDetails['district'] ?? '',
+                    style: valueStyle,
+                  ),
+                  Text(
+                    endorsementDetails['pin'] ?? '',
+                    style: valueStyle,
+                  ),
+                ].where((element) => element.data!.isNotEmpty).toList(),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

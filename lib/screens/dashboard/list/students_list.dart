@@ -1,3 +1,5 @@
+// ignore_for_file: use_build_context_synchronously, use_super_parameters
+
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -7,11 +9,12 @@ import 'package:flutter/material.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/screens/authentication/widgets/my_button.dart';
 import 'package:mds/screens/dashboard/form/edit_forms/edit_student_details_form.dart';
+import 'package:mds/screens/dashboard/form/new_forms/new_student_form.dart';
 import 'package:mds/screens/dashboard/list/deactivated_student_list.dart';
 import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
 import 'package:mds/screens/dashboard/list/widgets/search_widget.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
-import 'package:mds/screens/widget/student_form.dart';
+import 'package:mds/screens/profile/dialog_box.dart';
 
 class StudentList extends StatefulWidget {
   final String userId;
@@ -68,14 +71,17 @@ class _StudentListState extends State<StudentList> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textColor = theme.textTheme.bodyLarge?.color ?? kBlack;
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+     // backgroundColor: kBackgroundColor,
       appBar: AppBar(
-        backgroundColor: kBackgroundColor,
+        //backgroundColor: kBackgroundColor,
         elevation: 0,
-        title: const Text(
+        title:  Text(
           'Student List',
           style: TextStyle(
+            color:textColor,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -133,16 +139,20 @@ class _StudentListState extends State<StudentList> {
               setState(() {});
             },
           ),
-          MyButton(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const StudentForm()),
-              );
-            },
-            text: 'Create New Student',
-            isLoading: isLoading,
-            isEnabled: true,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            child: MyButton(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const NewStudent()),
+                );
+              },
+              text: 'Create New Student',
+              isLoading: isLoading,
+              isEnabled: true,
+              width: double.infinity, // Ensure full width
+            ),
           ),
           const SizedBox(
             height: 4,
@@ -186,10 +196,9 @@ class _StudentListState extends State<StudentList> {
                         ),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: kWhite, // Set the card background color
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: kPrimaryColor, // Set the border color
+                              color: kPrimaryColor,
                               width: 1,
                             ),
                           ),
@@ -373,7 +382,6 @@ class _StudentListState extends State<StudentList> {
 
   Future<void> _deleteData(String studentId) async {
     if (studentId.isNotEmpty) {
-      // Get the student data
       var studentData = await FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
@@ -381,7 +389,6 @@ class _StudentListState extends State<StudentList> {
           .doc(studentId)
           .get();
 
-      // Move the student data to the "deactivated_students" collection
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
@@ -389,7 +396,6 @@ class _StudentListState extends State<StudentList> {
           .doc(studentId)
           .set(studentData.data() ?? {});
 
-      // Delete the student data from the original collection
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
@@ -400,41 +406,18 @@ class _StudentListState extends State<StudentList> {
   }
 
   Future<void> _showDeleteConfirmationDialog(String documentId) async {
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirmation'),
-          content:
-              const Text('Are you sure you want to Deactivate this student?'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await _deleteData(documentId);
-                // ignore: use_build_context_synchronously
-                Navigator.of(context).pop(); // Close the dialog
-
-                // Navigate to the "Deactivated List" page
-                // ignore: use_build_context_synchronously
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const DeactivatedStudentList(),
-                  ),
-                );
-              },
-              child: const Text(
-                'Deactivate',
-                style: TextStyle(color: kRed),
-              ),
-            ),
-          ],
+    showCustomConfirmationDialog(
+      context,
+      'Confirm Deactivation?',
+      'Are you sure ?',
+      () async {
+        await _deleteData(documentId);
+        Navigator.of(context).pop();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const DeactivatedStudentList(),
+          ),
         );
       },
     );

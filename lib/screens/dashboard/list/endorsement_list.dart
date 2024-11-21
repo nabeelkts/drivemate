@@ -16,7 +16,7 @@ import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 class EndorsementList extends StatefulWidget {
   final String userId;
 
-  const EndorsementList({required this.userId, Key? key}) : super(key: key);
+  const EndorsementList({required this.userId, super.key});
 
   @override
   State<EndorsementList> createState() => _EndorsementListState();
@@ -31,7 +31,7 @@ class _EndorsementListState extends State<EndorsementList> {
   late StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
       _userStreamSubscription;
 
-  TextEditingController _searchController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _allEndorsements = [];
 
   @override
@@ -69,9 +69,9 @@ class _EndorsementListState extends State<EndorsementList> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBackgroundColor,
+     
       appBar: AppBar(
-        backgroundColor: kBackgroundColor,
+        
         elevation: 0,
         title: const Text(
           'Endorsement List',
@@ -81,26 +81,21 @@ class _EndorsementListState extends State<EndorsementList> {
         ),
         leading: Center(
           child: CircleAvatar(
-            backgroundColor: kWhite,
-            child: CircleAvatar(
-              backgroundColor: kPrimaryColor,
-              radius:
-                  15, // Increase the radius to provide enough space for the IconButton
-              child: Center(
-                child: CircleAvatar(
-                  radius:
-                      14, // Adjust the radius to make the inner CircleAvatar smaller
-                  backgroundColor: kWhite,
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios,
-                      color: kPrimaryColor,
-                      size: 15,
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
+            backgroundColor: kPrimaryColor,
+            radius: 15,
+            child: Center(
+              child: CircleAvatar(
+                radius: 14,
+                backgroundColor: kWhite,
+                child: IconButton(
+                  icon: const Icon(
+                    Icons.arrow_back_ios,
+                    color: kPrimaryColor,
+                    size: 15,
                   ),
+                  onPressed: () {
+                    Navigator.pop(context);
+                  },
                 ),
               ),
             ),
@@ -132,16 +127,20 @@ class _EndorsementListState extends State<EndorsementList> {
               setState(() {});
             },
           ),
-          MyButton(
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const EndorsementDL()),
-              );
-            },
-            text: 'Create New Endorsement',
-            isLoading: isLoading,
-            isEnabled: true,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            child: MyButton(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const EndorsementDL()),
+                );
+              },
+              text: 'Create New Endorsement',
+              isLoading: isLoading,
+              isEnabled: true,
+              width: double.infinity, // Ensure full width
+            ),
           ),
           const SizedBox(
             height: 4,
@@ -185,10 +184,10 @@ class _EndorsementListState extends State<EndorsementList> {
                         ),
                         child: Container(
                           decoration: BoxDecoration(
-                            color: kWhite, // Set the card background color
+                            
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
-                              color: kPrimaryColor, // Set the border color
+                              color: kPrimaryColor,
                               width: 1,
                             ),
                           ),
@@ -210,7 +209,7 @@ class _EndorsementListState extends State<EndorsementList> {
                                             ? CachedNetworkImageProvider(
                                                     docs[index]['image'])
                                                 as ImageProvider
-                                            : AssetImage(
+                                            : const AssetImage(
                                                 'assets/icons/user.png'),
                                       ),
                                     ),
@@ -234,7 +233,7 @@ class _EndorsementListState extends State<EndorsementList> {
                                         children: [
                                           Text(
                                             docs[index]['fullName'],
-                                            style: TextStyle(
+                                            style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.w600,
                                             ),
@@ -264,7 +263,6 @@ class _EndorsementListState extends State<EndorsementList> {
                                             Expanded(
                                               child: GestureDetector(
                                                 onTap: () {
-                                                  // Handle edit action
                                                   Navigator.push(
                                                     context,
                                                     MaterialPageRoute(
@@ -272,7 +270,7 @@ class _EndorsementListState extends State<EndorsementList> {
                                                           EditEndorsementDetailsForm(
                                                         initialValues:
                                                             docs[index].data(),
-                                                        items: [
+                                                        items: const [
                                                           'M/C',
                                                           'LMV',
                                                           'LMV + M/C ',
@@ -376,7 +374,6 @@ class _EndorsementListState extends State<EndorsementList> {
 
   Future<void> _deleteData(String studentId) async {
     if (studentId.isNotEmpty) {
-      // Get the student data
       var studentData = await FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
@@ -384,7 +381,6 @@ class _EndorsementListState extends State<EndorsementList> {
           .doc(studentId)
           .get();
 
-// Move the student data to the "deactivated_students" collection
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
@@ -392,11 +388,10 @@ class _EndorsementListState extends State<EndorsementList> {
           .doc(studentId)
           .set(studentData.data() ?? {});
 
-      // Delete the student data from the original collection
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
-          .collection('students')
+          .collection('endorsement')
           .doc(studentId)
           .delete();
     }
@@ -413,7 +408,7 @@ class _EndorsementListState extends State<EndorsementList> {
           actions: <Widget>[
             TextButton(
               onPressed: () {
-                Navigator.of(context).pop(); // Close the dialog
+                Navigator.of(context).pop();
               },
               child: const Text('Cancel'),
             ),
@@ -421,9 +416,7 @@ class _EndorsementListState extends State<EndorsementList> {
               onPressed: () async {
                 await _deleteData(documentId);
                 // ignore: use_build_context_synchronously
-                Navigator.of(context).pop(); // Close the dialog
-
-                // Navigate to the "Deactivated List" page
+                Navigator.of(context).pop();
                 // ignore: use_build_context_synchronously
                 Navigator.pushReplacement(
                   context,

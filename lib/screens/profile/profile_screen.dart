@@ -1,83 +1,106 @@
+/* lib/screens/profile/profile_screen.dart */
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/controller/app_controller.dart';
 import 'package:mds/screens/authentication/google_sign_in.dart';
 import 'package:mds/screens/profile/action_button.dart';
 import 'package:provider/provider.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser!;
-    final AppController appController = Get.put(AppController());
+  // ignore: library_private_types_in_public_api
+  _ProfileScreenState createState() => _ProfileScreenState();
+}
 
-    void showLogoutConfirmationDialog() {
-      showDialog(
-        context: context,
-        builder: (BuildContext context) {
-          return Dialog(
-            shape: RoundedRectangleBorder(
+class _ProfileScreenState extends State<ProfileScreen> {
+  final user = FirebaseAuth.instance.currentUser!;
+  final AppController appController = Get.put(AppController());
+  final box = GetStorage();
+  late bool isDarkMode;
+
+  @override
+  void initState() {
+    super.initState();
+    isDarkMode = box.read('isDarkMode') ?? false;
+  }
+
+  void toggleTheme() {
+    setState(() {
+      isDarkMode = !isDarkMode;
+      box.write('isDarkMode', isDarkMode);
+      Get.changeThemeMode(isDarkMode ? ThemeMode.dark : ThemeMode.light);
+    });
+  }
+
+  void showLogoutConfirmationDialog() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 30),
+            decoration: BoxDecoration(
+              color: Colors.white,
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 30),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Confirm Logout?',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w600,
-                      fontSize: 21.4,
-                      color: kBlack,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Confirm Logout?',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 21.4,
+                    color: kBlack,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: ActionButton(
+                        text: 'Cancel',
+                        backgroundColor: const Color(0xFFFFF1F1),
+                        textColor: const Color(0xFFFF0000),
+                        onPressed: () => Navigator.of(context).pop(),
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: ActionButton(
-                          text: 'Cancel',
-                          backgroundColor: const Color(0xFFFFF1F1),
-                          textColor: const Color(0xFFFF0000),
-                          onPressed: () => Navigator.of(context).pop(), // Close the dialog
-                        ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: ActionButton(
+                        text: 'Logout',
+                        backgroundColor: const Color(0xFFF6FFF0),
+                        textColor: kBlack,
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          final provider = Provider.of<GoogleSignInProvider>(context, listen: false);
+                          provider.logout();
+                          FirebaseAuth.instance.signOut();
+                        },
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ActionButton(
-                          text: 'Logout',
-                          backgroundColor: const Color(0xFFF6FFF0),
-                          textColor: kBlack,
-                          onPressed: () {
-                            Navigator.of(context).pop(); // Close the dialog
-                            // Perform logout
-                            final provider = Provider.of<GoogleSignInProvider>(context, listen: false);
-                            provider.logout();
-                            FirebaseAuth.instance.signOut();
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          );
-        },
-      );
-    }
+          ),
+        );
+      },
+    );
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return SafeArea(
       child: Scaffold(
         appBar: AppBar(
@@ -87,34 +110,17 @@ class ProfileScreen extends StatelessWidget {
           ),
           actions: [
             GestureDetector(
-              onTap: () {
-                appController.checkForUpdate();
-                if (!appController.isLatestVersion.value) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('A new update is available!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('You are using the latest version.'),
-                      backgroundColor: Colors.blue,
-                    ),
-                  );
-                }
-              },
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                child: Icon(Icons.settings),
+              onTap: toggleTheme,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Icon(isDarkMode ? Icons.dark_mode : Icons.light_mode),
               ),
             ),
           ],
         ),
         body: Container(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          color: kWhite,
+         
           child: Column(
             children: [
               const SizedBox(height: 20),
@@ -128,10 +134,7 @@ class ProfileScreen extends StatelessWidget {
                     : null,
               ),
               const SizedBox(height: 20),
-
-              // Name Box
               Card(
-                color: Colors.white,
                 elevation: 2,
                 margin: const EdgeInsets.symmetric(vertical: 8),
                 child: Padding(
@@ -148,8 +151,6 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
-              // Email Box
               Card(
                 elevation: 2,
                 margin: const EdgeInsets.symmetric(vertical: 8),
@@ -175,8 +176,6 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
-              // Check for updates Box
               Card(
                 elevation: 2,
                 margin: const EdgeInsets.symmetric(vertical: 8),
@@ -199,10 +198,10 @@ class ProfileScreen extends StatelessWidget {
                       );
                     }
                   },
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+                  child: const Padding(
+                    padding: EdgeInsets.all(16.0),
                     child: Row(
-                      children: const [
+                      children: [
                         Icon(Icons.info_outline, color: kOrange),
                         SizedBox(width: 10),
                         Text(
@@ -214,8 +213,6 @@ class ProfileScreen extends StatelessWidget {
                   ),
                 ),
               ),
-
-              // App Version Box
               Obx(() => Card(
                     elevation: 2,
                     margin: const EdgeInsets.symmetric(vertical: 8),
@@ -233,17 +230,15 @@ class ProfileScreen extends StatelessWidget {
                       ),
                     ),
                   )),
-
-              // Logout Box with tap to confirm
               GestureDetector(
                 onTap: showLogoutConfirmationDialog,
-                child: Card(
+                child: const Card(
                   elevation: 2,
-                  margin: const EdgeInsets.symmetric(vertical: 16),
+                  margin: EdgeInsets.symmetric(vertical: 16),
                   child: Padding(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: EdgeInsets.all(16.0),
                     child: Row(
-                      children: const [
+                      children: [
                         Icon(Icons.logout, color: Colors.red),
                         SizedBox(width: 10),
                         Text(

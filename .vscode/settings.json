@@ -2,5 +2,8 @@
     "java.compile.nullAnalysis.mode": "automatic",
     "fluttergpt.apiKey": "AIzaSyAinztrMnv_CUvzMdNGGaIihGa6rHkn9AA",
     "cmake.sourceDirectory": "D:/mds/mds/build/windows/x64/extracted/firebase_cpp_sdk_windows",
-    "cmake.ignoreCMakeListsMissing": true
+    "cmake.ignoreCMakeListsMissing": true,
+    "cSpell.words": [
+        "buildscript"
+    ]
 }

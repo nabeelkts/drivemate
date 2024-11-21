@@ -18,3 +18,4 @@ const listTextStyle = TextStyle(
   fontSize: 12,
   fontWeight: FontWeight.w500,
 );
+const kDivider = kOrange;

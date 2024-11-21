@@ -1,3 +1,4 @@
+/* lib/screens/authentication/email_verification.dart */
 // ignore_for_file: use_build_context_synchronously
 
 import 'dart:async';
@@ -22,6 +23,7 @@ class _EmailVerificationState extends State<EmailVerification> {
   late User user;
   late Timer timer;
   int secondsRemaining = 30;
+
   @override
   void initState() {
     user = auth.currentUser!;
@@ -53,10 +55,13 @@ class _EmailVerificationState extends State<EmailVerification> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textColor = theme.textTheme.bodyLarge?.color ?? kBlack;
+
     return Scaffold(
-        backgroundColor: kWhite,
-        body: SafeArea(
-            child: SingleChildScrollView(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      body: SafeArea(
+        child: SingleChildScrollView(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -80,10 +85,10 @@ class _EmailVerificationState extends State<EmailVerification> {
                     mainAxisAlignment: MainAxisAlignment.start,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         'Email Verification',
                         style: TextStyle(
-                          color: kBlack,
+                          color: textColor,
                           fontSize: 36,
                           fontFamily: 'Inter',
                           fontWeight: FontWeight.w600,
@@ -93,8 +98,8 @@ class _EmailVerificationState extends State<EmailVerification> {
                       const SizedBox(height: 8),
                       Text(
                         'An email has been sent to ${user.email}, please verify.',
-                        style: const TextStyle(
-                          color: kBlack,
+                        style: TextStyle(
+                          color: textColor,
                           fontSize: 16,
                           fontFamily: 'Inter',
                           fontWeight: FontWeight.w300,
@@ -154,7 +159,9 @@ class _EmailVerificationState extends State<EmailVerification> {
               ),
             ],
           ),
-        )));
+        ),
+      ),
+    );
   }
 
   Future<void> checkEmailVerified() async {

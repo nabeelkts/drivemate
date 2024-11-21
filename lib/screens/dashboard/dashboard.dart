@@ -11,28 +11,29 @@ class Dashboard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // ignore: unused_local_variable
     final AppController appController = Get.put(AppController());
 
-    return SafeArea(
+    return const SafeArea(
       child: Scaffold(
         body: SingleChildScrollView(
           child: Column(
             children: [
-              const DashAppBar(),
+              DashAppBar(),
               SizedBox(
-                height: 515,
+                height: 495,
                 child: Stack(
                   children: [
                     FirstImageContainer(),
-                    const Positioned(
-                      top: 185,
+                    Positioned(
+                      top: 200,
                       left: 0,
                       right: 0,
                       child: RegistrationHeader(),
                     ),
                   ],
                 ),
-              ),
+              ),SizedBox(height: 20,),
               SecondImageContainer(),
             ],
           ),

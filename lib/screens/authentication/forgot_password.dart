@@ -1,3 +1,4 @@
+/* lib/screens/authentication/forgot_password.dart */
 // ignore_for_file: use_build_context_synchronously
 
 import 'package:firebase_auth/firebase_auth.dart';
@@ -21,6 +22,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final emailController = TextEditingController();
   late String email;
   bool passwordObscured = true;
+
   void togglePasswordVisibility() {
     setState(() {
       passwordObscured = !passwordObscured;
@@ -29,6 +31,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textColor = theme.textTheme.bodyLarge?.color ?? kBlack;
+
     resetPass() async {
       try {
         await FirebaseAuth.instance
@@ -55,87 +60,95 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
 
     return Scaffold(
-      backgroundColor: kWhite,
+      backgroundColor: theme.scaffoldBackgroundColor,
       body: SafeArea(
-          child: SingleChildScrollView(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 50),
-            Center(
-              child: SizedBox(
-                height: 50,
-                width: 180,
-                child: Image.asset('assets/icons/Drivemate.png'),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 50),
+              Center(
+                child: SizedBox(
+                  height: 50,
+                  width: 180,
+                  child: Image.asset('assets/icons/Drivemate.png'),
+                ),
               ),
-            ),
-            const SizedBox(height: 98),
-            const SizedBox(
-              width: 350,
-              height: 71,
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: 20.0),
+              const SizedBox(height: 98),
+              SizedBox(
+                width: 350,
+                height: 71,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Reset Password',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 36,
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w600,
+                          height: 0,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Reset password with your email!',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 16,
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w300,
+                          height: 0,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 37),
+              Form(
+                key: formKey,
                 child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Reset Password',
-                      style: TextStyle(
-                        color: kBlack,
-                        fontSize: 36,
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w600,
-                        height: 0,
-                      ),
-                    ),
-                    SizedBox(height: 8),
-                    Text(
-                      'Reset password with your email!',
-                      style: TextStyle(
-                        color: kBlack,
-                        fontSize: 16,
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w300,
-                        height: 0,
-                      ),
+                    MyFormTextField(
+                      controller: emailController,
+                      hintText: 'Enter here',
+                      obscureText: false,
+                      labelText: 'Email Address',
+                      validator: EmailValidator.validate,
+                      onTapEyeIcon: togglePasswordVisibility,
                     ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(height: 37),
-            Form(
-              key: formKey,
-              child: Column(children: [
-                MyFormTextField(
-                  controller: emailController,
-                  hintText: 'Enter here',
-                  obscureText: false,
-                  labelText: 'Email Address',
-                  validator: EmailValidator.validate,
-                  onTapEyeIcon: togglePasswordVisibility,
+              const SizedBox(height: 32),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                child: MyButton(
+                  onTap: () {
+                    if (formKey.currentState!.validate()) {
+                      setState(() {
+                        email = emailController.text;
+                        resetPass();
+                      });
+                    }
+                  },
+                  text: 'Reset Password',
+                  isLoading: isLoading,
+                  isEnabled: true,
+                  width: double.infinity,
                 ),
-              ]),
-            ),
-            const SizedBox(height: 32),
-            MyButton(
-                onTap: () {
-                  if (formKey.currentState!.validate()) {
-                    setState(() {
-                      email = emailController.text;
-                      resetPass();
-                    });
-                  }
-                },
-                text: 'Reset Password',
-                isLoading: isLoading,
-                isEnabled: true),
-          ],
+              ),
+            ],
+          ),
         ),
-      )),
+      ),
     );
   }
 }

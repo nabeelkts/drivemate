@@ -9,6 +9,7 @@ class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
+  // ignore: library_private_types_in_public_api
   _SplashScreenState createState() => _SplashScreenState();
 }
 
@@ -23,10 +24,10 @@ class _SplashScreenState extends State<SplashScreen> {
     final prefs = await SharedPreferences.getInstance();
     final isFirstLaunch = prefs.getBool('isFirstLaunch') ?? true;
 
-    await Future.delayed(const Duration(seconds: 3));
+    await Future.delayed(const Duration(seconds: 1));
 
     if (isFirstLaunch) {
-      Get.off(() => OnboardingScreen(), transition: Transition.fadeIn, duration: const Duration(milliseconds: 800));
+      Get.off(() => const OnboardingScreen(), transition: Transition.fadeIn, duration: const Duration(milliseconds: 800));
     } else {
       Get.off(() => const AuthPage(), transition: Transition.fadeIn, duration: const Duration(milliseconds: 800));
     }

@@ -1,3 +1,5 @@
+// ignore_for_file: use_key_in_widget_constructors
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 
@@ -33,7 +35,7 @@ class RegistrationIcon extends StatelessWidget {
       },
       child: Container(
         width: 85.0,
-        height: 100,
+        height: 95,
         //padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5.50),
         decoration: ShapeDecoration(
           color: Colors.white,

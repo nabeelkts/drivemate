@@ -1,8 +1,6 @@
-// ignore_for_file: avoid_single_cascade_in_expression_statements
-
+/* lib/screens/dashboard/form/new_forms/new_student_form.dart */
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -17,63 +15,62 @@ class NewStudent extends StatelessWidget {
     User? user = FirebaseAuth.instance.currentUser;
     final CollectionReference usersCollection =
         FirebaseFirestore.instance.collection('users');
-    return CupertinoPageScaffold(
-      backgroundColor: CupertinoColors.systemGroupedBackground,
-      child: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) => [
-          const CupertinoSliverNavigationBar(
-            backgroundColor: Colors.transparent,
-            largeTitle: Text(
-              'New Student',
-              style: TextStyle(fontSize: 25),
-            ),
-            border: Border(),
-          ),
-        ],
-        body: CommonForm(
-          items: const [
-            'M/C Study',
-            'LMV Study',
-            'LMV Study + M/C Study',
-            'LMV Study + M/C License',
-          ],
-          index: 3,
-          showLicenseField: false,
-          onFormSubmit: (student) {
-            String studentId = student['studentId'];
-            // Get the current date and time
-            DateTime currentDate = DateTime.now();
-            String formattedDate = currentDate.toLocal().toString();
+    final CollectionReference notificationsCollection =
+        FirebaseFirestore.instance.collection('notifications');
 
-            // Include the date and time in the student data
-            student['registrationDate'] = formattedDate;
-            // Append the student data to the 'students' collection in Firestore
-            usersCollection
-                .doc(user?.uid) // Assuming the user is logged in
-                .collection('students')
-              ..doc(studentId) // Set the document ID as the studentId
-                  .set(student)
-                  .then((value) {
-                // Show a toast or navigate to a success screen
-                Fluttertoast.showToast(
-                  msg: 'New Student Registration Completed',
-                  fontSize: 18,
-                ); // Navigate to the dashboard
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                      builder: (context) =>
-                          StudentDetailsPage(studentDetails: student)),
-                );
-                // Replace with your dashboard screen
-              }).catchError((error) {
-                // Handle errors
-                if (kDebugMode) {
-                  print('Failed to add student: $error');
-                }
-              });
-          },
-        ),
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('New Student'),
+        elevation: 0,
+      ),
+      body: CommonForm(
+        items: const [
+          'M/C Study',
+          'LMV Study',
+          'LMV Study + M/C Study',
+          'LMV Study + M/C License',
+        ],
+        index: 3,
+        showLicenseField: false,
+        onFormSubmit: (student) {
+          String studentId = student['studentId'];
+          DateTime currentDate = DateTime.now();
+          String formattedDate = currentDate.toLocal().toString();
+
+          student['registrationDate'] = formattedDate;
+
+          usersCollection
+              .doc(user?.uid)
+              .collection('students')
+              .doc(studentId)
+              .set(student)
+              .then((value) {
+            notificationsCollection.add({
+              'title': 'New Student Registration',
+              'date': formattedDate,
+              'details': 'Student Name: ${student['name']}\nCourse: ${student['course']}',
+            }).then((value) {
+              Fluttertoast.showToast(
+                msg: 'New Student Registration Completed',
+                fontSize: 18,
+              );
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                    builder: (context) =>
+                        StudentDetailsPage(studentDetails: student)),
+              );
+            }).catchError((error) {
+              if (kDebugMode) {
+                print('Failed to add notification: $error');
+              }
+            });
+          }).catchError((error) {
+            if (kDebugMode) {
+              print('Failed to add student: $error');
+            }
+          });
+        },
       ),
     );
   }
