@@ -29,10 +29,10 @@ class SearchWidget extends StatelessWidget {
           ),
           hintText: placeholder,
           hintStyle: TextStyle(
-            color: Colors.grey[400],
+           // color: Colors.grey[400],
           ),
           filled: true,
-          fillColor: kWhite,
+          //fillColor: kWhite,
           // Adjust the vertical padding here
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(30.0),

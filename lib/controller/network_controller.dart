@@ -13,12 +13,12 @@ class NetworkController extends GetxController {
     _checkInitialConnectivity();
 
     // Listen for connectivity changes
-    _connectivity.onConnectivityChanged.listen(_updateConnectionStatus);
+    _connectivity.onConnectivityChanged.listen(_updateConnectionStatus as void Function(List<ConnectivityResult> event)?);
   }
 
   void _checkInitialConnectivity() async {
     ConnectivityResult connectivityResult =
-        await _connectivity.checkConnectivity();
+        (await _connectivity.checkConnectivity()) as ConnectivityResult;
     _updateConnectionStatus(connectivityResult);
   }
 

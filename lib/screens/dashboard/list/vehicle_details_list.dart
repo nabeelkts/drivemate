@@ -13,6 +13,7 @@ import 'package:mds/screens/dashboard/list/deactivated_vehicle_list.dart';
 import 'package:mds/screens/dashboard/list/details/rc_details_page.dart';
 import 'package:mds/screens/dashboard/list/widgets/search_widget.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:mds/screens/profile/dialog_box.dart';
 
 class VehicleDetailsList extends StatefulWidget {
   final String userId;
@@ -371,30 +372,21 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
   }
 
   Future<void> _showDeleteConfirmationDialog(String documentId) async {
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirmation'),
-          content:
-              const Text('Are you sure you want to delete this vehicle details?'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await _deleteData(documentId);
-                Navigator.of(context).pop();
-              },
-              child: const Text('Delete'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  showCustomConfirmationDialog(
+    context,
+    'Confirm Deactivation?',
+    'Are you sure ?',
+    () async {
+      await _deleteData(documentId);
+      Navigator.of(context).pop();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const DeactivatedVehicleList(),
+        ),
+      );
+    },
+  );
+}
+
 }

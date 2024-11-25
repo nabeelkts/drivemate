@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mds/constants/colors.dart';
 import 'package:mds/screens/authentication/auth_page.dart';
 import 'package:mds/screens/onboarding/onboard.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -36,7 +35,7 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kWhite,
+      //backgroundColor: kWhite,
       body: Center(
         child: SizedBox(
           height: 200,

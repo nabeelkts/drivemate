@@ -33,18 +33,14 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final box = GetStorage();
-    // Check if the theme preference is already stored
     bool? isDarkMode = box.read('isDarkMode');
 
-    // If not stored, use the system preference
     if (isDarkMode == null) {
-      // ignore: deprecated_member_use
       final brightness = WidgetsBinding.instance.window.platformBrightness;
       isDarkMode = brightness == Brightness.dark;
       box.write('isDarkMode', isDarkMode);
     }
 
-    // Define light and dark themes
     final ThemeData lightTheme = ThemeData(
       brightness: Brightness.light,
       primaryColor: Colors.blue,
@@ -53,7 +49,6 @@ class MyApp extends StatelessWidget {
         bodyLarge: TextStyle(color: Colors.black),
         bodyMedium: TextStyle(color: Colors.black),
       ),
-      // Add other theme properties as needed
     );
 
     final ThemeData darkTheme = ThemeData(
@@ -64,7 +59,6 @@ class MyApp extends StatelessWidget {
         bodyLarge: TextStyle(color: Colors.white),
         bodyMedium: TextStyle(color: Colors.white),
       ),
-      // Add other theme properties as needed
     );
 
     return ChangeNotifierProvider(
@@ -76,7 +70,7 @@ class MyApp extends StatelessWidget {
         theme: lightTheme,
         darkTheme: darkTheme,
         routes: {
-          '/students': (context) => const StudentList(userId: ''),
+         '/students': (context) => StudentList(userId: ''), // Ensure this matches the class name
           '/license': (context) => const LicenseOnlyList(userId: ''),
           '/endorse': (context) => const EndorsementList(userId: ''),
           '/rc': (context) => const VehicleDetailsList(userId: ''),

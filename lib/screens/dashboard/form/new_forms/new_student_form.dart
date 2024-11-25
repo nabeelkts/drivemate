@@ -38,7 +38,7 @@ class NewStudent extends StatelessWidget {
           String formattedDate = currentDate.toLocal().toString();
 
           student['registrationDate'] = formattedDate;
-
+ print('Adding student: ${student['name']}, Course: ${student['course']}');
           usersCollection
               .doc(user?.uid)
               .collection('students')
@@ -48,7 +48,7 @@ class NewStudent extends StatelessWidget {
             notificationsCollection.add({
               'title': 'New Student Registration',
               'date': formattedDate,
-              'details': 'Student Name: ${student['name']}\nCourse: ${student['course']}',
+              'details': 'Student Name: ${student['fullName']}\nCourse: ${student['cov']}',
             }).then((value) {
               Fluttertoast.showToast(
                 msg: 'New Student Registration Completed',

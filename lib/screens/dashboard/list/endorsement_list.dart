@@ -12,6 +12,7 @@ import 'package:mds/screens/dashboard/list/deactivated_endorsement_list.dart';
 import 'package:mds/screens/dashboard/list/details/endorsement_details_page.dart';
 import 'package:mds/screens/dashboard/list/widgets/search_widget.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:mds/screens/profile/dialog_box.dart';
 
 class EndorsementList extends StatefulWidget {
   final String userId;
@@ -398,41 +399,21 @@ class _EndorsementListState extends State<EndorsementList> {
   }
 
   Future<void> _showDeleteConfirmationDialog(String documentId) async {
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirmation'),
-          content:
-              const Text('Are you sure you want to Deactivate this student?'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await _deleteData(documentId);
-                // ignore: use_build_context_synchronously
-                Navigator.of(context).pop();
-                // ignore: use_build_context_synchronously
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const DeactivatedEndorsementList(),
-                  ),
-                );
-              },
-              child: const Text(
-                'Deactivate',
-                style: TextStyle(color: kRed),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  showCustomConfirmationDialog(
+    context,
+    'Confirm Deactivation?',
+    'Are you sure ?',
+    () async {
+      await _deleteData(documentId);
+      Navigator.of(context).pop();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const DeactivatedEndorsementList(),
+        ),
+      );
+    },
+  );
+}
+
 }

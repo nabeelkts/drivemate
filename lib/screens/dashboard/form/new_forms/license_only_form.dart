@@ -43,10 +43,11 @@ class LicenseOnly extends StatelessWidget {
               .doc(studentId)
               .set(licenseonly)
               .then((value) {
+            // Add notification to Firestore
             notificationsCollection.add({
               'title': 'New License Registration',
               'date': formattedDate,
-              'details': 'Student Name: ${licenseonly['name']}\nCourse: ${licenseonly['course']}',
+              'details': 'Student Name: ${licenseonly['fullName']}\nCourse: ${licenseonly['cov']}',
             }).then((value) {
               Fluttertoast.showToast(
                 msg: 'License Only Registration Completed',

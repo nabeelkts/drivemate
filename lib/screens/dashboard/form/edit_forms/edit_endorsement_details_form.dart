@@ -1,4 +1,3 @@
-/* lib/screens/dashboard/form/edit_forms/edit_endorsement_details_form.dart */
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,9 +7,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart'; // Import for date formatting
 import 'package:mds/screens/authentication/widgets/my_button.dart';
 
-// ignore: must_be_immutable
 class EditEndorsementDetailsForm extends StatefulWidget {
   final Map<String, dynamic> initialValues;
   final List<String> items;
@@ -23,13 +22,10 @@ class EditEndorsementDetailsForm extends StatefulWidget {
   });
 
   @override
-  // ignore: library_private_types_in_public_api
-  _EditEndorsementDetailsFormState createState() =>
-      _EditEndorsementDetailsFormState();
+  _EditEndorsementDetailsFormState createState() => _EditEndorsementDetailsFormState();
 }
 
-class _EditEndorsementDetailsFormState
-    extends State<EditEndorsementDetailsForm> {
+class _EditEndorsementDetailsFormState extends State<EditEndorsementDetailsForm> {
   final formKey = GlobalKey<FormState>();
   bool isLoading = false;
   File? _image;
@@ -54,6 +50,12 @@ class _EditEndorsementDetailsFormState
   late TextEditingController balanceAmountController;
   late TextEditingController covController;
   late FixedExtentScrollController scrollController;
+
+  bool secondInstallmentChanged = false;
+  bool thirdInstallmentChanged = false;
+
+  final CollectionReference notificationsCollection =
+      FirebaseFirestore.instance.collection('notifications');
 
   @override
   void initState() {
@@ -90,8 +92,14 @@ class _EditEndorsementDetailsFormState
   void setupListeners() {
     totalAmountController.addListener(updateBalanceAmount);
     advanceAmountController.addListener(updateBalanceAmount);
-    secondInstallmentController.addListener(updateBalanceAmount);
-    thirdInstallmentController.addListener(updateBalanceAmount);
+    secondInstallmentController.addListener(() {
+      updateBalanceAmount();
+      secondInstallmentChanged = true;
+    });
+    thirdInstallmentController.addListener(() {
+      updateBalanceAmount();
+      thirdInstallmentChanged = true;
+    });
   }
 
   void updateBalanceAmount() {
@@ -182,8 +190,8 @@ class _EditEndorsementDetailsFormState
   Widget buildProfileImageSection() {
     return buildSectionContainer(
       children: [
-        Stack(
-          alignment: Alignment.center,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircleAvatar(
               radius: 60,
@@ -372,8 +380,7 @@ class _EditEndorsementDetailsFormState
               covController.text = widget.items[index];
             });
           },
-          children: widget.items.map((item) => Center(child: Text(item, style: TextStyle(
-            color: Theme.of(context).textTheme.bodyLarge?.color)))).toList(),
+          children: widget.items.map((item) => Center(child: Text(item, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)))).toList(),
         ),
       );
 
@@ -388,7 +395,6 @@ class _EditEndorsementDetailsFormState
       final endorsement = await updateEndorsementData();
       await updateFirestore(endorsement);
       showSuccessMessage();
-      // ignore: use_build_context_synchronously
       Navigator.pop(context);
     } catch (error) {
       showErrorMessage(error.toString());
@@ -406,7 +412,10 @@ class _EditEndorsementDetailsFormState
       imageUrl = await uploadImage();
     }
 
-    return {
+    final now = DateTime.now();
+    final formattedDate = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+
+    Map<String, dynamic> updatedData = {
       'studentId': studentIdController.text,
       'fullName': fullNameController.text,
       'guardianName': guardianNameController.text,
@@ -429,6 +438,16 @@ class _EditEndorsementDetailsFormState
       'image': imageUrl,
       'registrationDate': widget.initialValues['registrationDate'],
     };
+
+    if (secondInstallmentChanged) {
+      updatedData['secondInstallmentTime'] = formattedDate;
+    }
+
+    if (thirdInstallmentChanged) {
+      updatedData['thirdInstallmentTime'] = formattedDate;
+    }
+
+    return updatedData;
   }
 
   Future<String> uploadImage() async {
@@ -450,12 +469,33 @@ class _EditEndorsementDetailsFormState
   Future<void> updateFirestore(Map<String, dynamic> endorsement) async {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
-      await FirebaseFirestore.instance
+      final endorsementDoc = FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
           .collection('endorsement')
-          .doc(endorsement['studentId'])
-          .set(endorsement);
+          .doc(endorsement['studentId']);
+
+      await endorsementDoc.update(endorsement);
+
+      // Add notifications for installment updates if amount is greater than zero
+      double secondInstallment = double.tryParse(secondInstallmentController.text) ?? 0.0;
+      double thirdInstallment = double.tryParse(thirdInstallmentController.text) ?? 0.0;
+
+      if (secondInstallmentChanged && secondInstallment > 0) {
+        await notificationsCollection.add({
+          'title': 'Second Installment Updated',
+          'date': DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+          'details': 'Second installment updated for: ${endorsement['fullName']}',
+        });
+      }
+
+      if (thirdInstallmentChanged && thirdInstallment > 0) {
+        await notificationsCollection.add({
+          'title': 'Third Installment Updated',
+          'date': DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+          'details': 'Third installment updated for: ${endorsement['fullName']}',
+        });
+      }
     } catch (e) {
       throw 'Failed to update endorsement data: $e';
     }

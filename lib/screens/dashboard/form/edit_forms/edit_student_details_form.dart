@@ -1,4 +1,3 @@
-/* lib/screens/dashboard/form/edit_forms/edit_student_details_form.dart */
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -8,9 +7,9 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart'; // Import for date formatting
 import 'package:mds/screens/authentication/widgets/my_button.dart';
 
-// ignore: must_be_immutable
 class EditStudentDetailsForm extends StatefulWidget {
   final Map<String, dynamic> initialValues;
   final List<String> items;
@@ -23,7 +22,6 @@ class EditStudentDetailsForm extends StatefulWidget {
   });
 
   @override
-  // ignore: library_private_types_in_public_api
   _EditStudentDetailsFormState createState() => _EditStudentDetailsFormState();
 }
 
@@ -52,6 +50,12 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
   late TextEditingController balanceAmountController;
   late TextEditingController covController;
   late FixedExtentScrollController scrollController;
+
+  bool secondInstallmentChanged = false;
+  bool thirdInstallmentChanged = false;
+
+  final CollectionReference notificationsCollection =
+      FirebaseFirestore.instance.collection('notifications');
 
   @override
   void initState() {
@@ -88,8 +92,14 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
   void setupListeners() {
     totalAmountController.addListener(updateBalanceAmount);
     advanceAmountController.addListener(updateBalanceAmount);
-    secondInstallmentController.addListener(updateBalanceAmount);
-    thirdInstallmentController.addListener(updateBalanceAmount);
+    secondInstallmentController.addListener(() {
+      updateBalanceAmount();
+      secondInstallmentChanged = true;
+    });
+    thirdInstallmentController.addListener(() {
+      updateBalanceAmount();
+      thirdInstallmentChanged = true;
+    });
   }
 
   void updateBalanceAmount() {
@@ -152,8 +162,6 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
-    // ignore: unused_local_variable
-    final backgroundColor = theme.cardColor;
 
     return Scaffold(
       appBar: AppBar(
@@ -182,8 +190,8 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
   Widget buildProfileImageSection() {
     return buildSectionContainer(
       children: [
-        Stack(
-          alignment: Alignment.center,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircleAvatar(
               radius: 60,
@@ -386,7 +394,6 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
       final student = await updateStudentData();
       await updateFirestore(student);
       showSuccessMessage();
-      // ignore: use_build_context_synchronously
       Navigator.pop(context);
     } catch (error) {
       showErrorMessage(error.toString());
@@ -404,7 +411,10 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
       imageUrl = await uploadImage();
     }
 
-    return {
+    final now = DateTime.now();
+    final formattedDate = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+
+    Map<String, dynamic> updatedData = {
       'studentId': studentIdController.text,
       'fullName': fullNameController.text,
       'guardianName': guardianNameController.text,
@@ -427,6 +437,16 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
       'image': imageUrl,
       'registrationDate': widget.initialValues['registrationDate'],
     };
+
+    if (secondInstallmentChanged) {
+      updatedData['secondInstallmentTime'] = formattedDate;
+    }
+
+    if (thirdInstallmentChanged) {
+      updatedData['thirdInstallmentTime'] = formattedDate;
+    }
+
+    return updatedData;
   }
 
   Future<String> uploadImage() async {
@@ -448,12 +468,33 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
   Future<void> updateFirestore(Map<String, dynamic> student) async {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
-      await FirebaseFirestore.instance
+      final studentDoc = FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
           .collection('students')
-          .doc(student['studentId'])
-          .set(student);
+          .doc(student['studentId']);
+
+      await studentDoc.update(student);
+
+      // Add notifications for installment updates if amount is greater than zero
+      double secondInstallment = double.tryParse(secondInstallmentController.text) ?? 0.0;
+      double thirdInstallment = double.tryParse(thirdInstallmentController.text) ?? 0.0;
+
+      if (secondInstallmentChanged && secondInstallment > 0) {
+        await notificationsCollection.add({
+          'title': 'Second Installment Updated',
+          'date': DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+          'details': 'Second installment updated for: ${student['fullName']}',
+        });
+      }
+
+      if (thirdInstallmentChanged && thirdInstallment > 0) {
+        await notificationsCollection.add({
+          'title': 'Third Installment Updated',
+          'date': DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+          'details': 'Third installment updated for: ${student['fullName']}',
+        });
+      }
     } catch (e) {
       throw 'Failed to update student data: $e';
     }

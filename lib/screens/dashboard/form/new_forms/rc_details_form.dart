@@ -1,4 +1,3 @@
-/* lib/screens/dashboard/form/new_forms/rc_details_form.dart */
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
@@ -50,6 +49,8 @@ class _RcDetailsState extends State<RcDetails> {
 
   final CollectionReference usersCollection =
       FirebaseFirestore.instance.collection('users');
+  final CollectionReference notificationsCollection =
+      FirebaseFirestore.instance.collection('notifications');
 
   @override
   void initState() {
@@ -154,7 +155,13 @@ class _RcDetailsState extends State<RcDetails> {
             scrollController = FixedExtentScrollController(initialItem: index);
             showCupertinoModalPopup(
               context: context,
-              builder: (context) => buildPicker(),
+              builder: (context) => CupertinoActionSheet(
+                actions: [buildPicker()],
+                cancelButton: CupertinoActionSheetAction(
+                  child: const Text('Done'),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
             );
           },
           controller: serviceController,
@@ -308,6 +315,13 @@ class _RcDetailsState extends State<RcDetails> {
           .collection('vehicleDetails')
           .doc(documentId)
           .set(vehicleDetails);
+
+      // Add notification to Firestore
+      await notificationsCollection.add({
+        'title': 'New RC Registration',
+        'date': formattedDate,
+        'details': 'Vehicle Number: ${vehicleDetails['vehicleNumber']}\nService: ${vehicleDetails['service']}',
+      });
 
       Fluttertoast.showToast(
         msg: 'Registration is Successful',

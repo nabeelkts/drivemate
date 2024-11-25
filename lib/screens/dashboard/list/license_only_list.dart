@@ -14,6 +14,7 @@ import 'package:mds/screens/dashboard/list/deactivated_licenseonly_list.dart';
 import 'package:mds/screens/dashboard/list/details/license_only_details_page.dart';
 import 'package:mds/screens/dashboard/list/widgets/search_widget.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:mds/screens/profile/dialog_box.dart';
 
 class LicenseOnlyList extends StatefulWidget {
   final String userId;
@@ -396,39 +397,20 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
   }
 
   Future<void> _showDeleteConfirmationDialog(String documentId) async {
-    return showDialog<void>(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: const Text('Confirmation'),
-          content:
-              const Text('Are you sure you want to Deactivate this student?'),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                await _deleteData(documentId);
-                Navigator.of(context).pop();
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const DeactivatedLicenseOnlyList(),
-                  ),
-                );
-              },
-              child: const Text(
-                'Deactivate',
-                style: TextStyle(color: kRed),
-              ),
-            ),
-          ],
-        );
-      },
-    );
-  }
+  showCustomConfirmationDialog(
+    context,
+    'Confirm Deactivation?',
+    'Are you sure ?',
+    () async {
+      await _deleteData(documentId);
+      Navigator.of(context).pop();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const DeactivatedLicenseOnlyList(),
+        ),
+      );
+    },
+  );
+}
 }

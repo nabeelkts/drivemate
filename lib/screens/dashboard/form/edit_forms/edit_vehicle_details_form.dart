@@ -1,9 +1,9 @@
-/* lib/screens/dashboard/form/edit_forms/edit_vehicle_details_form.dart */
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
+import 'package:intl/intl.dart'; // Import for date formatting
 
 class EditVehicleDetailsForm extends StatefulWidget {
   final Map<String, dynamic> initialData;
@@ -11,7 +11,6 @@ class EditVehicleDetailsForm extends StatefulWidget {
   const EditVehicleDetailsForm({required this.initialData, super.key});
 
   @override
-  // ignore: library_private_types_in_public_api
   _EditVehicleDetailsFormState createState() => _EditVehicleDetailsFormState();
 }
 
@@ -49,6 +48,12 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
     'INSURANCE',
   ];
 
+  bool secondInstallmentChanged = false;
+  bool thirdInstallmentChanged = false;
+
+  final CollectionReference notificationsCollection =
+      FirebaseFirestore.instance.collection('notifications');
+
   @override
   void initState() {
     super.initState();
@@ -75,8 +80,14 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
   void setupListeners() {
     totalAmountController.addListener(updateBalanceAmount);
     advanceAmountController.addListener(updateBalanceAmount);
-    secondInstallmentController.addListener(updateBalanceAmount);
-    thirdInstallmentController.addListener(updateBalanceAmount);
+    secondInstallmentController.addListener(() {
+      updateBalanceAmount();
+      secondInstallmentChanged = true;
+    });
+    thirdInstallmentController.addListener(() {
+      updateBalanceAmount();
+      thirdInstallmentChanged = true;
+    });
   }
 
   void updateBalanceAmount() {
@@ -278,8 +289,7 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
               serviceController.text = items[index];
             });
           },
-          children: items.map((item) => Center(child: Text(item, style: TextStyle(
-            color: Theme.of(context).textTheme.bodyLarge?.color)))).toList(),
+          children: items.map((item) => Center(child: Text(item, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)))).toList(),
         ),
       );
 
@@ -291,9 +301,9 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
     });
 
     try {
-      await updateVehicleData();
+      final vehicleData = await updateVehicleData();
+      await updateFirestore(vehicleData);
       showSuccessMessage();
-      // ignore: use_build_context_synchronously
       Navigator.pop(context);
     } catch (error) {
       showErrorMessage(error.toString());
@@ -304,14 +314,11 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
     }
   }
 
-  Future<void> updateVehicleData() async {
-    final User? user = FirebaseAuth.instance.currentUser;
-    await FirebaseFirestore.instance
-        .collection('users')
-        .doc(user?.uid)
-        .collection('vehicleDetails')
-        .doc(vehicleNumberController.text)
-        .update({
+  Future<Map<String, dynamic>> updateVehicleData() async {
+    final now = DateTime.now();
+    final formattedDate = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+
+    Map<String, dynamic> updatedData = {
       'vehicleNumber': vehicleNumberController.text,
       'chassisNumber': chassisNumberController.text,
       'engineNumber': engineNumberController.text,
@@ -322,7 +329,52 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
       'secondInstallment': secondInstallmentController.text,
       'thirdInstallment': thirdInstallmentController.text,
       'balanceAmount': balanceAmountController.text,
-    });
+    };
+
+    if (secondInstallmentChanged) {
+      updatedData['secondInstallmentTime'] = formattedDate;
+    }
+
+    if (thirdInstallmentChanged) {
+      updatedData['thirdInstallmentTime'] = formattedDate;
+    }
+
+    return updatedData;
+  }
+
+  Future<void> updateFirestore(Map<String, dynamic> vehicleData) async {
+    try {
+      final User? user = FirebaseAuth.instance.currentUser;
+      final vehicleDoc = FirebaseFirestore.instance
+          .collection('users')
+          .doc(user?.uid)
+          .collection('vehicleDetails')
+          .doc(vehicleNumberController.text);
+
+      await vehicleDoc.update(vehicleData);
+
+      // Add notifications for installment updates if amount is greater than zero
+      double secondInstallment = double.tryParse(secondInstallmentController.text) ?? 0.0;
+      double thirdInstallment = double.tryParse(thirdInstallmentController.text) ?? 0.0;
+
+      if (secondInstallmentChanged && secondInstallment > 0) {
+        await notificationsCollection.add({
+          'title': 'Second Installment Updated',
+          'date': DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+          'details': 'Second installment updated for vehicle: ${vehicleData['vehicleNumber']}',
+        });
+      }
+
+      if (thirdInstallmentChanged && thirdInstallment > 0) {
+        await notificationsCollection.add({
+          'title': 'Third Installment Updated',
+          'date': DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+          'details': 'Third installment updated for vehicle: ${vehicleData['vehicleNumber']}',
+        });
+      }
+    } catch (e) {
+      throw 'Failed to update vehicle data: $e';
+    }
   }
 
   void showSuccessMessage() {

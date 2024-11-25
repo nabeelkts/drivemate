@@ -1,6 +1,3 @@
-// ignore_for_file: must_be_immutable
-
-/* lib/screens/dashboard/form/edit_forms/edit_licence_only_details_form.dart */
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -10,6 +7,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart'; // Import for date formatting
 import 'package:mds/screens/authentication/widgets/my_button.dart';
 
 class EditLicenseOnlyForm extends StatefulWidget {
@@ -24,7 +22,6 @@ class EditLicenseOnlyForm extends StatefulWidget {
   });
 
   @override
-  // ignore: library_private_types_in_public_api
   _EditLicenseOnlyFormState createState() => _EditLicenseOnlyFormState();
 }
 
@@ -53,6 +50,12 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
   late TextEditingController balanceAmountController;
   late TextEditingController covController;
   late FixedExtentScrollController scrollController;
+
+  bool secondInstallmentChanged = false;
+  bool thirdInstallmentChanged = false;
+
+  final CollectionReference notificationsCollection =
+      FirebaseFirestore.instance.collection('notifications');
 
   @override
   void initState() {
@@ -89,8 +92,14 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
   void setupListeners() {
     totalAmountController.addListener(updateBalanceAmount);
     advanceAmountController.addListener(updateBalanceAmount);
-    secondInstallmentController.addListener(updateBalanceAmount);
-    thirdInstallmentController.addListener(updateBalanceAmount);
+    secondInstallmentController.addListener(() {
+      updateBalanceAmount();
+      secondInstallmentChanged = true;
+    });
+    thirdInstallmentController.addListener(() {
+      updateBalanceAmount();
+      thirdInstallmentChanged = true;
+    });
   }
 
   void updateBalanceAmount() {
@@ -181,8 +190,8 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
   Widget buildProfileImageSection() {
     return buildSectionContainer(
       children: [
-        Stack(
-          alignment: Alignment.center,
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             CircleAvatar(
               radius: 60,
@@ -371,8 +380,7 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
               covController.text = widget.items[index];
             });
           },
-          children: widget.items.map((item) => Center(child: Text(item, style: TextStyle(
-            color: Theme.of(context).textTheme.bodyLarge?.color)))).toList(),
+          children: widget.items.map((item) => Center(child: Text(item, style: TextStyle(color: Theme.of(context).textTheme.bodyLarge?.color)))).toList(),
         ),
       );
 
@@ -387,7 +395,6 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
       final licenseonly = await updateLicenseOnlyData();
       await updateFirestore(licenseonly);
       showSuccessMessage();
-      // ignore: use_build_context_synchronously
       Navigator.pop(context);
     } catch (error) {
       showErrorMessage(error.toString());
@@ -405,7 +412,10 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
       imageUrl = await uploadImage();
     }
 
-    return {
+    final now = DateTime.now();
+    final formattedDate = DateFormat('yyyy-MM-dd HH:mm:ss').format(now);
+
+    Map<String, dynamic> updatedData = {
       'studentId': studentIdController.text,
       'fullName': fullNameController.text,
       'guardianName': guardianNameController.text,
@@ -428,6 +438,16 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
       'image': imageUrl,
       'registrationDate': widget.initialValues['registrationDate'],
     };
+
+    if (secondInstallmentChanged) {
+      updatedData['secondInstallmentTime'] = formattedDate;
+    }
+
+    if (thirdInstallmentChanged) {
+      updatedData['thirdInstallmentTime'] = formattedDate;
+    }
+
+    return updatedData;
   }
 
   Future<String> uploadImage() async {
@@ -449,12 +469,33 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
   Future<void> updateFirestore(Map<String, dynamic> licenseonly) async {
     try {
       final User? user = FirebaseAuth.instance.currentUser;
-      await FirebaseFirestore.instance
+      final licenseDoc = FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
           .collection('licenseonly')
-          .doc(licenseonly['studentId'])
-          .set(licenseonly);
+          .doc(licenseonly['studentId']);
+
+      await licenseDoc.update(licenseonly);
+
+      // Add notifications for installment updates if amount is greater than zero
+      double secondInstallment = double.tryParse(secondInstallmentController.text) ?? 0.0;
+      double thirdInstallment = double.tryParse(thirdInstallmentController.text) ?? 0.0;
+
+      if (secondInstallmentChanged && secondInstallment > 0) {
+        await notificationsCollection.add({
+          'title': 'Second Installment Updated',
+          'date': DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+          'details': 'Second installment updated for: ${licenseonly['fullName']}',
+        });
+      }
+
+      if (thirdInstallmentChanged && thirdInstallment > 0) {
+        await notificationsCollection.add({
+          'title': 'Third Installment Updated',
+          'date': DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+          'details': 'Third installment updated for: ${licenseonly['fullName']}',
+        });
+      }
     } catch (e) {
       throw 'Failed to update license only data: $e';
     }

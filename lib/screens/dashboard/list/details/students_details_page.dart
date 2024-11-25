@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/screens/authentication/widgets/my_button.dart';
 import 'package:mds/screens/dashboard/form/edit_forms/edit_student_details_form.dart';
+import 'package:mds/screens/dashboard/list/details/pdf_preview_screen.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
@@ -12,7 +14,7 @@ import 'package:share_plus/share_plus.dart';
 class StudentDetailsPage extends StatelessWidget {
   final Map<String, dynamic> studentDetails;
 
-  const StudentDetailsPage({required this.studentDetails, super.key});
+  const StudentDetailsPage({required this.studentDetails, Key? key}) : super(key: key);
 
   final TextStyle labelStyle = const TextStyle(
     fontFamily: 'Inter',
@@ -21,6 +23,7 @@ class StudentDetailsPage extends StatelessWidget {
     color: Color(0xFF000000),
     height: 15.73 / 13,
   );
+
   final TextStyle valueStyle = const TextStyle(
     fontFamily: 'Inter',
     fontSize: 13,
@@ -37,7 +40,7 @@ class StudentDetailsPage extends StatelessWidget {
         elevation: 0,
         actions: [
           IconButton(
-            icon: const Icon(Icons.share),
+            icon: const Icon(Icons.picture_as_pdf),
             onPressed: () => _shareStudentDetails(context),
           ),
         ],
@@ -46,17 +49,13 @@ class StudentDetailsPage extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 60,
-                  backgroundImage: studentDetails['image'] != null &&
-                          studentDetails['image'].isNotEmpty
-                      ? CachedNetworkImageProvider(studentDetails['image'])
-                      : const AssetImage('assets/icons/user.png') as ImageProvider,
-                ),
-              ],
-            ),
+            CircleAvatar(
+  radius: 60,
+  backgroundImage: studentDetails['image'] != null && studentDetails['image'].isNotEmpty
+      ? CachedNetworkImageProvider(studentDetails['image']) as ImageProvider<Object>?
+      : const NetworkImage('https://placeholder.pics/svg/120x120') as ImageProvider<Object>?,
+),
+
             const SizedBox(height: 20),
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -120,7 +119,7 @@ class StudentDetailsPage extends StatelessWidget {
                 text: 'Update Student',
                 isLoading: false,
                 isEnabled: true,
-                width: double.infinity, // Adjust width as needed
+                width: double.infinity,
               ),
             ),
             const SizedBox(height: 20),
@@ -170,7 +169,7 @@ class StudentDetailsPage extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    studentDetails['houseName'] ?? '',
+                    studentDetails['house'] ?? '',
                     style: valueStyle,
                   ),
                   Text(
@@ -194,22 +193,31 @@ class StudentDetailsPage extends StatelessWidget {
     );
   }
 
- Future<void> _shareStudentDetails(BuildContext context) async {
+  Future<void> _shareStudentDetails(BuildContext context) async {
     final pdf = pw.Document();
+
+    final imageProvider = studentDetails['image'] != null && studentDetails['image'].isNotEmpty
+        ? NetworkImage(studentDetails['image'])
+        : const NetworkImage('https://placeholder.pics/svg/120x120');
+
+    final imageBytes = await _getImageBytes(imageProvider);
 
     pdf.addPage(
       pw.Page(
         build: (pw.Context context) => pw.Column(
           crossAxisAlignment: pw.CrossAxisAlignment.start,
           children: [
-            pw.Center(
-              child: pw.Text(
-                'Student Details',
-                style: pw.TextStyle(fontSize: 28, fontWeight: pw.FontWeight.bold),
+            if (imageBytes != null)
+              pw.Center(
+                child: pw.Image(
+                  pw.MemoryImage(imageBytes),
+                  width: 100,
+                  height: 100,
+                ),
               ),
-            ),
             pw.SizedBox(height: 20),
-            pw.Divider(),
+            pw.Text('Student Details', style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 20),
             _buildPdfRow('Name of Student', studentDetails['fullName']),
             _buildPdfRow('Student ID', studentDetails['studentId']),
             _buildPdfRow('Address', _formatAddress()),
@@ -220,16 +228,6 @@ class StudentDetailsPage extends StatelessWidget {
             _buildPdfRow('Advance Received', studentDetails['advanceAmount']),
             _buildPdfRow('Balance', studentDetails['balanceAmount']),
             _buildPdfRow('Course Selected', studentDetails['cov']),
-            pw.Divider(),
-            pw.SizedBox(height: 20),
-            pw.Text(
-              'Additional Notes:',
-              style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
-            ),
-            pw.Text(
-              studentDetails['notes'] ?? 'No additional notes provided.',
-              style: const pw.TextStyle(fontSize: 14),
-            ),
           ],
         ),
       ),
@@ -239,8 +237,29 @@ class StudentDetailsPage extends StatelessWidget {
     final file = File("${output.path}/student_details.pdf");
     await file.writeAsBytes(await pdf.save());
 
-    // ignore: deprecated_member_use
-    Share.shareFiles([file.path], text: 'Student Details');
+    final xFile = XFile(file.path);
+
+    _showPdfPreview(context, xFile);
+  }
+
+  Future<Uint8List?> _getImageBytes(ImageProvider imageProvider) async {
+    if (imageProvider is NetworkImage) {
+      final response = await NetworkAssetBundle(Uri.parse(imageProvider.url)).load("");
+      return response.buffer.asUint8List();
+    } else if (imageProvider is AssetImage) {
+      final byteData = await rootBundle.load(imageProvider.assetName);
+      return byteData.buffer.asUint8List();
+    }
+    return null;
+  }
+
+  void _showPdfPreview(BuildContext context, XFile pdfFile) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PdfPreviewScreen(pdfFile: pdfFile),
+      ),
+    );
   }
 
   pw.Widget _buildPdfRow(String label, dynamic value) {
@@ -255,7 +274,7 @@ class StudentDetailsPage extends StatelessWidget {
           ),
           pw.Text(
             '$value',
-            style: const pw.TextStyle(fontSize: 14),
+            style: pw.TextStyle(fontSize: 14),
           ),
         ],
       ),
@@ -264,12 +283,10 @@ class StudentDetailsPage extends StatelessWidget {
 
   String _formatAddress() {
     return [
-      studentDetails['houseName'],
+      studentDetails['house'],
       studentDetails['post'],
       studentDetails['district'],
       studentDetails['pin']
     ].where((element) => element != null && element.isNotEmpty).join(', ');
   }
-
-  // Existing code...
 }

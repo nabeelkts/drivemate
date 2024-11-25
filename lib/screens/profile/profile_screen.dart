@@ -206,7 +206,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         SizedBox(width: 10),
                         Text(
                           'Check for updates',
-                          style: TextStyle(fontSize: 16, color: Colors.blueAccent),
+                          style: TextStyle(fontSize: 16, color: Color.fromARGB(255, 124, 124, 242)),
                         ),
                       ],
                     ),
