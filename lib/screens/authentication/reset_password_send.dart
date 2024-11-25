@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
 import 'package:mds/screens/authentication/login_page.dart';
 import 'package:mds/screens/authentication/widgets/my_button.dart';
 
@@ -24,7 +23,7 @@ class _ResetPasswordSuccessState extends State<ResetPasswordSuccess> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kWhite,
+    
       body: SafeArea(
           child: SingleChildScrollView(
         child: Column(
@@ -53,7 +52,7 @@ class _ResetPasswordSuccessState extends State<ResetPasswordSuccess> {
                     Text(
                       'Reset Password',
                       style: TextStyle(
-                        color: kBlack,
+                        
                         fontSize: 36,
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w600,
@@ -64,7 +63,7 @@ class _ResetPasswordSuccessState extends State<ResetPasswordSuccess> {
                     Text(
                       'Check your mail, click on the link to  reset your password',
                       style: TextStyle(
-                        color: kBlack,
+                      
                         fontSize: 16,
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w300,
@@ -75,19 +74,22 @@ class _ResetPasswordSuccessState extends State<ResetPasswordSuccess> {
                 ),
               ),
             ),
-            const SizedBox(height: 37),
-            MyButton(
-              onTap: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const LoginPage(),
-                  ),
-                );
-              },
-              text: 'Back to Login',
-              isLoading: isLoading,
-              isEnabled: true,
+            const SizedBox(height: 35),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+              child: MyButton(
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LoginPage(),
+                    ),
+                  );
+                },
+                text: 'Back to Login',
+                isLoading: isLoading,
+                isEnabled: true,
+              ),
             ),
           ],
         ),

@@ -1,5 +1,3 @@
-// ignore_for_file: use_build_context_synchronously
-
 import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -72,9 +70,7 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-     // backgroundColor: kBackgroundColor,
       appBar: AppBar(
-       // backgroundColor: kBackgroundColor,
         elevation: 0,
         title: const Text(
           'License Only List',
@@ -142,7 +138,7 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
               text: 'Create New License Only',
               isLoading: isLoading,
               isEnabled: true,
-              width: double.infinity, // Ensure full width
+              width: double.infinity,
             ),
           ),
           const SizedBox(
@@ -205,14 +201,22 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
                                     child: Center(
                                       child: CircleAvatar(
                                         radius: 48,
+                                        backgroundColor: Colors.white,
                                         backgroundImage: docs[index]['image'] !=
                                                     null &&
                                                 docs[index]['image'].isNotEmpty
                                             ? CachedNetworkImageProvider(
                                                     docs[index]['image'])
                                                 as ImageProvider
-                                            : const AssetImage(
-                                                'assets/icons/user.png'),
+                                            : null,
+                                        child: docs[index]['image'] == null || docs[index]['image'].isEmpty
+                                            ? Text(
+                                                docs[index]['fullName'] != null && docs[index]['fullName'].isNotEmpty
+                                                    ? docs[index]['fullName'][0].toUpperCase()
+                                                    : '',
+                                                style: const TextStyle(fontSize: 40, color: kPrimaryColor),
+                                              )
+                                            : null,
                                       ),
                                     ),
                                   ),
@@ -397,20 +401,20 @@ class _LicenseOnlyListState extends State<LicenseOnlyList> {
   }
 
   Future<void> _showDeleteConfirmationDialog(String documentId) async {
-  showCustomConfirmationDialog(
-    context,
-    'Confirm Deactivation?',
-    'Are you sure ?',
-    () async {
-      await _deleteData(documentId);
-      Navigator.of(context).pop();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const DeactivatedLicenseOnlyList(),
-        ),
-      );
-    },
-  );
-}
+    showCustomConfirmationDialog(
+      context,
+      'Confirm Deactivation?',
+      'Are you sure ?',
+      () async {
+        await _deleteData(documentId);
+        Navigator.of(context).pop();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const DeactivatedLicenseOnlyList(),
+          ),
+        );
+      },
+    );
+  }
 }

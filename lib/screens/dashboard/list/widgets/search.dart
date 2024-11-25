@@ -24,13 +24,13 @@ class SearchBarWidgets extends StatelessWidget {
                 padding: EdgeInsets.symmetric(horizontal: 10),
                 child: Icon(
                   IconlyLight.search,
-                  color: Colors.grey,
+                  //color: Colors.grey,
                 ),
               ),
               Text(
                 '',
                 style: TextStyle(
-                  color: Colors.grey,
+                  //color: Colors.grey,
                 ),
               ),
             ],
@@ -46,7 +46,7 @@ class SearchBarWidgets extends StatelessWidget {
               child: Text(
                 'Search',
                 style: TextStyle(
-                  color: Colors.white,
+                  //color: Colors.white,
                 ),
               ),
             ),

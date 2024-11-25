@@ -35,16 +35,20 @@ class EndorsementDetailsPage extends StatelessWidget {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 60,
-                  backgroundImage: endorsementDetails['image'] != null &&
-                          endorsementDetails['image'].isNotEmpty
-                      ? CachedNetworkImageProvider(endorsementDetails['image'])
-                      : const AssetImage('assets/icons/user.png') as ImageProvider,
-                ),
-              ],
+            CircleAvatar(
+              radius: 60,
+              backgroundColor: kWhite,
+              backgroundImage: endorsementDetails['image'] != null && endorsementDetails['image'].isNotEmpty
+                  ? CachedNetworkImageProvider(endorsementDetails['image'])
+                  : null,
+              child: endorsementDetails['image'] == null || endorsementDetails['image'].isEmpty
+                  ? Text(
+                      endorsementDetails['fullName'] != null && endorsementDetails['fullName'].isNotEmpty
+                          ? endorsementDetails['fullName'][0].toUpperCase()
+                          : '',
+                      style: const TextStyle(fontSize: 40, color: kPrimaryColor),
+                    )
+                  : null,
             ),
             const SizedBox(height: 20),
             Container(
@@ -118,7 +122,7 @@ class EndorsementDetailsPage extends StatelessWidget {
                 text: 'Update Endorsements',
                 isLoading: false,
                 isEnabled: true,
-                width: double.infinity, // Adjust width as needed
+                width: double.infinity,
               ),
             ),
             const SizedBox(height: 20),

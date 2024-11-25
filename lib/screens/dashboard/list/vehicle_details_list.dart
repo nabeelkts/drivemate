@@ -1,5 +1,3 @@
-// ignore_for_file: unnecessary_cast, use_build_context_synchronously
-
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -71,9 +69,7 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-    
       appBar: AppBar(
-       
         elevation: 0,
         title: const Text(
           'Vehicle Details List',
@@ -141,7 +137,7 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
               text: 'Create New RC Details',
               isLoading: isLoading,
               isEnabled: true,
-              width: double.infinity, // Ensure full width
+              width: double.infinity,
             ),
           ),
           const SizedBox(
@@ -169,6 +165,11 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
                 return ListView.builder(
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
+                    final vehicleNumber = docs[index]['vehicleNumber'] ?? '';
+                    final lastFourDigits = vehicleNumber.length >= 4
+                        ? vehicleNumber.substring(vehicleNumber.length - 4)
+                        : vehicleNumber;
+
                     return InkWell(
                       onTap: () {
                         Navigator.push(
@@ -197,18 +198,22 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
                           ),
                           child: Row(
                             children: [
-                              const Padding(
-                                padding: EdgeInsets.only(
+                              Padding(
+                                padding: const EdgeInsets.only(
                                     top: 8, bottom: 8, left: 16, right: 16),
                                 child: Center(
                                   child: CircleAvatar(
-                                    backgroundColor: kPrimaryColor,
+                                    backgroundColor: kWhite,
                                     radius: 50,
                                     child: Center(
-                                      child: CircleAvatar(
-                                        radius: 48,
-                                        backgroundImage:AssetImage('assets/icons/vehicle_rc.png'),
-),
+                                      child: Text(
+                                        lastFourDigits,
+                                        style: const TextStyle(
+                                          fontSize: 24,
+                                          color: kPrimaryColor,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -229,7 +234,7 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
                                             MainAxisAlignment.spaceBetween,
                                         children: [
                                           Text(
-                                            docs[index]['vehicleNumber'],
+                                            vehicleNumber,
                                             style: const TextStyle(
                                               fontSize: 16,
                                               fontWeight: FontWeight.w600,
@@ -307,10 +312,9 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
                                             const SizedBox(width: 10),
                                             Expanded(
                                               child: GestureDetector(
-                                                onTap: () async {
-                                                  await _showDeleteConfirmationDialog(
+                                                onTap: () {
+                                                  _showDeleteConfirmationDialog(
                                                       docs[index].id);
-                                                  setState(() {});
                                                 },
                                                 child: Container(
                                                   decoration: BoxDecoration(
@@ -360,33 +364,46 @@ class _VehicleDetailsListState extends State<VehicleDetailsList> {
     );
   }
 
-  Future<void> _deleteData(String documentId) async {
-    if (documentId.isNotEmpty) {
+  Future<void> _deactivateVehicle(String vehicleId) async {
+    if (vehicleId.isNotEmpty) {
+      var vehicleData = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user?.uid)
+          .collection('vehicleDetails')
+          .doc(vehicleId)
+          .get();
+
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user?.uid)
+          .collection('deactivated_vehicleDetails')
+          .doc(vehicleId)
+          .set(vehicleData.data() ?? {});
+
       await FirebaseFirestore.instance
           .collection('users')
           .doc(user?.uid)
           .collection('vehicleDetails')
-          .doc(documentId)
+          .doc(vehicleId)
           .delete();
     }
   }
 
   Future<void> _showDeleteConfirmationDialog(String documentId) async {
-  showCustomConfirmationDialog(
-    context,
-    'Confirm Deactivation?',
-    'Are you sure ?',
-    () async {
-      await _deleteData(documentId);
-      Navigator.of(context).pop();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const DeactivatedVehicleList(),
-        ),
-      );
-    },
-  );
-}
-
+    showCustomConfirmationDialog(
+      context,
+      'Confirm Deactivation?',
+      'Are you sure you want to deactivate this vehicle?',
+      () async {
+        await _deactivateVehicle(documentId);
+        Navigator.of(context).pop();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const DeactivatedVehicleList(),
+          ),
+        );
+      },
+    );
+  }
 }

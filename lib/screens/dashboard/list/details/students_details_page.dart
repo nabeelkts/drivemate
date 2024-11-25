@@ -50,12 +50,22 @@ class StudentDetailsPage extends StatelessWidget {
           children: [
             const SizedBox(height: 20),
             CircleAvatar(
-  radius: 60,
-  backgroundImage: studentDetails['image'] != null && studentDetails['image'].isNotEmpty
-      ? CachedNetworkImageProvider(studentDetails['image']) as ImageProvider<Object>?
-      : const NetworkImage('https://placeholder.pics/svg/120x120') as ImageProvider<Object>?,
-),
-
+              radius: 60,
+              backgroundColor: kWhite,
+              backgroundImage: studentDetails['image'] != null && studentDetails['image'].isNotEmpty
+                  ? CachedNetworkImageProvider(studentDetails['image']) as ImageProvider<Object>?
+                  : null,
+              child: studentDetails['image'] == null || studentDetails['image'].isEmpty
+                  ? Text(
+                      studentDetails['fullName'] != null && studentDetails['fullName'].isNotEmpty
+                          ? studentDetails['fullName'][0].toUpperCase()
+                          : '',
+                      style: const TextStyle(fontSize: 40, 
+                      color: kPrimaryColor
+                      ),
+                    )
+                  : null,
+            ),
             const SizedBox(height: 20),
             Container(
               margin: const EdgeInsets.symmetric(horizontal: 16),
@@ -196,11 +206,10 @@ class StudentDetailsPage extends StatelessWidget {
   Future<void> _shareStudentDetails(BuildContext context) async {
     final pdf = pw.Document();
 
-    final imageProvider = studentDetails['image'] != null && studentDetails['image'].isNotEmpty
-        ? NetworkImage(studentDetails['image'])
-        : const NetworkImage('https://placeholder.pics/svg/120x120');
-
-    final imageBytes = await _getImageBytes(imageProvider);
+    Uint8List? imageBytes;
+    if (studentDetails['image'] != null && studentDetails['image'].isNotEmpty) {
+      imageBytes = await _getImageBytes(NetworkImage(studentDetails['image']));
+    }
 
     pdf.addPage(
       pw.Page(
@@ -243,12 +252,17 @@ class StudentDetailsPage extends StatelessWidget {
   }
 
   Future<Uint8List?> _getImageBytes(ImageProvider imageProvider) async {
-    if (imageProvider is NetworkImage) {
-      final response = await NetworkAssetBundle(Uri.parse(imageProvider.url)).load("");
-      return response.buffer.asUint8List();
-    } else if (imageProvider is AssetImage) {
-      final byteData = await rootBundle.load(imageProvider.assetName);
-      return byteData.buffer.asUint8List();
+    try {
+      if (imageProvider is NetworkImage) {
+        final response = await NetworkAssetBundle(Uri.parse(imageProvider.url)).load("");
+        return response.buffer.asUint8List();
+      } else if (imageProvider is AssetImage) {
+        final byteData = await rootBundle.load(imageProvider.assetName);
+        return byteData.buffer.asUint8List();
+      }
+    } catch (e) {
+      // Handle error if image cannot be loaded
+      return null;
     }
     return null;
   }

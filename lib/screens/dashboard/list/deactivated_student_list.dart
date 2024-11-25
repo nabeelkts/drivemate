@@ -201,9 +201,18 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
                   radius: 50,
                   child: CircleAvatar(
                     radius: 48,
+                    backgroundColor: Colors.white,
                     backgroundImage: data['image'] != null && data['image'].toString().isNotEmpty
                         ? CachedNetworkImageProvider(data['image'])
-                        : const AssetImage('assets/icons/user.png') as ImageProvider,
+                        : null,
+                    child: data['image'] == null || data['image'].toString().isEmpty
+                        ? Text(
+                            data['fullName'] != null && data['fullName'].isNotEmpty
+                                ? data['fullName'][0].toUpperCase()
+                                : '',
+                            style: const TextStyle(fontSize: 40, color: kPrimaryColor),
+                          )
+                        : null,
                   ),
                 ),
               ),

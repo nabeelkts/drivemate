@@ -70,9 +70,7 @@ class _EndorsementListState extends State<EndorsementList> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-     
       appBar: AppBar(
-        
         elevation: 0,
         title: const Text(
           'Endorsement List',
@@ -140,7 +138,7 @@ class _EndorsementListState extends State<EndorsementList> {
               text: 'Create New Endorsement',
               isLoading: isLoading,
               isEnabled: true,
-              width: double.infinity, // Ensure full width
+              width: double.infinity,
             ),
           ),
           const SizedBox(
@@ -185,7 +183,6 @@ class _EndorsementListState extends State<EndorsementList> {
                         ),
                         child: Container(
                           decoration: BoxDecoration(
-                            
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(
                               color: kPrimaryColor,
@@ -204,14 +201,22 @@ class _EndorsementListState extends State<EndorsementList> {
                                     child: Center(
                                       child: CircleAvatar(
                                         radius: 48,
+                                        backgroundColor: Colors.white,
                                         backgroundImage: docs[index]['image'] !=
                                                     null &&
                                                 docs[index]['image'].isNotEmpty
                                             ? CachedNetworkImageProvider(
                                                     docs[index]['image'])
                                                 as ImageProvider
-                                            : const AssetImage(
-                                                'assets/icons/user.png'),
+                                            : null,
+                                        child: docs[index]['image'] == null || docs[index]['image'].isEmpty
+                                            ? Text(
+                                                docs[index]['fullName'] != null && docs[index]['fullName'].isNotEmpty
+                                                    ? docs[index]['fullName'][0].toUpperCase()
+                                                    : '',
+                                                style: const TextStyle(fontSize: 40, color: kPrimaryColor),
+                                              )
+                                            : null,
                                       ),
                                     ),
                                   ),
@@ -399,21 +404,20 @@ class _EndorsementListState extends State<EndorsementList> {
   }
 
   Future<void> _showDeleteConfirmationDialog(String documentId) async {
-  showCustomConfirmationDialog(
-    context,
-    'Confirm Deactivation?',
-    'Are you sure ?',
-    () async {
-      await _deleteData(documentId);
-      Navigator.of(context).pop();
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => const DeactivatedEndorsementList(),
-        ),
-      );
-    },
-  );
-}
-
+    showCustomConfirmationDialog(
+      context,
+      'Confirm Deactivation?',
+      'Are you sure ?',
+      () async {
+        await _deleteData(documentId);
+        Navigator.of(context).pop();
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const DeactivatedEndorsementList(),
+          ),
+        );
+      },
+    );
+  }
 }

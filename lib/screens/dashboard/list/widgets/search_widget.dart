@@ -31,8 +31,8 @@ class SearchWidget extends StatelessWidget {
           hintStyle: TextStyle(
            // color: Colors.grey[400],
           ),
-          filled: true,
-          //fillColor: kWhite,
+          //filled: true,
+         //fillColor: kWhite,
           // Adjust the vertical padding here
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(30.0),

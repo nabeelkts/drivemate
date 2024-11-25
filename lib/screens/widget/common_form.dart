@@ -196,11 +196,18 @@ class _CommonFormState extends State<CommonForm> {
           alignment: Alignment.bottomRight,
           children: [
             CircleAvatar(
-              radius: 60,
-              backgroundImage: _image != null
-                  ? FileImage(_image!)
-                  : const NetworkImage('https://placeholder.pics/svg/120') as ImageProvider,
-            ),
+  radius: 60,
+  backgroundImage: _image != null
+      ? FileImage(_image!)
+      : null,
+  child: _image == null
+      ? Text(
+          fullNameController.text.isNotEmpty ? fullNameController.text[0].toUpperCase() : '',
+          style: const TextStyle(fontSize: 40, color: Colors.white),
+        )
+      : null,
+),
+
           ],
         ),
         const SizedBox(height: 10),

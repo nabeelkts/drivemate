@@ -40,6 +40,7 @@ class _DeactivatedVehicleListState extends State<DeactivatedVehicleList> {
         setState(() {
           _allDeactivatedVehicles = snapshot.docs;
         });
+        print('Fetched ${snapshot.docs.length} deactivated vehicles');
       }
     });
   }
@@ -151,7 +152,12 @@ class _DeactivatedVehicleListState extends State<DeactivatedVehicleList> {
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
                     final data = docs[index].data();
-                    return buildVehicleListItem(context, docs[index], data);
+                    final vehicleNumber = data['vehicleNumber'] ?? '';
+                    final lastFourDigits = vehicleNumber.length >= 4
+                        ? vehicleNumber.substring(vehicleNumber.length - 4)
+                        : vehicleNumber;
+
+                    return buildVehicleListItem(context, docs[index], data, lastFourDigits);
                   },
                 );
               },
@@ -166,6 +172,7 @@ class _DeactivatedVehicleListState extends State<DeactivatedVehicleList> {
     BuildContext context,
     DocumentSnapshot<Map<String, dynamic>> doc,
     Map<String, dynamic> data,
+    String lastFourDigits,
   ) {
     return InkWell(
       onTap: () {
@@ -191,115 +198,142 @@ class _DeactivatedVehicleListState extends State<DeactivatedVehicleList> {
               width: 1,
             ),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      data['vehicleNumber']?.toString() ?? 'N/A',
+          child: Row(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: CircleAvatar(
+                  backgroundColor: kWhite,
+                  radius: 50,
+                  child: Center(
+                    child: Text(
+                      lastFourDigits,
                       style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    Text(
-                      'BL: ${data['balanceAmount']?.toString() ?? '0'}',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                        fontSize: 24,
                         color: kPrimaryColor,
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                  ],
-                ),
-                Text(
-                  data['mobileNumber']?.toString() ?? 'N/A',
-                  style: listTextStyle,
-                ),
-                Text(
-                  data['service']?.toString() ?? 'N/A',
-                  style: listTextStyle,
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(
-                    top: 12,
-                    bottom: 8,
                   ),
-                  child: Row(
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.only(
+                    right: 16,
+                    bottom: 8,
+                    top: 8,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => EditVehicleDetailsForm(
-                                  initialData: data,
-                                ),
-                              ),
-                            );
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                begin: AlignmentDirectional.topCenter,
-                                end: AlignmentDirectional.bottomCenter,
-                                colors: linearButtonColor,
-                              ),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: Text(
-                                  'Update',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            data['vehicleNumber']?.toString() ?? 'N/A',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
-                        ),
+                          Text(
+                            'BL: ${data['balanceAmount']?.toString() ?? '0'}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w500,
+                              color: kPrimaryColor,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () async {
-                            await _showActivateConfirmationDialog(doc.id);
-                          },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: inactiveButtonColor,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Center(
-                              child: Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: Text(
-                                  'Activate',
-                                  style: TextStyle(
-                                    color: kRedInactiveTextColor,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600,
+                      Text(
+                        data['mobileNumber']?.toString() ?? 'N/A',
+                        style: listTextStyle,
+                      ),
+                      Text(
+                        data['service']?.toString() ?? 'N/A',
+                        style: listTextStyle,
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.only(
+                          top: 12,
+                          bottom: 8,
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => EditVehicleDetailsForm(
+                                        initialData: data,
+                                      ),
+                                    ),
+                                  );
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      begin: AlignmentDirectional.topCenter,
+                                      end: AlignmentDirectional.bottomCenter,
+                                      colors: linearButtonColor,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(8.0),
+                                      child: Text(
+                                        'Update',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () async {
+                                  await _showActivateConfirmationDialog(doc.id);
+                                },
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: inactiveButtonColor,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Center(
+                                    child: Padding(
+                                      padding: EdgeInsets.all(8.0),
+                                      child: Text(
+                                        'Activate',
+                                        style: TextStyle(
+                                          color: kRedInactiveTextColor,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                     ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

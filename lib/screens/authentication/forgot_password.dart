@@ -4,6 +4,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mds/constants/colors.dart';
+import 'package:mds/screens/authentication/login_page.dart';
 import 'package:mds/screens/authentication/reset_password_send.dart';
 import 'package:mds/screens/authentication/widgets/email_validator.dart';
 import 'package:mds/screens/authentication/widgets/my_button.dart';
@@ -145,6 +146,23 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                   width: double.infinity,
                 ),
               ),
+              const SizedBox(height: 32),
+              Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+              child: MyButton(
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const LoginPage(),
+                    ),
+                  );
+                },
+                text: 'Back to Login',
+                isLoading: isLoading,
+                isEnabled: true,
+              ),
+            ),
             ],
           ),
         ),

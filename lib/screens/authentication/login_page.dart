@@ -215,7 +215,7 @@ class _LoginPageState extends State<LoginPage> {
                         fontSize: 13,
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w400,
-                        decoration: TextDecoration.underline,
+                        //decoration: TextDecoration.underline,
                         height: 0,
                       ),
                     ),

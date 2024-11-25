@@ -33,14 +33,9 @@ class RegistrationIcon extends StatelessWidget {
       onTap: () {
         Navigator.pushNamed(context, routeName);
       },
-      child: Container(
-        width: 85.0,
+      child: SizedBox(
+        width: 80,
         height: 95,
-        //padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5.50),
-        decoration: ShapeDecoration(
-          color: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-        ),
         child: Column(
           //mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -49,30 +44,19 @@ class RegistrationIcon extends StatelessWidget {
               height: 74,
               child: Stack(
                 children: [
-                  Positioned(
-                    left: 0,
-                    top: 0,
-                    child: Container(
-                      width: 54,
-                      height: 54,
-                      decoration: const ShapeDecoration(
-                        color: Color(0xFFFFFBF7),
-                        shape: OvalBorder(),
-                      ),
-                    ),
-                  ),
+
                   Positioned(
                     left: 11.05,
                     top: 1.25,
                     child: SizedBox(
-                      width: 64,
-                      height: 64,
+                      // width: 64,
+                      // height: 64,
                       child: Stack(
                         children: [
                           SvgPicture.asset(
                             imagePath,
-                            width: 83,
-                            height: 83,
+                            // width: 83,
+                            // height: 83,
                           ),
                         ],
                       ),
@@ -84,7 +68,7 @@ class RegistrationIcon extends StatelessWidget {
             Text(
               text,
               style: const TextStyle(
-                color: Colors.black,
+                //color: Colors.black,
                 fontSize: 12,
                 fontFamily: 'Inter',
                 fontWeight: FontWeight.w500,

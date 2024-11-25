@@ -209,22 +209,25 @@ class _StudentListState extends State<StudentList> {
                                     top: 8, bottom: 8, left: 16, right: 16),
                                 child: Center(
                                   child: CircleAvatar(
-                                    backgroundColor: kPrimaryColor,
-                                    radius: 50,
-                                    child: Center(
-                                      child: CircleAvatar(
-                                        radius: 48,
-                                        backgroundImage: docs[index]['image'] !=
-                                                    null &&
-                                                docs[index]['image'].isNotEmpty
-                                            ? CachedNetworkImageProvider(
-                                                    docs[index]['image'])
-                                                as ImageProvider
-                                            : const AssetImage(
-                                                'assets/icons/user.png'),
-                                      ),
-                                    ),
-                                  ),
+  backgroundColor: kPrimaryColor,
+  radius: 50,
+  child: Center(
+    child: CircleAvatar(
+      radius: 48,
+      backgroundColor: Colors.white,
+      backgroundImage: docs[index]['image'] != null && docs[index]['image'].isNotEmpty
+          ? CachedNetworkImageProvider(docs[index]['image']) as ImageProvider
+          : null,
+      child: docs[index]['image'] == null || docs[index]['image'].isEmpty
+          ? Text(
+              docs[index]['fullName'][0].toUpperCase(),
+              style: const TextStyle(fontSize: 40, color: kPrimaryColor),
+            )
+          : null,
+    ),
+  ),
+),
+
                                 ),
                               ),
                               Expanded(

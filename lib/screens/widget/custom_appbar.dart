@@ -6,7 +6,7 @@ class CustomAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppBar(
-      backgroundColor: Colors.white,
+      //backgroundColor: Colors.white,
       elevation: 0.0,
       leading: IconButton(
         icon: const Icon(Icons.menu),

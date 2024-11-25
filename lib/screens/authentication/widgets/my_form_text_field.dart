@@ -38,7 +38,6 @@ class _MyFormTextFieldState extends State<MyFormTextField> {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20.0),
       child: Material(
-        color: kWhite,
         borderRadius: BorderRadius.circular(10),
         child: TextFormField(
           validator: widget.validator,
@@ -55,7 +54,6 @@ class _MyFormTextFieldState extends State<MyFormTextField> {
             ),
             labelText: widget.labelText,
             labelStyle: const TextStyle(
-              color: kBlack,
               fontSize: 12,
               fontFamily: 'Inter',
               fontWeight: FontWeight.normal,

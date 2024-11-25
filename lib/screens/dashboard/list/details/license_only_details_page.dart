@@ -29,24 +29,26 @@ class LicenseOnlyDetailsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('License Only Details'),
-       
         elevation: 0,
-        
       ),
       body: SingleChildScrollView(
         child: Column(
           children: [
             const SizedBox(height: 20),
-            Stack(
-              children: [
-                CircleAvatar(
-                  radius: 60,
-                  backgroundImage: licenseDetails['image'] != null &&
-                          licenseDetails['image'].isNotEmpty
-                      ? CachedNetworkImageProvider(licenseDetails['image'])
-                      : const AssetImage('assets/icons/user.png') as ImageProvider,
-                ),
-              ],
+            CircleAvatar(
+              radius: 60,
+              backgroundColor: kWhite,
+              backgroundImage: licenseDetails['image'] != null && licenseDetails['image'].isNotEmpty
+                  ? CachedNetworkImageProvider(licenseDetails['image'])
+                  : null,
+              child: licenseDetails['image'] == null || licenseDetails['image'].isEmpty
+                  ? Text(
+                      licenseDetails['fullName'] != null && licenseDetails['fullName'].isNotEmpty
+                          ? licenseDetails['fullName'][0].toUpperCase()
+                          : '',
+                      style: const TextStyle(fontSize: 40, color: kPrimaryColor),
+                    )
+                  : null,
             ),
             const SizedBox(height: 20),
             Container(
@@ -118,7 +120,7 @@ class LicenseOnlyDetailsPage extends StatelessWidget {
                 text: 'Update License Only',
                 isLoading: false,
                 isEnabled: true,
-                width: double.infinity, // Adjust width as needed
+                width: double.infinity,
               ),
             ),
             const SizedBox(height: 20),

@@ -13,7 +13,7 @@ void showCustomConfirmationDialog(BuildContext context, String title, String con
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 30),
           decoration: BoxDecoration(
-            color: Colors.white,
+            //color: Colors.white,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Column(
@@ -25,7 +25,7 @@ void showCustomConfirmationDialog(BuildContext context, String title, String con
                   fontFamily: 'Inter',
                   fontWeight: FontWeight.w600,
                   fontSize: 21.4,
-                  color: kBlack,
+                 // color: kBlack,
                 ),
               ),
               const SizedBox(height: 16),
