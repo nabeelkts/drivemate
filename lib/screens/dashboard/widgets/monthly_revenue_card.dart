@@ -27,111 +27,124 @@ class MonthlyRevenueCard extends StatelessWidget {
     final fs = FirebaseFirestore.instance;
     final WorkspaceController workspaceController =
         Get.find<WorkspaceController>();
-    final schoolId = workspaceController.currentSchoolId.value;
-    final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: fs
-          .collection('users')
-          .doc(targetId)
-          .collection('students')
-          .snapshots(),
-      builder: (context, s1) {
-        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: fs
-              .collection('users')
-              .doc(targetId)
-              .collection('licenseonly')
-              .snapshots(),
-          builder: (context, s2) {
-            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: fs
-                  .collection('users')
-                  .doc(targetId)
-                  .collection('endorsement')
-                  .snapshots(),
-              builder: (context, s3) {
-                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: fs
-                      .collection('users')
-                      .doc(targetId)
-                      .collection('vehicleDetails')
-                      .snapshots(),
-                  builder: (context, s4) {
-                    for (var snapshot in [s1, s2, s3, s4]) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return _buildLoadingState(context);
-                      }
-                    }
 
-                    final now = DateTime.now();
-                    final todayDate = DateTime(now.year, now.month, now.day);
-                    double monthlyRevenue = 0.0;
-                    final List<double> weekValues = List.filled(7, 0.0);
+    return Obx(() {
+      final schoolId = workspaceController.currentSchoolId.value;
+      final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
 
-                    for (var snapshot in [s1.data, s2.data, s3.data, s4.data]) {
-                      if (snapshot == null) continue;
-                      for (var doc in snapshot.docs) {
-                        final data = doc.data();
-                        double advance = double.tryParse(
-                                data['advanceAmount']?.toString() ?? '0') ??
-                            0;
-                        double second = double.tryParse(
-                                data['secondInstallment']?.toString() ?? '0') ??
-                            0;
-                        double third = double.tryParse(
-                                data['thirdInstallment']?.toString() ?? '0') ??
-                            0;
-
-                        DateTime reg =
-                            DateTime.tryParse(data['registrationDate'] ?? '') ??
-                                DateTime(2000);
-                        DateTime s2t = DateTime.tryParse(
-                                data['secondInstallmentTime'] ?? '') ??
-                            DateTime(2000);
-                        DateTime s3t = DateTime.tryParse(
-                                data['thirdInstallmentTime'] ?? '') ??
-                            DateTime(2000);
-
-                        // Revenue calculation (total for current month)
-                        if (_isSameMonth(reg, now)) monthlyRevenue += advance;
-                        if (_isSameMonth(s2t, now)) monthlyRevenue += second;
-                        if (_isSameMonth(s3t, now)) monthlyRevenue += third;
-
-                        // Last 7 Days chart calculation
-                        void _updateChart(DateTime dt, double amount) {
-                          if (amount <= 0) return;
-                          final normalized =
-                              DateTime(dt.year, dt.month, dt.day);
-                          final diff = todayDate.difference(normalized).inDays;
-                          if (diff >= 0 && diff < 7) {
-                            weekValues[6 - diff] += amount;
-                          }
+      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: fs
+            .collection('users')
+            .doc(targetId)
+            .collection('students')
+            .snapshots(),
+        builder: (context, s1) {
+          return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: fs
+                .collection('users')
+                .doc(targetId)
+                .collection('licenseonly')
+                .snapshots(),
+            builder: (context, s2) {
+              return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                stream: fs
+                    .collection('users')
+                    .doc(targetId)
+                    .collection('endorsement')
+                    .snapshots(),
+                builder: (context, s3) {
+                  return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: fs
+                        .collection('users')
+                        .doc(targetId)
+                        .collection('vehicleDetails')
+                        .snapshots(),
+                    builder: (context, s4) {
+                      for (var snapshot in [s1, s2, s3, s4]) {
+                        if (snapshot.connectionState ==
+                            ConnectionState.waiting) {
+                          return _buildLoadingState(context);
                         }
-
-                        _updateChart(reg, advance);
-                        _updateChart(s2t, second);
-                        _updateChart(s3t, third);
                       }
-                    }
 
-                    // Convert to cumulative values for increasing bars
-                    final List<double> cumulativeValues = List.filled(7, 0.0);
-                    double runningTotal = 0.0;
-                    for (int i = 0; i < 7; i++) {
-                      runningTotal += weekValues[i];
-                      cumulativeValues[i] = runningTotal;
-                    }
+                      final now = DateTime.now();
+                      final todayDate = DateTime(now.year, now.month, now.day);
+                      double monthlyRevenue = 0.0;
+                      final List<double> weekValues = List.filled(7, 0.0);
 
-                    return _buildCard(
-                        context, textColor, monthlyRevenue, cumulativeValues);
-                  },
-                );
-              },
-            );
-          },
-        );
-      },
-    );
+                      for (var snapshot in [
+                        s1.data,
+                        s2.data,
+                        s3.data,
+                        s4.data
+                      ]) {
+                        if (snapshot == null) continue;
+                        for (var doc in snapshot.docs) {
+                          final data = doc.data();
+                          double advance = double.tryParse(
+                                  data['advanceAmount']?.toString() ?? '0') ??
+                              0;
+                          double second = double.tryParse(
+                                  data['secondInstallment']?.toString() ??
+                                      '0') ??
+                              0;
+                          double third = double.tryParse(
+                                  data['thirdInstallment']?.toString() ??
+                                      '0') ??
+                              0;
+
+                          DateTime reg = DateTime.tryParse(
+                                  data['registrationDate'] ?? '') ??
+                              DateTime(2000);
+                          DateTime s2t = DateTime.tryParse(
+                                  data['secondInstallmentTime'] ?? '') ??
+                              DateTime(2000);
+                          DateTime s3t = DateTime.tryParse(
+                                  data['thirdInstallmentTime'] ?? '') ??
+                              DateTime(2000);
+
+                          // Revenue calculation (total for current month)
+                          if (_isSameMonth(reg, now)) monthlyRevenue += advance;
+                          if (_isSameMonth(s2t, now)) monthlyRevenue += second;
+                          if (_isSameMonth(s3t, now)) monthlyRevenue += third;
+
+                          // Last 7 Days chart calculation
+                          void _updateChart(DateTime dt, double amount) {
+                            if (amount <= 0) return;
+                            final normalized =
+                                DateTime(dt.year, dt.month, dt.day);
+                            final diff =
+                                todayDate.difference(normalized).inDays;
+                            if (diff >= 0 && diff < 7) {
+                              weekValues[6 - diff] += amount;
+                            }
+                          }
+
+                          _updateChart(reg, advance);
+                          _updateChart(s2t, second);
+                          _updateChart(s3t, third);
+                        }
+                      }
+
+                      // Convert to cumulative values for increasing bars
+                      final List<double> cumulativeValues = List.filled(7, 0.0);
+                      double runningTotal = 0.0;
+                      for (int i = 0; i < 7; i++) {
+                        runningTotal += weekValues[i];
+                        cumulativeValues[i] = runningTotal;
+                      }
+
+                      return _buildCard(
+                          context, textColor, monthlyRevenue, cumulativeValues);
+                    },
+                  );
+                },
+              );
+            },
+          );
+        },
+      );
+    });
   }
 
   Widget _buildLoadingState(BuildContext context) {

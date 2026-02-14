@@ -76,17 +76,18 @@ class MyApp extends StatelessWidget {
             seedColor: primaryColor, brightness: Brightness.light),
         primaryColor: primaryColor,
         scaffoldBackgroundColor: Colors.white,
-        appBarTheme: AppBarTheme(
-          systemOverlayStyle: const SystemUiOverlayStyle(
+        appBarTheme: const AppBarTheme(
+          systemOverlayStyle: SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
             statusBarIconBrightness: Brightness.dark,
             statusBarBrightness: Brightness.light,
           ),
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
-          iconTheme: const IconThemeData(color: Colors.white),
-          titleTextStyle: const TextStyle(
-              color: Colors.white, fontSize: 20, fontWeight: FontWeight.w500),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          iconTheme: IconThemeData(color: Colors.black),
+          titleTextStyle: TextStyle(
+              color: Colors.black, fontSize: 20, fontWeight: FontWeight.w500),
         ),
         textTheme: const TextTheme(
           bodyLarge: TextStyle(color: Colors.black),
@@ -109,16 +110,17 @@ class MyApp extends StatelessWidget {
         primaryColor: primaryColor,
         scaffoldBackgroundColor: const Color(0xFF121212),
         cardColor: const Color(0xFF1E1E1E),
-        appBarTheme: AppBarTheme(
-          systemOverlayStyle: const SystemUiOverlayStyle(
+        appBarTheme: const AppBarTheme(
+          systemOverlayStyle: SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
             statusBarIconBrightness: Brightness.light,
             statusBarBrightness: Brightness.dark,
           ),
-          backgroundColor: primaryColor,
+          backgroundColor: Color(0xFF121212),
           foregroundColor: Colors.white,
-          iconTheme: const IconThemeData(color: Colors.white),
-          titleTextStyle: const TextStyle(
+          elevation: 0,
+          iconTheme: IconThemeData(color: Colors.white),
+          titleTextStyle: TextStyle(
               color: Colors.white, fontSize: 20, fontWeight: FontWeight.w500),
         ),
         textTheme: const TextTheme(

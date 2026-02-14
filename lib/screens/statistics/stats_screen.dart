@@ -214,167 +214,170 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Widget _buildRedesignedChart(bool isDark) {
-    final schoolId = _workspaceController.currentSchoolId.value;
-    final targetId = schoolId.isNotEmpty ? schoolId : (user?.uid ?? '');
+    return Obx(() {
+      final schoolId = _workspaceController.currentSchoolId.value;
+      final targetId = schoolId.isNotEmpty ? schoolId : (user?.uid ?? '');
 
-    return StreamBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
-      stream: _getCombinedStatsStream(targetId),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData ||
-            snapshot.connectionState == ConnectionState.waiting) {
-          return _buildShimmerLoader(200, isDark);
-        }
+      return StreamBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
+        stream: _getCombinedStatsStream(targetId),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData ||
+              snapshot.connectionState == ConnectionState.waiting) {
+            return _buildShimmerLoader(200, isDark);
+          }
 
-        final dataList = snapshot.data!;
-        Map<String, double> revenueByMonth = {};
-        Map<String, double> expensesByMonth = {};
-        List<DateTime> months = List.generate(6, (i) {
-          return DateTime(selectedDate.year, selectedDate.month - (5 - i), 1);
-        });
+          final dataList = snapshot.data!;
+          Map<String, double> revenueByMonth = {};
+          Map<String, double> expensesByMonth = {};
+          List<DateTime> months = List.generate(6, (i) {
+            return DateTime(selectedDate.year, selectedDate.month - (5 - i), 1);
+          });
 
-        for (var month in months) {
-          String key = DateFormat('MM/yy').format(month);
-          revenueByMonth[key] = 0;
-          expensesByMonth[key] = 0;
-        }
+          for (var month in months) {
+            String key = DateFormat('MM/yy').format(month);
+            revenueByMonth[key] = 0;
+            expensesByMonth[key] = 0;
+          }
 
-        // 1. Process Revenue from main collections (indices 0, 1, 2, 3, 5)
-        final revIndices = [0, 1, 2, 3, 5];
-        for (var idx in revIndices) {
-          if (dataList.length > idx) {
-            for (var doc in dataList[idx].docs) {
-              _processRevenue(doc.data(), months, revenueByMonth);
+          // 1. Process Revenue from main collections (indices 0, 1, 2, 3, 5)
+          final revIndices = [0, 1, 2, 3, 5];
+          for (var idx in revIndices) {
+            if (dataList.length > idx) {
+              for (var doc in dataList[idx].docs) {
+                _processRevenue(doc.data(), months, revenueByMonth);
+              }
             }
           }
-        }
 
-        // 2. Process Expenses (index 4)
-        if (dataList.length > 4) {
-          for (var doc in dataList[4].docs) {
-            _processExpenses(doc.data(), months, expensesByMonth);
-          }
-        }
-
-        // 3. Process Payments (index 6)
-        if (dataList.length > 6) {
-          for (var doc in dataList[6].docs) {
-            final data = doc.data();
-            double amount = double.tryParse(data['amountPaid']?.toString() ??
-                    data['amount']?.toString() ??
-                    '0') ??
-                0;
-            DateTime? date;
-            if (data['date'] is Timestamp) {
-              date = (data['date'] as Timestamp).toDate();
-            } else {
-              date = DateTime.tryParse(data['date']?.toString() ?? '');
+          // 2. Process Expenses (index 4)
+          if (dataList.length > 4) {
+            for (var doc in dataList[4].docs) {
+              _processExpenses(doc.data(), months, expensesByMonth);
             }
+          }
 
-            if (date != null) {
-              for (var month in months) {
-                String key = DateFormat('MM/yy').format(month);
-                if (date.year == month.year && date.month == month.month) {
-                  revenueByMonth[key] = (revenueByMonth[key] ?? 0) + amount;
+          // 3. Process Payments (index 6)
+          if (dataList.length > 6) {
+            for (var doc in dataList[6].docs) {
+              final data = doc.data();
+              double amount = double.tryParse(data['amountPaid']?.toString() ??
+                      data['amount']?.toString() ??
+                      '0') ??
+                  0;
+              DateTime? date;
+              if (data['date'] is Timestamp) {
+                date = (data['date'] as Timestamp).toDate();
+              } else {
+                date = DateTime.tryParse(data['date']?.toString() ?? '');
+              }
+
+              if (date != null) {
+                for (var month in months) {
+                  String key = DateFormat('MM/yy').format(month);
+                  if (date.year == month.year && date.month == month.month) {
+                    revenueByMonth[key] = (revenueByMonth[key] ?? 0) + amount;
+                  }
                 }
               }
             }
           }
-        }
 
-        double maxY = _getMaxY(revenueByMonth, expensesByMonth);
+          double maxY = _getMaxY(revenueByMonth, expensesByMonth);
 
-        return BarChart(
-          BarChartData(
-            alignment: BarChartAlignment.spaceAround,
-            maxY: maxY,
-            barTouchData: BarTouchData(
-              touchTooltipData: BarTouchTooltipData(
-                tooltipBgColor: isDark ? Colors.grey.shade800 : Colors.white,
-                tooltipBorder:
-                    BorderSide(color: isDark ? Colors.white10 : Colors.black12),
-                getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                  String key = DateFormat('MM/yy').format(months[groupIndex]);
-                  double rev = revenueByMonth[key] ?? 0;
-                  double exp = expensesByMonth[key] ?? 0;
-                  return BarTooltipItem(
-                    '${DateFormat('MMM yy').format(months[groupIndex])}\n',
-                    const TextStyle(fontWeight: FontWeight.bold),
-                    children: [
-                      TextSpan(
-                        text: 'Rev: Rs. ${rev.toStringAsFixed(0)}\n',
-                        style: const TextStyle(
-                            color: Colors.green, fontWeight: FontWeight.normal),
-                      ),
-                      TextSpan(
-                        text: 'Exp: Rs. ${exp.toStringAsFixed(0)}',
-                        style: const TextStyle(
-                            color: Colors.redAccent,
-                            fontWeight: FontWeight.normal),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-            titlesData: FlTitlesData(
-              show: true,
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  getTitlesWidget: (value, meta) {
-                    if (value < 0 || value >= months.length)
-                      return const SizedBox();
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 8.0),
-                      child: Text(
-                        DateFormat('MMM').format(months[value.toInt()]),
-                        style: TextStyle(
-                          color: (isDark ? Colors.white : Colors.black)
-                              .withOpacity(0.5),
-                          fontSize: 10,
+          return BarChart(
+            BarChartData(
+              alignment: BarChartAlignment.spaceAround,
+              maxY: maxY,
+              barTouchData: BarTouchData(
+                touchTooltipData: BarTouchTooltipData(
+                  tooltipBgColor: isDark ? Colors.grey.shade800 : Colors.white,
+                  tooltipBorder: BorderSide(
+                      color: isDark ? Colors.white10 : Colors.black12),
+                  getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                    String key = DateFormat('MM/yy').format(months[groupIndex]);
+                    double rev = revenueByMonth[key] ?? 0;
+                    double exp = expensesByMonth[key] ?? 0;
+                    return BarTooltipItem(
+                      '${DateFormat('MMM yy').format(months[groupIndex])}\n',
+                      const TextStyle(fontWeight: FontWeight.bold),
+                      children: [
+                        TextSpan(
+                          text: 'Rev: Rs. ${rev.toStringAsFixed(0)}\n',
+                          style: const TextStyle(
+                              color: Colors.green,
+                              fontWeight: FontWeight.normal),
                         ),
-                      ),
+                        TextSpan(
+                          text: 'Exp: Rs. ${exp.toStringAsFixed(0)}',
+                          style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontWeight: FontWeight.normal),
+                        ),
+                      ],
                     );
                   },
                 ),
               ),
-              leftTitles:
-                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              rightTitles:
-                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-              topTitles:
-                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              titlesData: FlTitlesData(
+                show: true,
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    getTitlesWidget: (value, meta) {
+                      if (value < 0 || value >= months.length)
+                        return const SizedBox();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          DateFormat('MMM').format(months[value.toInt()]),
+                          style: TextStyle(
+                            color: (isDark ? Colors.white : Colors.black)
+                                .withOpacity(0.5),
+                            fontSize: 10,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                leftTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                rightTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                topTitles:
+                    const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+              ),
+              gridData: const FlGridData(show: false),
+              borderData: FlBorderData(show: false),
+              barGroups: List.generate(months.length, (i) {
+                String key = DateFormat('MM/yy').format(months[i]);
+                double rev = revenueByMonth[key] ?? 0;
+                double exp = expensesByMonth[key] ?? 0;
+                return BarChartGroupData(
+                  x: i,
+                  barRods: [
+                    BarChartRodData(
+                      toY: rev,
+                      color: Colors.green,
+                      width: 12,
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(4)),
+                    ),
+                    BarChartRodData(
+                      toY: exp,
+                      color: Colors.redAccent.withOpacity(0.7),
+                      width: 12,
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(4)),
+                    ),
+                  ],
+                );
+              }),
             ),
-            gridData: const FlGridData(show: false),
-            borderData: FlBorderData(show: false),
-            barGroups: List.generate(months.length, (i) {
-              String key = DateFormat('MM/yy').format(months[i]);
-              double rev = revenueByMonth[key] ?? 0;
-              double exp = expensesByMonth[key] ?? 0;
-              return BarChartGroupData(
-                x: i,
-                barRods: [
-                  BarChartRodData(
-                    toY: rev,
-                    color: Colors.green,
-                    width: 12,
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(4)),
-                  ),
-                  BarChartRodData(
-                    toY: exp,
-                    color: Colors.redAccent.withOpacity(0.7),
-                    width: 12,
-                    borderRadius:
-                        const BorderRadius.vertical(top: Radius.circular(4)),
-                  ),
-                ],
-              );
-            }),
-          ),
-        );
-      },
-    );
+          );
+        },
+      );
+    });
   }
 
   void _processRevenue(Map<String, dynamic> data, List<DateTime> months,
@@ -545,7 +548,52 @@ class _StatsScreenState extends State<StatsScreen> {
           }
         }
 
-        // Revenue from Payments collectionGroup (index 6)
+        // Revenue from Payments collectionGroup (index 6) with smart deduplication
+        // Track which payments we've already counted from main records
+        final Set<String> countedPayments = {};
+
+        // Build tracking set: parentId_installmentType_amount_date
+        for (var item in allItems) {
+          final data = item['data'] as Map<String, dynamic>;
+          final itemId = item['id'] as String;
+
+          double advance =
+              double.tryParse(data['advanceAmount']?.toString() ?? '0') ?? 0;
+          double second =
+              double.tryParse(data['secondInstallment']?.toString() ?? '0') ??
+                  0;
+          double third =
+              double.tryParse(data['thirdInstallment']?.toString() ?? '0') ?? 0;
+
+          DateTime? t1 = DateTime.tryParse(data['registrationDate'] ?? '');
+          DateTime? t2 = DateTime.tryParse(data['secondInstallmentTime'] ?? '');
+          DateTime? t3 = DateTime.tryParse(data['thirdInstallmentTime'] ?? '');
+
+          // Only track if in current month
+          if (t1 != null &&
+              t1.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
+              t1.isBefore(endOfMonth.add(const Duration(seconds: 1))) &&
+              advance > 0) {
+            countedPayments.add(
+                '${itemId}_advance_${advance.toStringAsFixed(2)}_${t1.toIso8601String().substring(0, 10)}');
+          }
+          if (t2 != null &&
+              t2.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
+              t2.isBefore(endOfMonth.add(const Duration(seconds: 1))) &&
+              second > 0) {
+            countedPayments.add(
+                '${itemId}_second_${second.toStringAsFixed(2)}_${t2.toIso8601String().substring(0, 10)}');
+          }
+          if (t3 != null &&
+              t3.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
+              t3.isBefore(endOfMonth.add(const Duration(seconds: 1))) &&
+              third > 0) {
+            countedPayments.add(
+                '${itemId}_third_${third.toStringAsFixed(2)}_${t3.toIso8601String().substring(0, 10)}');
+          }
+        }
+
+        // Now add payments that aren't already counted
         if (snapshot.data!.length > 6) {
           for (var doc in snapshot.data![6].docs) {
             final data = doc.data();
@@ -564,13 +612,20 @@ class _StatsScreenState extends State<StatsScreen> {
                 pDate.isAfter(
                     startOfMonth.subtract(const Duration(seconds: 1))) &&
                 pDate.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
-              // Special case: if this payment is also an advance, we might double count
-              // But usually 'payments' subcollection is for installments, while 'advance' is in root.
-              // However, PaymentUtils adds advances to 'payments' too.
-              // To avoid double counting, we'd need to check if the main record registrationDate matches.
-              // For simplicity now, we assume root record advance is the primary source if it exists.
-              // Actually, many root records DON'T have sub-payments yet.
-              currentMonthRevenue += amount;
+              // Get parent ID from document path (should be like users/{uid}/students/{studentId}/payments/{paymentId})
+              final String parentId = data['parentId'] ?? '';
+              final String paymentType =
+                  (data['paymentType'] ?? '').toLowerCase();
+              final String dateStr = pDate.toIso8601String().substring(0, 10);
+
+              // Create deduplication key
+              String dedupKey =
+                  '${parentId}_${paymentType}_${amount.toStringAsFixed(2)}_$dateStr';
+
+              // Only add if not already counted
+              if (!countedPayments.contains(dedupKey)) {
+                currentMonthRevenue += amount;
+              }
             }
           }
         }

@@ -246,6 +246,45 @@ class PdfService {
     final ttf = pw.Font.helvetica();
     final ttfBold = pw.Font.helveticaBold();
 
+    // Construct Address String
+    final List<String> addressParts = [];
+    if (studentDetails['house'] != null &&
+        studentDetails['house'].toString().isNotEmpty) {
+      addressParts.add(studentDetails['house']);
+    } else if (studentDetails['houseName'] != null &&
+        studentDetails['houseName'].toString().isNotEmpty) {
+      addressParts.add(studentDetails['houseName']);
+    }
+
+    if (studentDetails['place'] != null &&
+        studentDetails['place'].toString().isNotEmpty) {
+      addressParts.add(studentDetails['place']);
+    }
+    if (studentDetails['post'] != null &&
+        studentDetails['post'].toString().isNotEmpty) {
+      addressParts.add(studentDetails['post']);
+    }
+    if (studentDetails['district'] != null &&
+        studentDetails['district'].toString().isNotEmpty) {
+      addressParts.add(studentDetails['district']);
+    }
+    if (studentDetails['pin'] != null &&
+        studentDetails['pin'].toString().isNotEmpty) {
+      addressParts.add('PIN: ${studentDetails['pin']}');
+    }
+
+    final String fullAddress = addressParts.join(', ');
+    final bool hasAddress = fullAddress.isNotEmpty;
+
+    // Determine ID/Address Line to show
+    // For students: Name, Address, Mob (User requested)
+    // For vehicles: Name, Address (or ID if empty), Mob
+    // We will use a consistent logic: Prefer Address, Fallback to ID if Address empty.
+
+    final String secondLine = hasAddress
+        ? fullAddress
+        : 'ID: ${studentDetails['studentId'] ?? 'N/A'}';
+
     pdf.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
@@ -313,18 +352,21 @@ class PdfService {
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
-                  pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.start,
-                    children: [
-                      pw.Text('Bill To:',
-                          style: pw.TextStyle(font: ttfBold, fontSize: 12)),
-                      pw.Text(studentDetails['fullName'] ?? 'N/A',
-                          style: pw.TextStyle(font: ttf, fontSize: 14)),
-                      pw.Text('ID: ${studentDetails['studentId'] ?? 'N/A'}',
-                          style: pw.TextStyle(font: ttf, fontSize: 12)),
-                      pw.Text('Mob: ${studentDetails['mobileNumber'] ?? 'N/A'}',
-                          style: pw.TextStyle(font: ttf, fontSize: 12)),
-                    ],
+                  pw.Expanded(
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.start,
+                      children: [
+                        pw.Text('Bill To:',
+                            style: pw.TextStyle(font: ttfBold, fontSize: 12)),
+                        pw.Text(studentDetails['fullName'] ?? 'N/A',
+                            style: pw.TextStyle(font: ttfBold, fontSize: 14)),
+                        pw.Text(secondLine,
+                            style: pw.TextStyle(font: ttf, fontSize: 12)),
+                        pw.Text(
+                            'Mob: ${studentDetails['mobileNumber'] ?? 'N/A'}',
+                            style: pw.TextStyle(font: ttf, fontSize: 12)),
+                      ],
+                    ),
                   ),
                   pw.Column(
                     crossAxisAlignment: pw.CrossAxisAlignment.end,
@@ -352,7 +394,7 @@ class PdfService {
                         child: pw.Text('Date',
                             style: pw.TextStyle(font: ttfBold, fontSize: 12))),
                     pw.Expanded(
-                        flex: 3,
+                        flex: 4, // Increased flex for description
                         child: pw.Text('Description',
                             style: pw.TextStyle(font: ttfBold, fontSize: 12))),
                     pw.Expanded(
@@ -391,9 +433,35 @@ class PdfService {
                           child: pw.Text(DateFormat('dd/MM/yyyy').format(date),
                               style: const pw.TextStyle(fontSize: 10))),
                       pw.Expanded(
-                          flex: 3,
-                          child: pw.Text(tx['description'] ?? 'Course Payment',
-                              style: const pw.TextStyle(fontSize: 10))),
+                          flex: 4,
+                          child: pw.Text((() {
+                            // Determine Description
+                            // Check if it's a vehicle payment (has vehicle number)
+                            if (studentDetails['vehicleNumber'] != null &&
+                                studentDetails['vehicleNumber']
+                                    .toString()
+                                    .isNotEmpty) {
+                              String vNum =
+                                  studentDetails['vehicleNumber'].toString();
+                              String sType =
+                                  studentDetails['cov']?.toString() ?? '';
+
+                              // Fallback to serviceTypes array if cov string is empty
+                              if (sType.isEmpty &&
+                                  studentDetails['serviceTypes'] is List) {
+                                sType = (studentDetails['serviceTypes'] as List)
+                                    .join(', ');
+                              }
+
+                              if (sType.isNotEmpty) {
+                                return '$vNum - $sType';
+                              } else {
+                                return vNum;
+                              }
+                            }
+                            // Default for students/others
+                            return studentDetails['cov'] ?? 'Course Payment';
+                          })(), style: const pw.TextStyle(fontSize: 10))),
                       pw.Expanded(
                           flex: 2,
                           child: pw.Text(tx['mode'] ?? 'N/A',

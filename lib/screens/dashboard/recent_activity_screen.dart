@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:mds/constants/colors.dart';
+import 'package:get/get.dart';
+import 'package:mds/controller/workspace_controller.dart';
 
 class RecentActivityScreen extends StatelessWidget {
   const RecentActivityScreen({super.key});
@@ -27,83 +29,94 @@ class RecentActivityScreen extends StatelessWidget {
       );
     }
 
+    final WorkspaceController workspaceController =
+        Get.find<WorkspaceController>();
+
     return Scaffold(
       appBar: AppBar(
         title: Text('Recent Activity', style: TextStyle(color: textColor)),
         backgroundColor: theme.scaffoldBackgroundColor,
         iconTheme: IconThemeData(color: textColor),
       ),
-      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('recentActivity')
-            .orderBy('timestamp', descending: true)
-            .limit(50)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(
-              child: Text(
-                'Error: ${snapshot.error}',
-                style: TextStyle(color: textColor),
-              ),
-            );
-          }
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final docs = snapshot.data?.docs ?? [];
-          if (docs.isEmpty) {
-            return Center(
-              child: Text(
-                'No recent activity',
-                style: TextStyle(color: textColor.withOpacity(0.7)),
-              ),
-            );
-          }
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: docs.length,
-            itemBuilder: (context, index) {
-              final doc = docs[index];
-              final data = doc.data();
-              final title = data['title'] as String? ?? 'Activity';
-              final details = data['details'] as String? ?? '';
-              final displayName = _extractName(details, title);
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                color: theme.brightness == Brightness.dark
-                    ? Colors.grey.shade900
-                    : Colors.grey.shade100,
-                child: ListTile(
-                  leading: CircleAvatar(
-                    backgroundColor: kPrimaryColor.withOpacity(0.2),
-                    child: Text(
-                      displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
+      body: Obx(() {
+        final schoolId = workspaceController.currentSchoolId.value;
+        final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
+
+        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+          stream: FirebaseFirestore.instance
+              .collection('users')
+              .doc(targetId)
+              .collection('recentActivity')
+              .orderBy('timestamp', descending: true)
+              .limit(50)
+              .snapshots(),
+          builder: (context, snapshot) {
+            if (snapshot.hasError) {
+              return Center(
+                child: Text(
+                  'Error: ${snapshot.error}',
+                  style: TextStyle(color: textColor),
+                ),
+              );
+            }
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            final docs = snapshot.data?.docs ?? [];
+            if (docs.isEmpty) {
+              return Center(
+                child: Text(
+                  'No recent activity',
+                  style: TextStyle(color: textColor.withOpacity(0.7)),
+                ),
+              );
+            }
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: docs.length,
+              itemBuilder: (context, index) {
+                final doc = docs[index];
+                final data = doc.data();
+                final title = data['title'] as String? ?? 'Activity';
+                final details = data['details'] as String? ?? '';
+                final displayName = _extractName(details, title);
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  color: theme.brightness == Brightness.dark
+                      ? Colors.grey.shade900
+                      : Colors.grey.shade100,
+                  child: ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: kPrimaryColor.withOpacity(0.2),
+                      child: Text(
+                        displayName.isNotEmpty
+                            ? displayName[0].toUpperCase()
+                            : '?',
+                        style: TextStyle(
+                          color: kPrimaryColor,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      displayName,
                       style: TextStyle(
-                        color: kPrimaryColor,
-                        fontWeight: FontWeight.bold,
+                          color: textColor, fontWeight: FontWeight.w500),
+                    ),
+                    subtitle: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: textColor.withOpacity(0.7),
                       ),
                     ),
                   ),
-                  title: Text(
-                    displayName,
-                    style: TextStyle(color: textColor, fontWeight: FontWeight.w500),
-                  ),
-                  subtitle: Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: textColor.withOpacity(0.7),
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        },
-      ),
+                );
+              },
+            );
+          },
+        );
+      }),
     );
   }
 

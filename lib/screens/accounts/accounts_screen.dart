@@ -299,34 +299,33 @@ class _AccountsScreenState extends State<AccountsScreen> {
     final cardColor = isDark ? Colors.grey.shade900 : Colors.grey.shade100;
     final borderColor = isDark ? Colors.grey.shade600 : Colors.grey.shade400;
     return SafeArea(
-      child: Scaffold(
-        backgroundColor: isDark ? Colors.black : Colors.grey.shade200,
-        appBar: AppBar(
-          backgroundColor: isDark ? Colors.black : Colors.white,
-          elevation: 0,
-          title: Text(
-            'Accounts',
-            style: TextStyle(
-                color: textColor, fontSize: 22, fontWeight: FontWeight.bold),
-          ),
+        child: Scaffold(
+      backgroundColor: isDark ? Colors.black : Colors.grey.shade200,
+      appBar: AppBar(
+        backgroundColor: isDark ? Colors.black : Colors.white,
+        elevation: 0,
+        title: Text(
+          'Accounts',
+          style: TextStyle(
+              color: textColor, fontSize: 22, fontWeight: FontWeight.bold),
         ),
-        body: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: StreamBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(12.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Obx(() {
+                final workspaceController = Get.find<WorkspaceController>();
+                final targetId =
+                    workspaceController.currentSchoolId.value.isNotEmpty
+                        ? workspaceController.currentSchoolId.value
+                        : (user?.uid ?? '');
+
+                return StreamBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
                   // Use combined stream to ensure real-time updates from ANY collection
-                  stream: _getCombinedTransactionsStream(
-                      Get.find<WorkspaceController>()
-                              .currentSchoolId
-                              .value
-                              .isNotEmpty
-                          ? Get.find<WorkspaceController>()
-                              .currentSchoolId
-                              .value
-                          : (user?.uid ?? '')),
+                  stream: _getCombinedTransactionsStream(targetId),
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
                       return const Center(
@@ -608,13 +607,13 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       ],
                     );
                   },
-                ),
-              ),
-            ],
-          ),
+                );
+              }),
+            ),
+          ],
         ),
       ),
-    );
+    ));
   }
 
   String getCollectionDisplayName(String collectionId) {

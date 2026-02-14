@@ -31,16 +31,6 @@ class SettingsPage extends StatelessWidget {
   final ThemeController themeController = Get.find<ThemeController>();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
-  // Predefined color themes
-  final List<Map<String, dynamic>> colorThemes = [
-    {'name': 'Orange (Default)', 'color': const Color(0xFFFF6B35)},
-    {'name': 'Blue', 'color': Colors.blue},
-    {'name': 'Purple', 'color': Colors.purple},
-    {'name': 'Green', 'color': Colors.green},
-    {'name': 'Teal', 'color': Colors.teal},
-    {'name': 'Pink', 'color': Colors.pink},
-  ];
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -85,14 +75,6 @@ class SettingsPage extends StatelessWidget {
                       value: isDarkMode,
                       onChanged: (v) => toggleTheme(),
                       activeColor: themeController.themeColor)),
-              _buildSettingTile(
-                  textColor: textColor,
-                  icon: Icons.palette,
-                  title: 'Color Theme',
-                  subtitle: 'Choose your accent color',
-                  trailing: Icon(Icons.chevron_right,
-                      color: textColor.withOpacity(0.5)),
-                  onTap: () => _showColorThemeDialog(context)),
               _buildSettingTile(
                   textColor: textColor,
                   icon: Icons.dashboard_customize,
@@ -196,74 +178,6 @@ class SettingsPage extends StatelessWidget {
             Provider.of<GoogleSignInProvider>(context, listen: false);
         await provider.signOut(context);
       },
-    );
-  }
-
-  void _showColorThemeDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Choose Color Theme'),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: GridView.builder(
-            shrinkWrap: true,
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              childAspectRatio: 1,
-            ),
-            itemCount: colorThemes.length,
-            itemBuilder: (context, index) {
-              final theme = colorThemes[index];
-              final isSelected = themeController.themeColor == theme['color'];
-              return InkWell(
-                onTap: () {
-                  themeController.setThemeColor(theme['color']);
-                  Navigator.pop(context);
-                },
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: theme['color'],
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected ? Colors.white : Colors.transparent,
-                      width: 3,
-                    ),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (isSelected)
-                          const Icon(Icons.check,
-                              color: Colors.white, size: 24),
-                        const SizedBox(height: 4),
-                        Text(
-                          theme['name'].split(' ')[0],
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Close'),
-          ),
-        ],
-      ),
     );
   }
 

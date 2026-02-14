@@ -22,30 +22,33 @@ class RecentActivityCard extends StatelessWidget {
 
     final WorkspaceController workspaceController =
         Get.find<WorkspaceController>();
-    final schoolId = workspaceController.currentSchoolId.value;
-    final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
 
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('recentActivity')
-          .orderBy('timestamp', descending: true)
-          .limit(2)
-          .snapshots(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return _buildLoadingState(context);
-        }
+    return Obx(() {
+      final schoolId = workspaceController.currentSchoolId.value;
+      final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
 
-        List<Map<String, dynamic>> activities = [];
-        if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-          activities = snapshot.data!.docs.map((doc) => doc.data()).toList();
-        }
+      return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('recentActivity')
+            .orderBy('timestamp', descending: true)
+            .limit(2)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _buildLoadingState(context);
+          }
 
-        return _buildCard(context, textColor, activities);
-      },
-    );
+          List<Map<String, dynamic>> activities = [];
+          if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
+            activities = snapshot.data!.docs.map((doc) => doc.data()).toList();
+          }
+
+          return _buildCard(context, textColor, activities);
+        },
+      );
+    });
   }
 
   Widget _buildLoadingState(BuildContext context) {

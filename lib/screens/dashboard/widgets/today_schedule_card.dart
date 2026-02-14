@@ -7,6 +7,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:get/get.dart';
+import 'package:mds/controller/workspace_controller.dart';
 
 class TodayScheduleCard extends StatefulWidget {
   const TodayScheduleCard({super.key});
@@ -22,11 +24,29 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
   final List<StreamSubscription> _subscriptions = [];
   List<DocumentSnapshot> _learnersDocs = [];
   List<DocumentSnapshot> _drivingDocs = [];
+  StreamSubscription? _schoolIdListener;
 
   @override
   void initState() {
     super.initState();
     _setupStreams();
+    _listenToSchoolChanges();
+  }
+
+  void _listenToSchoolChanges() {
+    final WorkspaceController workspaceController =
+        Get.find<WorkspaceController>();
+    _schoolIdListener =
+        workspaceController.currentSchoolId.listen((newSchoolId) {
+      // Cancel existing subscriptions
+      for (var sub in _subscriptions) {
+        sub.cancel();
+      }
+      _subscriptions.clear();
+      // Reset and fetch again
+      if (mounted) setState(() => _isLoading = true);
+      _setupStreams();
+    });
   }
 
   void _setupStreams() {
@@ -36,12 +56,16 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
       return;
     }
 
+    final WorkspaceController workspaceController =
+        Get.find<WorkspaceController>();
+    final schoolId = workspaceController.currentSchoolId.value;
+    final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
     final dateStr = _storageDateFormat.format(DateTime.now());
 
     // Learners Stream
     _subscriptions.add(FirebaseFirestore.instance
         .collection('users')
-        .doc(user.uid)
+        .doc(targetId)
         .collection('students')
         .where('learnersTestDate', isEqualTo: dateStr)
         .snapshots()
@@ -53,7 +77,7 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
     // Driving Stream
     _subscriptions.add(FirebaseFirestore.instance
         .collection('users')
-        .doc(user.uid)
+        .doc(targetId)
         .collection('students')
         .where('drivingTestDate', isEqualTo: dateStr)
         .snapshots()
@@ -113,6 +137,7 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
 
   @override
   void dispose() {
+    _schoolIdListener?.cancel();
     for (var sub in _subscriptions) {
       sub.cancel();
     }

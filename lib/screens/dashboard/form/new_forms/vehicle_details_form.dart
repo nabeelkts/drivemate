@@ -17,7 +17,7 @@ class VehicleDetails extends StatefulWidget {
 
 class _VehicleDetailsState extends State<VehicleDetails> {
   bool isLoading = false;
-  String selectedService = 'Transfer of Ownership';
+  List<String> selectedServices = [];
   String selectedPaymentMode = 'Cash';
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
@@ -39,7 +39,6 @@ class _VehicleDetailsState extends State<VehicleDetails> {
     final totalAmountController = TextEditingController();
     final advanceAmountController = TextEditingController();
     final balanceAmountController = TextEditingController();
-    final otherServiceController = TextEditingController();
 
     return Stack(
       children: [
@@ -66,9 +65,10 @@ class _VehicleDetailsState extends State<VehicleDetails> {
                               schoolId.isNotEmpty ? schoolId : user.uid;
 
                           final generatedId = await generateStudentId(targetId);
-                          final serviceType = selectedService == 'Other'
-                              ? otherServiceController.text
-                              : selectedService;
+                          // Service types are now stored as array
+                          final serviceTypes = selectedServices.isNotEmpty
+                              ? selectedServices
+                              : ['Transfer of Ownership'];
                           final data = {
                             'fullName': fullNameController.text,
                             'mobileNumber': mobileNumberController.text,
@@ -81,7 +81,9 @@ class _VehicleDetailsState extends State<VehicleDetails> {
                             'vehicleModel': vehicleModelController.text,
                             'chassisNumber': chassisNumberController.text,
                             'engineNumber': engineNumberController.text,
-                            'cov': serviceType,
+                            'serviceTypes': serviceTypes, // Array of services
+                            'cov': serviceTypes
+                                .join(', '), // For backward compatibility
                             'totalAmount': totalAmountController.text,
                             'advanceAmount': advanceAmountController.text,
                             'balanceAmount': balanceAmountController.text,
@@ -191,50 +193,30 @@ class _VehicleDetailsState extends State<VehicleDetails> {
                         controller: engineNumberController,
                         placeholder: 'Enter Engine Number',
                       ),
-                      DropdownButtonFormField<String>(
-                        value: selectedService,
-                        decoration: const InputDecoration(
-                          labelText: 'Service Type',
-                          border: OutlineInputBorder(),
+                      InkWell(
+                        onTap: () => _showServiceSelectionDialog(context),
+                        child: InputDecorator(
+                          decoration: const InputDecoration(
+                            labelText: 'Service Types',
+                            border: OutlineInputBorder(),
+                            suffixIcon: Icon(Icons.arrow_drop_down),
+                          ),
+                          child: Text(
+                            selectedServices.isEmpty
+                                ? 'Select Services'
+                                : selectedServices.join(', '),
+                            style: TextStyle(
+                              color: selectedServices.isEmpty
+                                  ? Colors.grey.shade600
+                                  : null,
+                            ),
+                          ),
                         ),
-                        items: const [
-                          'Transfer of Ownership',
-                          'Address Change',
-                          'Hypothecation Cancellation',
-                          'Hypothecation Addition',
-                          'Fitness Certificate',
-                          'Tax',
-                          'Insurance',
-                          'Fresh Permit',
-                          'Permit Renewal',
-                          'Registration Renewal',
-                          'Other'
-                        ].map((String value) {
-                          return DropdownMenuItem<String>(
-                            value: value,
-                            child: Text(value),
-                          );
-                        }).toList(),
-                        onChanged: (String? newValue) {
-                          if (newValue != null) {
-                            setState(() {
-                              selectedService = newValue;
-                            });
-                          }
-                        },
                       ),
-                      if (selectedService == 'Other')
-                        FormTextField(
-                          label: 'Specify Service',
-                          controller: otherServiceController,
-                          placeholder: 'Enter Service Type',
-                          validator: (v) =>
-                              v!.isEmpty ? 'Please specify service' : null,
-                        ),
                     ],
                   ),
-                  if (selectedService == 'Transfer of Ownership' ||
-                      selectedService == 'Address Change')
+                  if (selectedServices.contains('Transfer of Ownership') ||
+                      selectedServices.contains('Address Change'))
                     FormSection(
                       title: 'Address',
                       children: [
@@ -370,6 +352,102 @@ class _VehicleDetailsState extends State<VehicleDetails> {
             ),
           ),
       ],
+    );
+  }
+
+  void _showServiceSelectionDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final List<String> availableServices = [
+      'Transfer of Ownership',
+      'Address Change',
+      'Hypothecation Cancellation',
+      'Hypothecation Addition',
+      'Fitness Certificate',
+      'Tax',
+      'Insurance',
+      'Fresh Permit',
+      'Permit Renewal',
+      'Registration Renewal',
+      'Green Tax',
+      'Vehicle Alteration',
+      'NOC',
+      'Otherstate Conversion',
+    ];
+
+    List<String> tempSelected = List.from(selectedServices);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: Text(
+                'Select Service Types',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: availableServices.map((service) {
+                    final isSelected = tempSelected.contains(service);
+                    return CheckboxListTile(
+                      title: Text(
+                        service,
+                        style: TextStyle(
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                      value: isSelected,
+                      activeColor: const Color(0xFFFF6B2C),
+                      onChanged: (bool? value) {
+                        setState(() {
+                          if (value == true) {
+                            tempSelected.add(service);
+                          } else {
+                            tempSelected.remove(service);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF6B2C),
+                  ),
+                  onPressed: () {
+                    this.setState(() {
+                      selectedServices = tempSelected;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text(
+                    'Confirm',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }
