@@ -2,24 +2,31 @@
 # Flutter / Dart
 # ==============================
 
+# Flutter/Dart tool directories
 .dart_tool/
 .flutter-plugins
 .flutter-plugins-dependencies
 .packages
 .pub-cache/
 .pub/
+
+# Build outputs
 build/
 **/build/
+
+# Documentation
 doc/api/
 
-# Generated files
+# Logs
 *.log
+
+# Generated files
 *.class
 *.pyc
 *.swp
 .DS_Store
 
-# Obfuscation
+# Obfuscation / Symbols
 app.*.map.json
 app.*.symbols
 
@@ -27,11 +34,17 @@ app.*.symbols
 # Android
 # ==============================
 
+# Gradle files
 android/.gradle/
+android/captures/
 android/app/debug/
 android/app/profile/
 android/app/release/
+
+# Local properties
 local.properties
+
+# Keystore files
 *.keystore
 *.jks
 
@@ -39,31 +52,37 @@ local.properties
 # iOS
 # ==============================
 
+# Xcode / Flutter
 ios/Flutter/.last_build_id
 ios/Pods/
 ios/.symlinks/
 ios/Runner.xcworkspace/
+ios/Runner.xcodeproj/project.xcworkspace/
 
 # ==============================
+# IDEs
+# ==============================
+
 # IntelliJ / Android Studio
-# ==============================
-
 *.iml
 .idea/
 *.ipr
 *.iws
 
-# ==============================
 # VS Code
-# ==============================
-
 .vscode/
 
 # ==============================
 # Misc
 # ==============================
 
+# Version control / backups
 .svn/
 .history/
 .buildlog/
 .atom/
+
+# OS-specific
+Thumbs.db
+ehthumbs.db
+Desktop.ini
