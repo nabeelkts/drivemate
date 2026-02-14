@@ -134,7 +134,7 @@ class WorkspaceSection extends StatelessWidget {
         const SizedBox(height: 16),
         Row(
           children: [
-            if (isStaff)
+            if (isStaff || controller.userRole.value == 'Owner')
               _buildActionChip(
                 icon: Icons.swap_horiz,
                 label: 'Switch',

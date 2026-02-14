@@ -14,6 +14,7 @@ import 'package:mds/screens/widget/common_form.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/screens/widget/base_form_widget.dart';
 
 // ignore: must_be_immutable
 class EditEndorsementDetailsForm extends StatefulWidget {
@@ -35,7 +36,7 @@ class EditEndorsementDetailsForm extends StatefulWidget {
 
 class _EditEndorsementDetailsFormState
     extends State<EditEndorsementDetailsForm> {
-  final formKey = GlobalKey<FormState>();
+  final GlobalKey<CommonFormState> formKey = GlobalKey<CommonFormState>();
   bool isLoading = false;
   File? _image;
 
@@ -276,45 +277,52 @@ class _EditEndorsementDetailsFormState
             ? widget.items.indexOf(widget.initialValues['cov'] ?? '')
             : 0;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit Endorsement Details'),
-        elevation: 0,
-      ),
-      body: CommonForm(
-        items: widget.items,
-        index: selectedIndex,
-        showLicenseField: true,
-        initialValues: widget.initialValues,
-        onFormSubmit: (endorsement) async {
-          try {
-            await usersCollection
-                .doc(targetId)
-                .collection('endorsement')
-                .doc(endorsement['studentId'])
-                .update(endorsement);
+    return BaseFormWidget(
+      title: 'Edit Endorsement Details',
+      onBack: () => Navigator.pop(context),
+      actions: [
+        IconButton(
+          onPressed: () => formKey.currentState?.submitForm(),
+          icon: const Icon(Icons.check, color: Colors.white),
+        ),
+      ],
+      children: [
+        CommonForm(
+          key: formKey,
+          items: widget.items,
+          index: selectedIndex,
+          showLicenseField: true,
+          initialValues: widget.initialValues,
+          onFormSubmit: (endorsement) async {
+            try {
+              await usersCollection
+                  .doc(targetId)
+                  .collection('endorsement')
+                  .doc(endorsement['studentId'])
+                  .update(endorsement);
 
-            Fluttertoast.showToast(
-              msg: 'Endorsement Details Updated Successfully',
-              toastLength: Toast.LENGTH_SHORT,
-              gravity: ToastGravity.BOTTOM,
-            );
+              Fluttertoast.showToast(
+                msg: 'Endorsement Details Updated Successfully',
+                toastLength: Toast.LENGTH_SHORT,
+                gravity: ToastGravity.BOTTOM,
+              );
 
-            if (context.mounted) {
-              Navigator.pop(context);
+              if (context.mounted) {
+                Navigator.pop(context);
+              }
+            } catch (error) {
+              if (kDebugMode) {
+                print('Error updating endorsement details: $error');
+              }
+              Fluttertoast.showToast(
+                msg: 'Failed to update endorsement details: $error',
+                toastLength: Toast.LENGTH_SHORT,
+                gravity: ToastGravity.BOTTOM,
+              );
             }
-          } catch (error) {
-            if (kDebugMode) {
-              print('Error updating endorsement details: $error');
-            }
-            Fluttertoast.showToast(
-              msg: 'Failed to update endorsement details: $error',
-              toastLength: Toast.LENGTH_SHORT,
-              gravity: ToastGravity.BOTTOM,
-            );
-          }
-        },
-      ),
+          },
+        ),
+      ],
     );
   }
 }

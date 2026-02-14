@@ -911,7 +911,7 @@ class _StatsScreenState extends State<StatsScreen> {
               const Text('Learners Summary',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 20),
-              ...List.generate(snapshots.length, (i) {
+              ...List.generate(labels.length, (i) {
                 final count = snapshots[i].docs.length;
                 return ListTile(
                   leading: CircleAvatar(backgroundColor: colors[i], radius: 6),

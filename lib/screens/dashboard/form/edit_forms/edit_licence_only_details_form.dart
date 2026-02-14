@@ -11,6 +11,7 @@ import 'package:mds/screens/widget/common_form.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/screens/widget/base_form_widget.dart';
 
 // ignore: must_be_immutable
 class EditLicenseOnlyForm extends StatefulWidget {
@@ -29,7 +30,7 @@ class EditLicenseOnlyForm extends StatefulWidget {
 }
 
 class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
-  final formKey = GlobalKey<FormState>();
+  final GlobalKey<CommonFormState> formKey = GlobalKey<CommonFormState>();
   bool isLoading = false;
   File? _image;
 
@@ -193,45 +194,52 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
     final schoolId = workspaceController.currentSchoolId.value;
     final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Edit License Only Details'),
-        elevation: 0,
-      ),
-      body: CommonForm(
-        items: widget.items,
-        index: widget.items.indexOf(widget.initialValues['cov']),
-        showLicenseField: false,
-        initialValues: widget.initialValues,
-        onFormSubmit: (licenseonly) async {
-          try {
-            await usersCollection
-                .doc(targetId)
-                .collection('licenseonly')
-                .doc(licenseonly['studentId'])
-                .update(licenseonly);
+    return BaseFormWidget(
+      title: 'Edit License Only Details',
+      onBack: () => Navigator.pop(context),
+      actions: [
+        IconButton(
+          onPressed: () => formKey.currentState?.submitForm(),
+          icon: const Icon(Icons.check, color: Colors.white),
+        ),
+      ],
+      children: [
+        CommonForm(
+          key: formKey,
+          items: widget.items,
+          index: widget.items.indexOf(widget.initialValues['cov']),
+          showLicenseField: false,
+          initialValues: widget.initialValues,
+          onFormSubmit: (licenseonly) async {
+            try {
+              await usersCollection
+                  .doc(targetId)
+                  .collection('licenseonly')
+                  .doc(licenseonly['studentId'])
+                  .update(licenseonly);
 
-            Fluttertoast.showToast(
-              msg: 'License Only Details Updated Successfully',
-              toastLength: Toast.LENGTH_SHORT,
-              gravity: ToastGravity.BOTTOM,
-            );
+              Fluttertoast.showToast(
+                msg: 'License Only Details Updated Successfully',
+                toastLength: Toast.LENGTH_SHORT,
+                gravity: ToastGravity.BOTTOM,
+              );
 
-            if (context.mounted) {
-              Navigator.pop(context);
+              if (context.mounted) {
+                Navigator.pop(context);
+              }
+            } catch (error) {
+              if (kDebugMode) {
+                print('Error updating license details: $error');
+              }
+              Fluttertoast.showToast(
+                msg: 'Failed to update license details: $error',
+                toastLength: Toast.LENGTH_SHORT,
+                gravity: ToastGravity.BOTTOM,
+              );
             }
-          } catch (error) {
-            if (kDebugMode) {
-              print('Error updating license details: $error');
-            }
-            Fluttertoast.showToast(
-              msg: 'Failed to update license details: $error',
-              toastLength: Toast.LENGTH_SHORT,
-              gravity: ToastGravity.BOTTOM,
-            );
-          }
-        },
-      ),
+          },
+        ),
+      ],
     );
   }
 

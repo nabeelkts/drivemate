@@ -65,6 +65,8 @@ class _NewStudentState extends State<NewStudent> {
           'LMV Study + M/C Study',
           'LMV Study + M/C License',
           'LMV License + M/C Study',
+          'LMV Study + M/C Without Gear Study',
+          'M/C Without Gear Study',
         ],
         index: 3,
         showLicenseField: false,

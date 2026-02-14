@@ -67,7 +67,7 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
               tooltip: 'Export PDF',
             ),
             IconButton(
-              icon: const Icon(Icons.edit, color: kPrimaryColor),
+              icon: const Icon(Icons.edit, color: Colors.white),
               onPressed: () {
                 Navigator.push(
                   context,
