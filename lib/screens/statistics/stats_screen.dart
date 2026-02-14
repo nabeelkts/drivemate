@@ -89,25 +89,25 @@ class _StatsScreenState extends State<StatsScreen> {
     return SafeArea(
       child: Scaffold(
         backgroundColor: backgroundColor,
-        body: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildHeader(textColor, isDark),
-                const SizedBox(height: 20),
-                _buildBusinessPerformanceCard(isDark),
-                const SizedBox(height: 20),
-                _buildMetricsGrid(isDark),
-                const SizedBox(height: 12),
-                _buildExpensesCard(isDark),
-                const SizedBox(height: 12),
-                _buildActionsRow(isDark),
-              ],
-            ),
-          ),
-        ),
+        body: Obx(() => SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildHeader(textColor, isDark),
+                    const SizedBox(height: 20),
+                    _buildBusinessPerformanceCard(isDark),
+                    const SizedBox(height: 20),
+                    _buildMetricsGrid(isDark),
+                    const SizedBox(height: 12),
+                    _buildExpensesCard(isDark),
+                    const SizedBox(height: 12),
+                    _buildActionsRow(isDark),
+                  ],
+                ),
+              ),
+            )),
       ),
     );
   }
@@ -239,12 +239,16 @@ class _StatsScreenState extends State<StatsScreen> {
             expensesByMonth[key] = 0;
           }
 
+          // Track counted payments to avoid duplication
+          final Set<String> countedPayments = {};
+
           // 1. Process Revenue from main collections (indices 0, 1, 2, 3, 5)
           final revIndices = [0, 1, 2, 3, 5];
           for (var idx in revIndices) {
             if (dataList.length > idx) {
               for (var doc in dataList[idx].docs) {
-                _processRevenue(doc.data(), months, revenueByMonth);
+                _processRevenue(doc.data(), doc.id, months, revenueByMonth,
+                    countedPayments);
               }
             }
           }
@@ -272,10 +276,23 @@ class _StatsScreenState extends State<StatsScreen> {
               }
 
               if (date != null) {
-                for (var month in months) {
-                  String key = DateFormat('MM/yy').format(month);
-                  if (date.year == month.year && date.month == month.month) {
-                    revenueByMonth[key] = (revenueByMonth[key] ?? 0) + amount;
+                // Get parent ID (recordId) or payment ID
+                String recordId = data['recordId'] ?? '';
+                if (recordId.isEmpty) {
+                  final parentPath = doc.reference.parent.parent?.path ?? '';
+                  final parts = parentPath.split('/');
+                  if (parts.isNotEmpty) recordId = parts.last;
+                }
+                final dateStr = date.toIso8601String().substring(0, 10);
+                String dedupKey =
+                    '${recordId}_${amount.toStringAsFixed(2)}_$dateStr';
+
+                if (!countedPayments.contains(dedupKey)) {
+                  for (var month in months) {
+                    String key = DateFormat('MM/yy').format(month);
+                    if (date.year == month.year && date.month == month.month) {
+                      revenueByMonth[key] = (revenueByMonth[key] ?? 0) + amount;
+                    }
                   }
                 }
               }
@@ -380,8 +397,12 @@ class _StatsScreenState extends State<StatsScreen> {
     });
   }
 
-  void _processRevenue(Map<String, dynamic> data, List<DateTime> months,
-      Map<String, double> revenueByMonth) {
+  void _processRevenue(
+      Map<String, dynamic> data,
+      String itemId,
+      List<DateTime> months,
+      Map<String, double> revenueByMonth,
+      Set<String> countedPayments) {
     double advance =
         double.tryParse(data['advanceAmount']?.toString() ?? '0') ?? 0;
     double second =
@@ -395,12 +416,29 @@ class _StatsScreenState extends State<StatsScreen> {
 
     for (var month in months) {
       String key = DateFormat('MM/yy').format(month);
-      if (t1 != null && t1.year == month.year && t1.month == month.month)
+      if (t1 != null && t1.year == month.year && t1.month == month.month) {
         revenueByMonth[key] = (revenueByMonth[key] ?? 0) + advance;
-      if (t2 != null && t2.year == month.year && t2.month == month.month)
+        if (advance > 0) {
+          final dateStr = t1.toIso8601String().substring(0, 10);
+          countedPayments
+              .add('${itemId}_${advance.toStringAsFixed(2)}_$dateStr');
+        }
+      }
+      if (t2 != null && t2.year == month.year && t2.month == month.month) {
         revenueByMonth[key] = (revenueByMonth[key] ?? 0) + second;
-      if (t3 != null && t3.year == month.year && t3.month == month.month)
+        if (second > 0) {
+          final dateStr = t2.toIso8601String().substring(0, 10);
+          countedPayments
+              .add('${itemId}_${second.toStringAsFixed(2)}_$dateStr');
+        }
+      }
+      if (t3 != null && t3.year == month.year && t3.month == month.month) {
         revenueByMonth[key] = (revenueByMonth[key] ?? 0) + third;
+        if (third > 0) {
+          final dateStr = t3.toIso8601String().substring(0, 10);
+          countedPayments.add('${itemId}_${third.toStringAsFixed(2)}_$dateStr');
+        }
+      }
     }
   }
 
@@ -513,8 +551,13 @@ class _StatsScreenState extends State<StatsScreen> {
             DateTime(selectedDate.year, selectedDate.month + 1, 0, 23, 59, 59);
 
         // Revenue from main collections
+        // Track counted installments: recordId_amount_dateStr
+        final Set<String> countedPayments = {};
+
         for (var item in allItems) {
           final data = item['data'] as Map<String, dynamic>;
+          final itemId = item['id'] as String;
+
           double advance =
               double.tryParse(data['advanceAmount']?.toString() ?? '0') ?? 0;
           double second =
@@ -535,65 +578,35 @@ class _StatsScreenState extends State<StatsScreen> {
               t1.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
               t1.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
             currentMonthRevenue += advance;
+            if (advance > 0) {
+              final dateStr = t1.toIso8601String().substring(0, 10);
+              countedPayments
+                  .add('${itemId}_${advance.toStringAsFixed(2)}_$dateStr');
+            }
           }
           if (t2 != null &&
               t2.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
               t2.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
             currentMonthRevenue += second;
+            if (second > 0) {
+              final dateStr = t2.toIso8601String().substring(0, 10);
+              countedPayments
+                  .add('${itemId}_${second.toStringAsFixed(2)}_$dateStr');
+            }
           }
           if (t3 != null &&
               t3.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
               t3.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
             currentMonthRevenue += third;
+            if (third > 0) {
+              final dateStr = t3.toIso8601String().substring(0, 10);
+              countedPayments
+                  .add('${itemId}_${third.toStringAsFixed(2)}_$dateStr');
+            }
           }
         }
 
-        // Revenue from Payments collectionGroup (index 6) with smart deduplication
-        // Track which payments we've already counted from main records
-        final Set<String> countedPayments = {};
-
-        // Build tracking set: parentId_installmentType_amount_date
-        for (var item in allItems) {
-          final data = item['data'] as Map<String, dynamic>;
-          final itemId = item['id'] as String;
-
-          double advance =
-              double.tryParse(data['advanceAmount']?.toString() ?? '0') ?? 0;
-          double second =
-              double.tryParse(data['secondInstallment']?.toString() ?? '0') ??
-                  0;
-          double third =
-              double.tryParse(data['thirdInstallment']?.toString() ?? '0') ?? 0;
-
-          DateTime? t1 = DateTime.tryParse(data['registrationDate'] ?? '');
-          DateTime? t2 = DateTime.tryParse(data['secondInstallmentTime'] ?? '');
-          DateTime? t3 = DateTime.tryParse(data['thirdInstallmentTime'] ?? '');
-
-          // Only track if in current month
-          if (t1 != null &&
-              t1.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-              t1.isBefore(endOfMonth.add(const Duration(seconds: 1))) &&
-              advance > 0) {
-            countedPayments.add(
-                '${itemId}_advance_${advance.toStringAsFixed(2)}_${t1.toIso8601String().substring(0, 10)}');
-          }
-          if (t2 != null &&
-              t2.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-              t2.isBefore(endOfMonth.add(const Duration(seconds: 1))) &&
-              second > 0) {
-            countedPayments.add(
-                '${itemId}_second_${second.toStringAsFixed(2)}_${t2.toIso8601String().substring(0, 10)}');
-          }
-          if (t3 != null &&
-              t3.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-              t3.isBefore(endOfMonth.add(const Duration(seconds: 1))) &&
-              third > 0) {
-            countedPayments.add(
-                '${itemId}_third_${third.toStringAsFixed(2)}_${t3.toIso8601String().substring(0, 10)}');
-          }
-        }
-
-        // Now add payments that aren't already counted
+        // Revenue from Payments collectionGroup (index 6) with fixed deduplication
         if (snapshot.data!.length > 6) {
           for (var doc in snapshot.data![6].docs) {
             final data = doc.data();
@@ -612,17 +625,24 @@ class _StatsScreenState extends State<StatsScreen> {
                 pDate.isAfter(
                     startOfMonth.subtract(const Duration(seconds: 1))) &&
                 pDate.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
-              // Get parent ID from document path (should be like users/{uid}/students/{studentId}/payments/{paymentId})
-              final String parentId = data['parentId'] ?? '';
-              final String paymentType =
-                  (data['paymentType'] ?? '').toLowerCase();
+              // Get parent ID (recordId)
+              final String recordId = data['recordId'] ?? '';
               final String dateStr = pDate.toIso8601String().substring(0, 10);
 
-              // Create deduplication key
-              String dedupKey =
-                  '${parentId}_${paymentType}_${amount.toStringAsFixed(2)}_$dateStr';
+              // Create deduplication key matching the main record format
+              // Note: If recordId is missing in payment doc (old data), check parent path
+              String finalRecordId = recordId;
+              if (finalRecordId.isEmpty) {
+                final parentPath = doc.reference.parent.parent?.path ?? '';
+                // path is users/{uid}/{collection}/{docId}
+                final parts = parentPath.split('/');
+                if (parts.isNotEmpty) finalRecordId = parts.last;
+              }
 
-              // Only add if not already counted
+              String dedupKey =
+                  '${finalRecordId}_${amount.toStringAsFixed(2)}_$dateStr';
+
+              // Only add if not already counted via main record
               if (!countedPayments.contains(dedupKey)) {
                 currentMonthRevenue += amount;
               }

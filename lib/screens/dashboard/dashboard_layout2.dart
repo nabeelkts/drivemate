@@ -10,6 +10,7 @@ import 'package:mds/screens/dashboard/recent_activity_screen.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 
 import 'package:mds/controller/workspace_controller.dart';
+import 'dart:math' as math;
 
 class DashboardLayout2 extends StatelessWidget {
   const DashboardLayout2({super.key});
@@ -415,76 +416,130 @@ class DashboardLayout2 extends StatelessWidget {
 
   Widget _buildRevenue(
       BuildContext context, bool isDark, Color textColor, String targetId) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF2a2a2a) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+    final now = DateTime.now();
+    final startOfMonth = DateTime(now.year, now.month, 1);
+    final endOfMonth = DateTime(now.year, now.month + 1, 0, 23, 59, 59);
+
+    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+      stream: FirebaseFirestore.instance
+          .collectionGroup('payments')
+          .where('targetId', isEqualTo: targetId)
+          .where('date', isGreaterThanOrEqualTo: startOfMonth)
+          .where('date', isLessThanOrEqualTo: endOfMonth)
+          .snapshots(),
+      builder: (context, snapshot) {
+        double totalRevenue = 0;
+        List<double> dailyRevenue = List.filled(8, 0.0);
+        double maxRevenue = 1.0;
+
+        if (snapshot.hasData) {
+          final today = DateTime(now.year, now.month, now.day);
+
+          for (var doc in snapshot.data!.docs) {
+            final data = doc.data();
+            double amount =
+                double.tryParse(data['amount']?.toString() ?? '0') ?? 0;
+            totalRevenue += amount;
+
+            DateTime? pDate;
+            if (data['date'] is Timestamp) {
+              pDate = (data['date'] as Timestamp).toDate();
+            } else {
+              pDate = DateTime.tryParse(data['date']?.toString() ?? '');
+            }
+
+            if (pDate != null) {
+              final pDateOnly = DateTime(pDate.year, pDate.month, pDate.day);
+              final diff = today.difference(pDateOnly).inDays;
+              if (diff >= 0 && diff < 8) {
+                // 7 is today (index 7), 0 is 7 days ago (index 0)
+                dailyRevenue[7 - diff] += amount;
+              }
+            }
+          }
+
+          double maxVal = dailyRevenue.reduce(math.max);
+          if (maxVal > 0) maxRevenue = maxVal;
+        }
+
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF2a2a2a) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Revenue',
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Revenue',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '(This Month)',
+                        style: TextStyle(
+                          color: textColor.withOpacity(0.5),
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
                   ),
                   Text(
-                    '(This Month)',
+                    '₹${NumberFormat('#,##0').format(totalRevenue)}',
                     style: TextStyle(
-                      color: textColor.withOpacity(0.5),
-                      fontSize: 10,
+                      color: textColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
               ),
-              Text(
-                '₹85,800',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 40,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: List.generate(8, (index) {
+                    final heightFactor = dailyRevenue[index] / maxRevenue;
+                    // Min height 0.1 for visibility if 0? No, 0 should be 0 or very small.
+                    // Let's make 0 values have a tiny height if needed, but 0 is fine.
+                    // Actually, let's treat 0 as 0.1 for visual placeholder or just 0.
+                    final displayHeight =
+                        heightFactor == 0 ? 0.05 : heightFactor;
+
+                    return Container(
+                      width: 14,
+                      height: 40 * displayHeight,
+                      decoration: BoxDecoration(
+                        color: kOrange.withOpacity(0.6 + (0.4 * displayHeight)),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                    );
+                  }),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          SizedBox(
-            height: 40,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: List.generate(8, (index) {
-                final heights = [0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
-                return Container(
-                  width: 14,
-                  height: 40 * heights[index],
-                  decoration: BoxDecoration(
-                    color: kOrange.withOpacity(0.6 + (0.4 * heights[index])),
-                    borderRadius: BorderRadius.circular(3),
-                  ),
-                );
-              }),
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
