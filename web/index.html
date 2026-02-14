@@ -16,15 +16,12 @@
     the `--base-href` argument provided to `flutter build`.
   -->
   <!-- Dynamic base href for GitHub Pages compatibility -->
-  <!-- <base href="/"> -->
+  //
+  <base href="/drivemate/">
   <script>
     (function () {
       var path = window.location.pathname;
       var base = document.querySelector('base');
-      if (!base) {
-        base = document.createElement('base');
-        document.querySelector('head').prepend(base);
-      }
       if (path.endsWith('/')) {
         base.href = path;
       } else {
