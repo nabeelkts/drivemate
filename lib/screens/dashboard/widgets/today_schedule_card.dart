@@ -128,10 +128,7 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
       return _buildLoadingState(context);
     }
 
-    return FadeInUp(
-      duration: const Duration(milliseconds: 400),
-      child: _buildCard(context, textColor, _items.take(5).toList()),
-    );
+    return _buildCard(context, textColor, _items.take(5).toList());
   }
 
   Widget _buildLoadingState(BuildContext context) {
@@ -161,7 +158,6 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
     final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
 
     return Container(
-      height: 230,
       decoration: BoxDecoration(
         color: cardColor,
         gradient: LinearGradient(
@@ -193,58 +189,59 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
           ),
         ],
       ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: InkWell(
-          onTap: () => Navigator.pushNamed(context, '/today_schedule'),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Flexible(
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: kOrange.withOpacity(0.15),
-                              shape: BoxShape.circle,
+      child: FadeInUp(
+        duration: const Duration(milliseconds: 400),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: InkWell(
+            onTap: () => Navigator.pushNamed(context, '/today_schedule'),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Flexible(
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: BoxDecoration(
+                                color: kOrange.withOpacity(0.15),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.event_note,
+                                  color: kOrange, size: 16),
                             ),
-                            child: const Icon(Icons.event_note,
-                                color: kOrange, size: 16),
-                          ),
-                          const SizedBox(width: 8),
-                          Flexible(
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              alignment: Alignment.centerLeft,
-                              child: Text(
-                                "Today's Schedule",
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
+                            const SizedBox(width: 8),
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  "Today's Schedule",
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                overflow: TextOverflow.ellipsis,
                               ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
-                    ),
-                    Icon(Icons.chevron_right,
-                        color: textColor.withOpacity(0.3), size: 18),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                if (isLoading)
-                  Expanded(
-                    child: Column(
+                      Icon(Icons.chevron_right,
+                          color: textColor.withOpacity(0.3), size: 18),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (isLoading)
+                    Column(
                       children: List.generate(
                         2,
                         (index) => Padding(
@@ -262,11 +259,9 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
                           ),
                         ),
                       ),
-                    ),
-                  )
-                else if (items.isEmpty)
-                  Expanded(
-                    child: Center(
+                    )
+                  else if (items.isEmpty)
+                    Center(
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -282,12 +277,11 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
                           ),
                         ],
                       ),
-                    ),
-                  )
-                else
-                  Expanded(
-                    child: ListView.separated(
+                    )
+                  else
+                    ListView.separated(
                       padding: EdgeInsets.zero,
+                      shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),
                       itemCount: items.length > 3 ? 3 : items.length,
                       separatorBuilder: (context, index) =>
@@ -303,8 +297,8 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
                         );
                       },
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ),

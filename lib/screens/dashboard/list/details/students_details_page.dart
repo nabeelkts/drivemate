@@ -500,6 +500,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                     child: CheckboxListTile(
                       value: isSelected,
                       activeColor: kAccentRed,
+                      controlAffinity: ListTileControlAffinity.leading,
                       onChanged: (val) {
                         setState(() {
                           if (val == true) {
@@ -518,10 +519,30 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                         '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}',
                         style: TextStyle(color: subTextColor, fontSize: 11),
                       ),
-                      secondary: IconButton(
-                        icon: const Icon(Icons.receipt, size: 20),
-                        onPressed: () => _generateSingleReceipt(data),
-                        tooltip: 'Receipt',
+                      secondary: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.receipt, size: 20),
+                            onPressed: () => _generateSingleReceipt(data),
+                            tooltip: 'Receipt',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline,
+                                size: 20, color: Colors.red),
+                            onPressed: () => PaymentUtils.deletePayment(
+                              context: context,
+                              studentRef: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(targetId)
+                                  .collection('students')
+                                  .doc(studentDetails['studentId'].toString()),
+                              paymentDoc: doc,
+                              targetId: targetId!,
+                            ),
+                            tooltip: 'Delete Payment',
+                          ),
+                        ],
                       ),
                       isThreeLine: true,
                     ),

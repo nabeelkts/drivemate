@@ -5,10 +5,14 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mds/utils/loading_utils.dart';
 import 'package:mds/screens/authentication/auth_page.dart';
 import 'package:get/get.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class GoogleSignInProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final GoogleSignIn _googleSignIn = GoogleSignIn(
+    clientId: kIsWeb
+        ? '694652953963-nkj9h968feqjgr8og8jchfg8j0fhddjt.apps.googleusercontent.com'
+        : null,
     scopes: [
       'email',
       'profile',

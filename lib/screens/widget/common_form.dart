@@ -997,12 +997,19 @@ class CommonFormState extends State<CommonForm> {
                   backgroundColor: kPrimaryColor,
                   child: _pickedFile != null
                       ? ClipOval(
-                          child: Image.file(
-                            File(_pickedFile!.path),
-                            width: 120,
-                            height: 120,
-                            fit: BoxFit.cover,
-                          ),
+                          child: kIsWeb
+                              ? Image.network(
+                                  _pickedFile!.path,
+                                  width: 120,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                )
+                              : Image.file(
+                                  File(_pickedFile!.path),
+                                  width: 120,
+                                  height: 120,
+                                  fit: BoxFit.cover,
+                                ),
                         )
                       : (widget.initialValues?['image'] != null &&
                               (widget.initialValues?['image'] as String)

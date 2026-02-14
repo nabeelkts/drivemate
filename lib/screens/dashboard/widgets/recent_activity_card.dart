@@ -43,10 +43,7 @@ class RecentActivityCard extends StatelessWidget {
           activities = snapshot.data!.docs.map((doc) => doc.data()).toList();
         }
 
-        return FadeInUp(
-          duration: const Duration(milliseconds: 600),
-          child: _buildCard(context, textColor, activities),
-        );
+        return _buildCard(context, textColor, activities);
       },
     );
   }
@@ -78,7 +75,6 @@ class RecentActivityCard extends StatelessWidget {
     final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
 
     return Container(
-      height: 200,
       decoration: BoxDecoration(
         color: cardColor,
         gradient: LinearGradient(
@@ -110,72 +106,73 @@ class RecentActivityCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: Colors.purple.withOpacity(0.15),
-                          shape: BoxShape.circle,
+      child: FadeInUp(
+        duration: const Duration(milliseconds: 600),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.purple.withOpacity(0.15),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.history,
+                              color: Colors.purple, size: 16),
                         ),
-                        child: const Icon(Icons.history,
-                            color: Colors.purple, size: 16),
-                      ),
-                      const SizedBox(width: 8),
-                      Flexible(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Recent Activity',
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Recent Activity',
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const RecentActivityScreen(),
-                      ),
-                    );
-                  },
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      'View All',
-                      style: TextStyle(
-                        color: kOrange,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                  GestureDetector(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const RecentActivityScreen(),
+                        ),
+                      );
+                    },
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      child: Text(
+                        'View All',
+                        style: TextStyle(
+                          color: kOrange,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            if (isLoading)
-              Expanded(
-                child: Column(
+                ],
+              ),
+              const SizedBox(height: 12),
+              if (isLoading)
+                Column(
                   children: List.generate(
                     2,
                     (index) => Padding(
@@ -193,25 +190,25 @@ class RecentActivityCard extends StatelessWidget {
                       ),
                     ),
                   ),
-                ),
-              )
-            else if (activities.isEmpty)
-              Expanded(
-                child: Center(
-                  child: Text(
-                    'No recent items',
-                    style: TextStyle(
-                      color: textColor.withOpacity(0.4),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                )
+              else if (activities.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  child: Center(
+                    child: Text(
+                      'No recent items',
+                      style: TextStyle(
+                        color: textColor.withOpacity(0.4),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
                   ),
-                ),
-              )
-            else
-              Expanded(
-                child: ListView.separated(
+                )
+              else
+                ListView.separated(
                   padding: EdgeInsets.zero,
+                  shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: activities.length > 2 ? 2 : activities.length,
                   separatorBuilder: (context, index) =>
@@ -226,8 +223,8 @@ class RecentActivityCard extends StatelessWidget {
                     );
                   },
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );

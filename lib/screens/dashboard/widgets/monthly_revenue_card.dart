@@ -122,11 +122,8 @@ class MonthlyRevenueCard extends StatelessWidget {
                       cumulativeValues[i] = runningTotal;
                     }
 
-                    return FadeInUp(
-                      duration: const Duration(milliseconds: 500),
-                      child: _buildCard(
-                          context, textColor, monthlyRevenue, cumulativeValues),
-                    );
+                    return _buildCard(
+                        context, textColor, monthlyRevenue, cumulativeValues);
                   },
                 );
               },
@@ -170,7 +167,6 @@ class MonthlyRevenueCard extends StatelessWidget {
     final cardColor = isDark ? const Color(0xFF1E1E1E) : Colors.white;
 
     return Container(
-      height: 180,
       decoration: BoxDecoration(
         color: cardColor,
         gradient: LinearGradient(
@@ -202,156 +198,160 @@ class MonthlyRevenueCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.account_balance_wallet,
-                      color: Colors.green, size: 16),
-                ),
-                const SizedBox(width: 8),
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'Monthly Revenue',
-                      style: TextStyle(
-                        color: textColor,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      overflow: TextOverflow.ellipsis,
+      child: FadeInUp(
+        duration: const Duration(milliseconds: 500),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.15),
+                      shape: BoxShape.circle,
                     ),
+                    child: const Icon(Icons.account_balance_wallet,
+                        color: Colors.green, size: 16),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Total Collected',
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'Monthly Revenue',
                         style: TextStyle(
-                          color: textColor.withOpacity(0.5),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w500,
+                          color: textColor,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
                         ),
-                        softWrap: false,
-                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
-                      if (isLoading)
-                        Shimmer.fromColors(
-                          baseColor: shimmerBase!,
-                          highlightColor: shimmerHighlight!,
-                          child: Container(
-                            height: 24,
-                            width: 100,
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                          ),
-                        )
-                      else
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            'Rs. ${NumberFormat('#,##0').format(revenue)}',
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: SizedBox(
-                    height: 40,
-                    child: isLoading
-                        ? Shimmer.fromColors(
-                            baseColor: shimmerBase!,
-                            highlightColor: shimmerHighlight!,
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: List.generate(
-                                  7,
-                                  (i) => Container(
-                                        width: 4,
-                                        height: 20 + (i * 2.0),
-                                        color: Colors.white,
-                                      )),
-                            ),
-                          )
-                        : Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                            crossAxisAlignment: CrossAxisAlignment.end,
-                            children: List.generate(7, (i) {
-                              final h = maxVal > 0
-                                  ? (barValues[i] / maxVal * 36)
-                                      .clamp(4.0, 36.0)
-                                  : 4.0;
-                              return Container(
-                                width: 4, // Narrower bars
-                                height: h,
-                                decoration: BoxDecoration(
-                                  color: kOrange.withOpacity(0.8),
-                                  borderRadius: BorderRadius.circular(2),
-                                ),
-                              );
-                            }),
-                          ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.trending_up, color: Colors.blue, size: 12),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Active Month',
-                    style: TextStyle(
-                      color: Colors.blue,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
                     ),
                   ),
                 ],
               ),
-            ),
-          ],
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Total Collected',
+                          style: TextStyle(
+                            color: textColor.withOpacity(0.5),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          softWrap: false,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        if (isLoading)
+                          Shimmer.fromColors(
+                            baseColor: shimmerBase!,
+                            highlightColor: shimmerHighlight!,
+                            child: Container(
+                              height: 24,
+                              width: 100,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          )
+                        else
+                          FittedBox(
+                            fit: BoxFit.scaleDown,
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Rs. ${NumberFormat('#,##0').format(revenue)}',
+                              style: TextStyle(
+                                color: textColor,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: SizedBox(
+                      height: 40,
+                      child: isLoading
+                          ? Shimmer.fromColors(
+                              baseColor: shimmerBase!,
+                              highlightColor: shimmerHighlight!,
+                              child: Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceEvenly,
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: List.generate(
+                                    7,
+                                    (i) => Container(
+                                          width: 4,
+                                          height: 20 + (i * 2.0),
+                                          color: Colors.white,
+                                        )),
+                              ),
+                            )
+                          : Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: List.generate(7, (i) {
+                                final h = maxVal > 0
+                                    ? (barValues[i] / maxVal * 36)
+                                        .clamp(4.0, 36.0)
+                                    : 4.0;
+                                return Container(
+                                  width: 4, // Narrower bars
+                                  height: h,
+                                  decoration: BoxDecoration(
+                                    color: kOrange.withOpacity(0.8),
+                                    borderRadius: BorderRadius.circular(2),
+                                  ),
+                                );
+                              }),
+                            ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.blue.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.trending_up, color: Colors.blue, size: 12),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Active Month',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

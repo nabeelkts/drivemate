@@ -541,6 +541,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                     child: CheckboxListTile(
                       value: isSelected,
                       activeColor: kAccentRed,
+                      controlAffinity: ListTileControlAffinity.leading,
                       onChanged: (val) {
                         setState(() {
                           if (val == true) {
@@ -559,10 +560,40 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                         '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}',
                         style: TextStyle(color: subTextColor, fontSize: 11),
                       ),
-                      secondary: IconButton(
-                        icon: const Icon(Icons.receipt, size: 20),
-                        onPressed: () => _generateSingleReceipt(data),
-                        tooltip: 'Receipt',
+                      secondary: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.receipt, size: 20),
+                            onPressed: () => _generateSingleReceipt(data),
+                            tooltip: 'Receipt',
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline,
+                                size: 20, color: Colors.red),
+                            onPressed: () => PaymentUtils.deletePayment(
+                              context: context,
+                              studentRef: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(_workspaceController
+                                          .currentSchoolId.value.isNotEmpty
+                                      ? _workspaceController
+                                          .currentSchoolId.value
+                                      : (FirebaseAuth
+                                              .instance.currentUser?.uid ??
+                                          ''))
+                                  .collection('licenseonly')
+                                  .doc(licenseDetails['studentId'].toString()),
+                              paymentDoc: doc,
+                              targetId: _workspaceController
+                                      .currentSchoolId.value.isNotEmpty
+                                  ? _workspaceController.currentSchoolId.value
+                                  : (FirebaseAuth.instance.currentUser?.uid ??
+                                      ''),
+                            ),
+                            tooltip: 'Delete Payment',
+                          ),
+                        ],
                       ),
                       isThreeLine: true,
                     ),

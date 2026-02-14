@@ -266,4 +266,103 @@ class PaymentUtils {
       ),
     );
   }
+
+  static Future<void> deletePayment({
+    required BuildContext context,
+    required DocumentReference studentRef,
+    required DocumentSnapshot paymentDoc,
+    required String targetId,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Payment'),
+        content: const Text(
+            'Are you sure you want to delete this payment? This will update the student\'s balance.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final batch = firestore.batch();
+      final paymentData = paymentDoc.data() as Map<String, dynamic>;
+      final amount =
+          double.tryParse(paymentData['amount']?.toString() ?? '0') ?? 0.0;
+      final description = paymentData['description'] ?? '';
+
+      final studentDoc = await studentRef.get();
+      if (!studentDoc.exists) throw 'Student record not found';
+      final studentData = studentDoc.data() as Map<String, dynamic>;
+
+      final currentBalance =
+          double.tryParse(studentData['balanceAmount']?.toString() ?? '0') ??
+              0.0;
+      final newBalance = currentBalance + amount;
+
+      final updateData = <String, dynamic>{
+        'balanceAmount': newBalance,
+        'lastPaymentUpdate': FieldValue.serverTimestamp(),
+      };
+
+      if (description == 'Second Installment') {
+        updateData['secondInstallment'] = 0;
+        updateData['secondInstallmentTime'] = '';
+      } else if (description == 'Third Installment') {
+        updateData['thirdInstallment'] = 0;
+        updateData['thirdInstallmentTime'] = '';
+      } else {
+        // Assume it's an Advance or generic payment
+        final currentAdvance =
+            double.tryParse(studentData['advanceAmount']?.toString() ?? '0') ??
+                0.0;
+        updateData['advanceAmount'] =
+            (currentAdvance - amount).clamp(0.0, double.infinity);
+      }
+
+      batch.update(studentRef, updateData);
+      batch.delete(paymentDoc.reference);
+
+      // Add to recent activity
+      final activityRef = firestore
+          .collection('users')
+          .doc(targetId)
+          .collection('recentActivity')
+          .doc();
+      batch.set(activityRef, {
+        'title': 'Payment Deleted',
+        'details':
+            '${studentData['fullName'] ?? studentData['vehicleNumber'] ?? 'N/A'}\nAmount: Rs. ${amount.toStringAsFixed(0)}',
+        'timestamp': FieldValue.serverTimestamp(),
+        'type': 'deletion',
+        'recordId': studentDoc.id,
+      });
+
+      await batch.commit();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Payment deleted successfully')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting payment: $e')),
+        );
+      }
+    }
+  }
 }

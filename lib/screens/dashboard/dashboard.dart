@@ -28,17 +28,19 @@ class Dashboard extends StatelessWidget {
                 kSizedBox,
                 // Row 1: Today's Schedule (left) | Quick Register (right)
                 // Row 1: Today's Schedule (left) | Quick Register (right)
+                // Row 1: Today's Schedule (left) | Quick Register (right)
+                // Row 1: Today's Schedule (left) | Quick Register (right)
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
+                    const Expanded(
                       flex: 4,
-                      child: const TodayScheduleCard(),
+                      child: TodayScheduleCard(),
                     ),
                     const SizedBox(width: 8),
-                    Expanded(
+                    const Expanded(
                       flex: 6,
-                      child: const QuickRegisterCard(),
+                      child: QuickRegisterCard(),
                     ),
                   ],
                 ),
@@ -47,14 +49,14 @@ class Dashboard extends StatelessWidget {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
+                    const Expanded(
                       flex: 6,
-                      child: const RecentActivityCard(),
+                      child: RecentActivityCard(),
                     ),
                     const SizedBox(width: 10),
-                    Expanded(
+                    const Expanded(
                       flex: 4,
-                      child: const MonthlyRevenueCard(),
+                      child: MonthlyRevenueCard(),
                     ),
                   ],
                 ),

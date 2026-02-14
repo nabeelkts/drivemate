@@ -51,7 +51,7 @@ class ListItemCard extends StatelessWidget {
             child: Row(
               children: [
                 // Avatar
-                _buildAvatar(textColor),
+                _buildAvatar(textColor, context),
                 const SizedBox(width: 12),
                 // Details
                 Expanded(
@@ -113,13 +113,13 @@ class ListItemCard extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatar(Color textColor) {
+  Widget _buildAvatar(Color textColor, BuildContext context) {
     return CircleAvatar(
       radius: 24,
       backgroundColor: kPrimaryColor.withOpacity(0.1),
       child: CircleAvatar(
         radius: 22,
-        backgroundColor: Colors.white,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         child: (imageUrl != null && imageUrl!.isNotEmpty)
             ? ClipOval(
                 child: CachedNetworkImage(
