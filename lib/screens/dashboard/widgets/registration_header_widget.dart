@@ -1,0 +1,68 @@
+import 'package:flutter/material.dart';
+import 'package:mds/constants/constant.dart';
+import 'package:mds/screens/dashboard/widgets/registration_icons.dart';
+import 'package:mds/screens/dashboard/widgets/shortcut_icon.dart';
+
+class RegistrationHeader extends StatelessWidget {
+  const RegistrationHeader({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textColor = theme.textTheme.bodyLarge?.color ?? Colors.black;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Registration',
+          style: TextStyle(
+            color: textColor,
+            fontSize: 16,
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w600,
+            height: 0,
+          ),
+        ),
+        kSizedBox,
+        const RegistrationIcon(),
+        kSizedBox,
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          child: Container(
+            width: 390,
+            height: 2,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(19),
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  const Color(0xfff46b45)
+                      .withOpacity(0.2), // Adjust the opacity as needed
+                  const Color(0xffeea849)
+                      .withOpacity(0.2), // Adjust the opacity as needed
+                ],
+              ),
+            ),
+          ),
+        ),
+        kSizedBox,
+         Text(
+           'Recent Activity',
+           style: TextStyle(
+             color: textColor,
+             fontSize: 16,
+             fontFamily: 'Inter',
+             fontWeight: FontWeight.w600,
+             height: 0,
+           ),
+         ),
+        kSizedBox,
+        const ShortcutIcon(),
+        kSizedBox,
+      ],
+    );
+  }
+}
