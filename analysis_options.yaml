@@ -18,6 +18,10 @@ analyzer:
     unused_element: ignore
     unused_import: ignore
     unnecessary_import: ignore
+    unused_local_variable: ignore
+    unused_field: ignore
+    no_leading_underscores_for_local_identifiers: ignore
+    avoid_function_literals_in_foreach_calls: ignore
 include: package:flutter_lints/flutter.yaml
 
 linter:

@@ -132,7 +132,9 @@ class WorkspaceSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
           children: [
             if (isStaff)
               _buildActionChip(
@@ -140,8 +142,6 @@ class WorkspaceSection extends StatelessWidget {
                 label: 'Switch',
                 onTap: onJoinSchool,
               ),
-            if (isStaff && controller.userRole.value == 'Owner')
-              const SizedBox(width: 8),
             if (controller.userRole.value == 'Owner')
               _buildActionChip(
                 icon: Icons.people_outline,
