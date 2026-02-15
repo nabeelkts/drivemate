@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mds/constants/colors.dart';
@@ -18,6 +17,7 @@ import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/utils/payment_utils.dart';
 import 'package:mds/utils/date_utils.dart';
+import 'package:http/http.dart' as http;
 
 class StudentDetailsPage extends StatefulWidget {
   final Map<String, dynamic> studentDetails;
@@ -35,6 +35,8 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   final List<String> _selectedTransactionIds = [];
   Map<String, dynamic>? _cachedCompanyData;
   Uint8List? _cachedCompanyLogo;
+  Uint8List?
+      _cachedStudentImage; // Cache student image for faster PDF generation
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
 
@@ -207,20 +209,47 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
             child: CircleAvatar(
               radius: 48,
               backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-              backgroundImage: studentDetails['image'] != null &&
+              child: studentDetails['image'] != null &&
                       studentDetails['image'].isNotEmpty
-                  ? CachedNetworkImageProvider(studentDetails['image'])
-                  : null,
-              child: studentDetails['image'] == null ||
-                      studentDetails['image'].isEmpty
-                  ? Text(
-                      studentDetails['fullName'] != null &&
-                              studentDetails['fullName'].isNotEmpty
-                          ? studentDetails['fullName'][0].toUpperCase()
-                          : '',
-                      style: TextStyle(fontSize: 40, color: textColor),
+                  ? ClipOval(
+                      child: Image.network(
+                        studentDetails['image'],
+                        width: 96,
+                        height: 96,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Center(
+                            child: Text(
+                              studentDetails['fullName'] != null &&
+                                      studentDetails['fullName'].isNotEmpty
+                                  ? studentDetails['fullName'][0].toUpperCase()
+                                  : '',
+                              style: TextStyle(fontSize: 40, color: textColor),
+                            ),
+                          );
+                        },
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                      loadingProgress.expectedTotalBytes!
+                                  : null,
+                            ),
+                          );
+                        },
+                      ),
                     )
-                  : null,
+                  : Center(
+                      child: Text(
+                        studentDetails['fullName'] != null &&
+                                studentDetails['fullName'].isNotEmpty
+                            ? studentDetails['fullName'][0].toUpperCase()
+                            : '',
+                        style: TextStyle(fontSize: 40, color: textColor),
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 20),
@@ -586,42 +615,62 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   Future<void> _generateReceipts(
       List<Map<String, dynamic>> transactions) async {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      debugPrint('PDF Generation: User is null');
+      return;
+    }
 
+    debugPrint(
+        'PDF Generation: Starting for ${transactions.length} transactions');
     Uint8List? pdfBytes;
     try {
       pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
+        debugPrint('PDF Generation: Inside loading wrapper');
         final schoolId = _workspaceController.currentSchoolId.value;
         final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
 
         if (_cachedCompanyData == null) {
+          debugPrint('PDF Generation: Fetching company data');
           final userDoc = await FirebaseFirestore.instance
               .collection('users')
               .doc(targetId)
               .get();
           _cachedCompanyData = userDoc.data();
+          debugPrint(
+              'PDF Generation: Company data fetched: ${_cachedCompanyData != null}');
         }
 
         if (_cachedCompanyData == null ||
             _cachedCompanyData!['hasCompanyProfile'] != true) {
+          debugPrint('PDF Generation: No company profile');
           throw 'Please set up your Company Profile first';
         }
 
         if (_cachedCompanyData!['companyLogo'] != null &&
             _cachedCompanyData!['companyLogo'].toString().isNotEmpty &&
             _cachedCompanyLogo == null) {
+          debugPrint(
+              'PDF Generation: Fetching company logo from ${_cachedCompanyData!['companyLogo']}');
           _cachedCompanyLogo = await _getImageBytes(
               NetworkImage(_cachedCompanyData!['companyLogo']));
+          debugPrint(
+              'PDF Generation: Logo fetched: ${_cachedCompanyLogo != null ? "${_cachedCompanyLogo!.length} bytes" : "null"}');
         }
 
-        return await PdfService.generateReceipt(
+        debugPrint('PDF Generation: Calling PdfService.generateReceipt');
+        final bytes = await PdfService.generateReceipt(
           companyData: _cachedCompanyData!,
           studentDetails: studentDetails,
           transactions: transactions,
           companyLogoBytes: _cachedCompanyLogo,
         );
+        debugPrint(
+            'PDF Generation: PDF generated successfully: ${bytes.length} bytes');
+        return bytes;
       });
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('PDF Generation Error: $e');
+      debugPrint('Stack trace: $stackTrace');
       if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -629,8 +678,14 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       return;
     }
 
+    debugPrint(
+        'PDF Generation: pdfBytes is ${pdfBytes != null ? "not null (${pdfBytes.length} bytes)" : "null"}');
     if (pdfBytes != null && mounted) {
+      debugPrint('PDF Generation: Showing PDF preview');
       _showPdfPreview(context, pdfBytes);
+    } else {
+      debugPrint(
+          'PDF Generation: Cannot show preview - pdfBytes: ${pdfBytes != null}, mounted: $mounted');
     }
   }
 
@@ -780,31 +835,32 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
 
         final targetId = _workspaceController.targetId;
 
-        // Parallelize fetching student image and company data
-        final results = await Future.wait([
-          if (studentDetails['image'] != null &&
-              studentDetails['image'].isNotEmpty)
-            _getImageBytes(NetworkImage(studentDetails['image']))
-          else
-            Future.value(null),
-          if (_cachedCompanyData == null)
-            FirebaseFirestore.instance
-                .collection('users')
-                .doc(targetId)
-                .get()
-                .then((doc) => doc.data())
-          else
-            Future.value(_cachedCompanyData),
-        ]);
+        // Use cached student image or fetch it
+        if (_cachedStudentImage == null &&
+            studentDetails['image'] != null &&
+            studentDetails['image'].isNotEmpty) {
+          debugPrint('Fetching and caching student image');
+          _cachedStudentImage =
+              await _getImageBytes(NetworkImage(studentDetails['image']));
+        }
 
-        final Uint8List? imageBytes = results[0] as Uint8List?;
-        _cachedCompanyData = results[1] as Map<String, dynamic>?;
+        // Fetch company data if not cached
+        if (_cachedCompanyData == null) {
+          debugPrint('Fetching company data');
+          final userDoc = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(targetId)
+              .get();
+          _cachedCompanyData = userDoc.data();
+        }
 
+        // Fetch company logo if not cached
         if (_cachedCompanyData != null &&
             _cachedCompanyData!['hasCompanyProfile'] == true &&
             _cachedCompanyData!['companyLogo'] != null &&
             _cachedCompanyData!['companyLogo'].toString().isNotEmpty &&
             _cachedCompanyLogo == null) {
+          debugPrint('Fetching and caching company logo');
           _cachedCompanyLogo = await _getImageBytes(
               NetworkImage(_cachedCompanyData!['companyLogo']));
         }
@@ -813,7 +869,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           title: 'Student Details',
           data: studentDetails,
           includePayment: includePayment,
-          imageBytes: imageBytes,
+          imageBytes: _cachedStudentImage,
           companyData: _cachedCompanyData,
           companyLogoBytes: _cachedCompanyLogo,
         );
@@ -827,21 +883,39 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     }
 
     if (pdfBytes != null && mounted) {
-      _showPdfPreview(context, pdfBytes);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PdfPreviewScreen(pdfBytes: pdfBytes!),
+        ),
+      );
     }
   }
 
   Future<Uint8List?> _getImageBytes(ImageProvider imageProvider) async {
     try {
       if (imageProvider is NetworkImage) {
+        final url = imageProvider.url;
+        debugPrint('Attempting to load image from: $url');
+
+        // Use http package for better web compatibility
         final response =
-            await NetworkAssetBundle(Uri.parse(imageProvider.url)).load("");
-        return response.buffer.asUint8List();
+            await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+
+        if (response.statusCode == 200) {
+          debugPrint(
+              'Image loaded successfully: ${response.bodyBytes.length} bytes');
+          return response.bodyBytes;
+        } else {
+          debugPrint('Image load failed with status: ${response.statusCode}');
+          return null;
+        }
       } else if (imageProvider is AssetImage) {
         final byteData = await rootBundle.load(imageProvider.assetName);
         return byteData.buffer.asUint8List();
       }
     } catch (e) {
+      debugPrint('Error loading image for PDF: $e');
       return null;
     }
     return null;

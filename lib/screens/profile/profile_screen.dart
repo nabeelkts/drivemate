@@ -640,85 +640,151 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showJoinSchoolDialog() {
     final TextEditingController idController = TextEditingController();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    bool isLoading = false;
+    String? errorMessage;
 
     showDialog(
       context: context,
-      builder: (context) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            color: isDark ? Colors.grey.shade900 : Colors.white,
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Join School Workspace',
-                style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black87,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return Dialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: isDark ? Colors.grey.shade900 : Colors.white,
+                borderRadius: BorderRadius.circular(20),
               ),
-              const SizedBox(height: 12),
-              Text(
-                'Enter the School ID provided by your administrator to link your account.',
-                style: TextStyle(
-                  color: isDark ? Colors.white70 : Colors.black54,
-                  fontSize: 13,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: idController,
-                style: TextStyle(color: isDark ? Colors.white : Colors.black87),
-                decoration: InputDecoration(
-                  hintText: 'Enter School ID',
-                  hintStyle: TextStyle(
-                      color: isDark
-                          ? Colors.white.withOpacity(0.3)
-                          : Colors.black.withOpacity(0.3)),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: const Text('Cancel'),
+                  Text(
+                    'Join School Workspace',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black87,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        final id = idController.text.trim();
-                        if (id.isEmpty) return;
-                        _workspaceController.joinSchool(id);
-                        Navigator.pop(context);
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: kPrimaryColor,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Enter the School ID provided by your administrator to link your account.',
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : Colors.black54,
+                      fontSize: 13,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 20),
+                  TextField(
+                    controller: idController,
+                    enabled: !isLoading,
+                    style: TextStyle(
+                        color: isDark ? Colors.white : Colors.black87),
+                    decoration: InputDecoration(
+                      hintText: 'Enter School ID',
+                      hintStyle: TextStyle(
+                          color: isDark
+                              ? Colors.white.withOpacity(0.3)
+                              : Colors.black.withOpacity(0.3)),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      errorText: errorMessage,
+                      errorMaxLines: 2,
+                    ),
+                    onChanged: (value) {
+                      if (errorMessage != null) {
+                        setState(() {
+                          errorMessage = null;
+                        });
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextButton(
+                          onPressed:
+                              isLoading ? null : () => Navigator.pop(context),
+                          child: const Text('Cancel'),
                         ),
                       ),
-                      child: const Text('Join',
-                          style: TextStyle(color: Colors.white)),
-                    ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: isLoading
+                              ? null
+                              : () async {
+                                  final id = idController.text.trim();
+                                  if (id.isEmpty) {
+                                    setState(() {
+                                      errorMessage = 'Please enter a School ID';
+                                    });
+                                    return;
+                                  }
+
+                                  setState(() {
+                                    isLoading = true;
+                                    errorMessage = null;
+                                  });
+
+                                  final result =
+                                      await _workspaceController.joinSchool(id);
+
+                                  if (mounted) {
+                                    if (result['success'] == true) {
+                                      Navigator.pop(context);
+                                      Get.snackbar(
+                                        "Success",
+                                        result['message'] ??
+                                            'Joined school workspace successfully',
+                                        snackPosition: SnackPosition.BOTTOM,
+                                        backgroundColor:
+                                            Colors.green.withOpacity(0.1),
+                                        colorText: isDark
+                                            ? Colors.white
+                                            : Colors.black87,
+                                        duration: const Duration(seconds: 2),
+                                      );
+                                    } else {
+                                      setState(() {
+                                        isLoading = false;
+                                        errorMessage = result['message'] ??
+                                            'Failed to join school';
+                                      });
+                                    }
+                                  }
+                                },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kPrimaryColor,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: isLoading
+                              ? const SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
+                                  ),
+                                )
+                              : const Text('Join',
+                                  style: TextStyle(color: Colors.white)),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }

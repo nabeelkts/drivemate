@@ -188,7 +188,11 @@ class PdfService {
                       titleFont: ttfBold,
                       child: pw.Column(
                         children: [
-                          _buildPdfRow('House', data['house'], ttf, ttfBold),
+                          _buildPdfRow(
+                              'House',
+                              data['house'] ?? data['houseName'] ?? '',
+                              ttf,
+                              ttfBold),
                           _buildPdfRow('Place', data['place'], ttf, ttfBold),
                           _buildPdfRow('Post', data['post'], ttf, ttfBold),
                           _buildPdfRow(
@@ -273,7 +277,7 @@ class PdfService {
       addressParts.add('PIN: ${studentDetails['pin']}');
     }
 
-    final String fullAddress = addressParts.join(', ');
+    final String fullAddress = addressParts.join('\n');
     final bool hasAddress = fullAddress.isNotEmpty;
 
     // Determine ID/Address Line to show

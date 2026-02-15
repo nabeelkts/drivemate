@@ -11,6 +11,8 @@ import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/utils/payment_utils.dart';
+import 'package:mds/utils/date_utils.dart';
+import 'package:http/http.dart' as http;
 import 'package:mds/screens/dashboard/list/details/pdf_preview_screen.dart';
 import 'package:mds/services/pdf_service.dart';
 import 'package:mds/utils/loading_utils.dart';
@@ -471,14 +473,26 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
   Future<Uint8List?> _getImageBytes(ImageProvider imageProvider) async {
     try {
       if (imageProvider is NetworkImage) {
+        final url = imageProvider.url;
+        debugPrint('Attempting to load image from: $url');
+
         final response =
-            await NetworkAssetBundle(Uri.parse(imageProvider.url)).load("");
-        return response.buffer.asUint8List();
+            await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
+
+        if (response.statusCode == 200) {
+          debugPrint(
+              'Image loaded successfully: ${response.bodyBytes.length} bytes');
+          return response.bodyBytes;
+        } else {
+          debugPrint('Image load failed with status: ${response.statusCode}');
+          return null;
+        }
       } else if (imageProvider is AssetImage) {
         final byteData = await rootBundle.load(imageProvider.assetName);
         return byteData.buffer.asUint8List();
       }
     } catch (e) {
+      debugPrint('Error loading image for PDF: $e');
       return null;
     }
     return null;

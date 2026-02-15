@@ -103,7 +103,7 @@ class WorkspaceSection extends StatelessWidget {
                     schoolId,
                     style: TextStyle(
                         color: textColor,
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.bold),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,

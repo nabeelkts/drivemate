@@ -192,28 +192,76 @@ class WorkspaceController extends GetxController {
     await _fetchAllAppData();
   }
 
-  Future<void> joinSchool(String newSchoolId) async {
+  /// Validates and joins a school workspace
+  /// Returns a map with 'success' (bool) and 'message' (String)
+  Future<Map<String, dynamic>> joinSchool(String newSchoolId) async {
     final user = _auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      return {
+        'success': false,
+        'message': 'No user logged in',
+      };
+    }
+
+    // Validate input
+    if (newSchoolId.trim().isEmpty) {
+      return {
+        'success': false,
+        'message': 'School ID cannot be empty',
+      };
+    }
 
     try {
       isLoading.value = true;
 
-      // Verify if the school exists (at least one user has this schoolId or it's a valid UID)
-      // For now, we assume any provided ID is a valid workspace identifier.
-      // In a more robust system, we might check a 'schools' collection.
+      // Validate that the school ID exists in the database
+      final schoolDoc = await _firestore
+          .collection('users')
+          .doc(newSchoolId.trim())
+          .get()
+          .timeout(const Duration(seconds: 10));
 
+      if (!schoolDoc.exists) {
+        return {
+          'success': false,
+          'message': 'Invalid School ID. This school does not exist.',
+        };
+      }
+
+      // Optional: Verify the school has basic setup (company data)
+      final schoolData = schoolDoc.data();
+      if (schoolData == null) {
+        return {
+          'success': false,
+          'message':
+              'School data is incomplete. Please contact the school administrator.',
+        };
+      }
+
+      // Update user's schoolId
       await _firestore.collection('users').doc(user.uid).update({
-        'schoolId': newSchoolId,
+        'schoolId': newSchoolId.trim(),
       });
 
-      currentSchoolId.value = newSchoolId;
+      currentSchoolId.value = newSchoolId.trim();
       if (userRole.value == 'Staff') {
         isConnected.value = true;
       }
-      Get.snackbar("Success", "Joined school workspace successfully");
+
+      // Refresh app data to load the new school's information
+      await _fetchAllAppData();
+
+      return {
+        'success': true,
+        'message': 'Successfully joined school workspace',
+      };
     } catch (e) {
-      Get.snackbar("Error", "Failed to join school: $e");
+      print("Error joining school: $e");
+      return {
+        'success': false,
+        'message':
+            'Failed to join school. Please check your connection and try again.',
+      };
     } finally {
       isLoading.value = false;
     }
