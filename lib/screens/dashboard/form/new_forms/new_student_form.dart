@@ -100,6 +100,14 @@ class _NewStudentState extends State<NewStudent> {
             String fullName = student['fullName'] ?? '';
             String cov = student['cov'] ?? '';
 
+            // Inject Branch Info
+            final branchId = _workspaceController.currentBranchId.value;
+            final branchData = _workspaceController.currentBranchData;
+            final branchName = branchData['branchName'] ?? 'Main';
+
+            student['branchId'] = branchId;
+            student['branchName'] = branchName;
+
             if (kDebugMode) {
               print('Adding student with ID: $studentId');
               print('Full Name: $fullName');
@@ -136,6 +144,8 @@ class _NewStudentState extends State<NewStudent> {
                 'recordId': studentId,
                 'recordName': fullName,
                 'category': 'students',
+                'branchId': branchId,
+                'branchName': branchName,
               }));
             }
 
@@ -149,6 +159,8 @@ class _NewStudentState extends State<NewStudent> {
               'type': 'student',
               'studentId': studentId,
               'timestamp': FieldValue.serverTimestamp(),
+              'branchId': branchId,
+              'branchName': branchName,
             }));
 
             // 4. Add to recent activity
@@ -159,6 +171,8 @@ class _NewStudentState extends State<NewStudent> {
               'timestamp': FieldValue.serverTimestamp(),
               'studentId': studentId,
               'type': 'student',
+              'branchId': branchId,
+              'branchName': branchName,
             }));
 
             // Execute all operations in parallel

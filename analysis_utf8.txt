@@ -1,0 +1,9 @@
+﻿Analyzing mds...                                                
+
+warning - The value of the local variable 'textColor' isn't used - lib\screens\dashboard\test_date_updater_screen.dart:97:11 - unused_local_variable
+   info - The local variable '_updateChart' starts with an underscore - lib\screens\dashboard\widgets\monthly_revenue_card.dart:112:32 - no_leading_underscores_for_local_identifiers
+warning - The value of the field '_isCheckingSubscription' isn't used - lib\screens\navigation_screen.dart:35:8 - unused_field
+  error - The method 'leaveBranch' isn't defined for the type 'WorkspaceController' - lib\screens\profile\admin\organization_management_page.dart:612:32 - undefined_method
+   info - Function literals shouldn't be passed to 'forEach' - lib\screens\statistics\stats_screen.dart:461:14 - avoid_function_literals_in_foreach_calls
+   info - Function literals shouldn't be passed to 'forEach' - lib\screens\statistics\stats_screen.dart:462:14 - avoid_function_literals_in_foreach_calls
+

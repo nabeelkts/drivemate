@@ -2,16 +2,21 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'package:mds/services/subscription_service.dart';
+import 'package:mds/services/storage_service.dart';
+import 'package:get_storage/get_storage.dart';
 
 class WorkspaceController extends GetxController {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
+  final _storage = GetStorage();
 
   final RxString currentSchoolId = "".obs;
   final RxString userRole = "Owner".obs; // Default to Owner
   final RxBool isLoading = false.obs; // Changed initial value to false
   final RxBool isConnected =
       true.obs; // Owners are always "connected" to themselves
+  final RxBool isOrganizationMode =
+      false.obs; // Toggle between Branch vs Org context
 
   // App Data
   final RxMap<String, dynamic> userProfileData =
@@ -20,8 +25,22 @@ class WorkspaceController extends GetxController {
       <String, dynamic>{}.obs; // Workspace/School context
   final RxMap<String, dynamic> subscriptionData = <String, dynamic>{}.obs;
   final RxBool isAppDataLoading = false.obs;
-  bool _isInitializing = false; // Added _isInitializing flag
+  bool _isInitializing = false;
   final SubscriptionService _subscriptionService = SubscriptionService();
+
+  // Branch Management State
+  final RxList<Map<String, dynamic>> ownedBranches =
+      <Map<String, dynamic>>[].obs;
+  final RxString currentBranchId = "".obs;
+
+  /// Returns the data for the currently active branch
+  Map<String, dynamic> get currentBranchData {
+    if (currentBranchId.value.isEmpty) return {};
+    return ownedBranches.firstWhere(
+      (b) => b['id'] == currentBranchId.value,
+      orElse: () => {},
+    );
+  }
 
   /// Returns the ID that should be used for Firestore operations.
   /// Prioritizes currentSchoolId, falls back to the logged in user's UID.
@@ -33,6 +52,7 @@ class WorkspaceController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    _loadMode(); // Load persisted mode
     initializeWorkspace();
 
     // Listen to auth changes
@@ -43,6 +63,20 @@ class WorkspaceController extends GetxController {
         currentSchoolId.value = "";
       }
     });
+
+    // Handle mode persistence
+    ever(isOrganizationMode, (bool val) {
+      _storage.write('isOrganizationMode', val);
+    });
+
+    ever(currentBranchId, (String val) {
+      _storage.write('currentBranchId', val);
+    });
+  }
+
+  void _loadMode() {
+    isOrganizationMode.value = _storage.read('isOrganizationMode') ?? false;
+    currentBranchId.value = _storage.read('currentBranchId') ?? "";
   }
 
   Future<void> initializeWorkspace() async {
@@ -108,6 +142,8 @@ class WorkspaceController extends GetxController {
         // Determine connection status
         if (role == 'Owner') {
           isConnected.value = true;
+          // For owners, the default branch is their own UID if no branches exist,
+          // but we'll load the actual branches subcollection in _fetchAllAppData
         } else {
           // Staff is connected if their schoolId is NOT their own UID and not empty
           isConnected.value =
@@ -116,6 +152,10 @@ class WorkspaceController extends GetxController {
       }
 
       await _fetchAllAppData();
+      // Load branches if Owner
+      if (userRole.value == 'Owner') {
+        await _fetchBranches();
+      }
     } catch (e) {
       print("Error initializing workspace: $e");
     } finally {
@@ -268,6 +308,10 @@ class WorkspaceController extends GetxController {
   }
 
   Future<void> leaveSchool() async {
+    await leaveBranch();
+  }
+
+  Future<void> leaveBranch() async {
     final user = _auth.currentUser;
     if (user == null) return;
 
@@ -284,7 +328,247 @@ class WorkspaceController extends GetxController {
       }
       Get.snackbar("Success", "Returned to personal workspace");
     } catch (e) {
-      Get.snackbar("Error", "Failed to leave school: $e");
+      Get.snackbar("Error", "Failed to leave workspace: $e");
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  // --- Branch Management Methods ---
+
+  Future<void> _fetchBranches() async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      final snapshot = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('branches')
+          .get();
+
+      final branches = snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['id'] = doc.id;
+        return data;
+      }).toList();
+
+      ownedBranches.assignAll(branches);
+
+      // Set default branch if none selected
+      if (currentBranchId.value.isEmpty && branches.isNotEmpty) {
+        currentBranchId.value = branches[0]['id'];
+      } else if (currentBranchId.value.isEmpty) {
+        // If no branches, owner's own UID acts as the primary "branch" or organization context
+        currentBranchId.value = user.uid;
+      }
+    } catch (e) {
+      print("Error fetching branches: $e");
+    }
+  }
+
+  Future<Map<String, dynamic>> createBranch({
+    required String branchName,
+    String? location,
+    String? contactEmail,
+    String? contactPhone,
+    dynamic logoFile,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null) return {'success': false, 'message': 'Not logged in'};
+
+    try {
+      isLoading.value = true;
+      String? logoUrl;
+      if (logoFile != null) {
+        final storageService = StorageService();
+        logoUrl = await storageService.uploadCompanyLogo(user.uid, logoFile);
+      }
+
+      final branchData = {
+        'branchName': branchName,
+        'location': location,
+        'contactEmail': contactEmail,
+        'contactPhone': contactPhone,
+        'logoUrl': logoUrl,
+        'createdAt': FieldValue.serverTimestamp(),
+      };
+
+      final docRef = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('branches')
+          .add(branchData);
+
+      await _fetchBranches();
+      return {
+        'success': true,
+        'message': 'Branch created successfully',
+        'id': docRef.id
+      };
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<Map<String, dynamic>> updateBranchProfile(
+      String branchId, Map<String, dynamic> updates,
+      {dynamic logoFile}) async {
+    final user = _auth.currentUser;
+    if (user == null) return {'success': false, 'message': 'Not logged in'};
+
+    try {
+      isLoading.value = true;
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('branches')
+          .doc(branchId)
+          .update(updates);
+
+      await _fetchBranches();
+      return {'success': true, 'message': 'Branch updated successfully'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteBranch(String branchId) async {
+    final user = _auth.currentUser;
+    if (user == null) return {'success': false, 'message': 'Not logged in'};
+
+    try {
+      isLoading.value = true;
+      await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .collection('branches')
+          .doc(branchId)
+          .delete();
+
+      if (currentBranchId.value == branchId) {
+        currentBranchId.value = "";
+      }
+      await _fetchBranches();
+      return {'success': true, 'message': 'Branch deleted successfully'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  void switchBranch(String branchId) {
+    currentBranchId.value = branchId;
+    isOrganizationMode.value = false; // Switching branch exits Org mode
+  }
+
+  void toggleViewMode() {
+    isOrganizationMode.toggle();
+  }
+
+  // --- Staff Request Management ---
+
+  Stream<QuerySnapshot> getJoinRequests() {
+    return _firestore
+        .collection('users')
+        .doc(targetId)
+        .collection('join_requests')
+        .where('status', isEqualTo: 'pending')
+        .snapshots();
+  }
+
+  Stream<QuerySnapshot> getBranchJoinRequests(String branchId) {
+    return _firestore
+        .collection('users')
+        .doc(targetId)
+        .collection('join_requests')
+        .where('branchId', isEqualTo: branchId)
+        .where('status', isEqualTo: 'pending')
+        .snapshots();
+  }
+
+  Future<Map<String, dynamic>> approveStaffRequest(
+      String requestId, String staffUid) async {
+    try {
+      isLoading.value = true;
+      // Get the request data
+      final requestDoc = await _firestore
+          .collection('users')
+          .doc(targetId)
+          .collection('join_requests')
+          .doc(requestId)
+          .get();
+
+      if (!requestDoc.exists)
+        return {'success': false, 'message': 'Request not found'};
+
+      // Update staff user document
+      await _firestore.collection('users').doc(staffUid).update({
+        'schoolId': targetId,
+        'role': 'Staff',
+      });
+
+      // Mark request as approved
+      await _firestore
+          .collection('users')
+          .doc(targetId)
+          .collection('join_requests')
+          .doc(requestId)
+          .update({'status': 'approved'});
+
+      return {'success': true, 'message': 'Staff request approved'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<Map<String, dynamic>> rejectStaffRequest(
+      String requestId, String staffUid) async {
+    try {
+      isLoading.value = true;
+      await _firestore
+          .collection('users')
+          .doc(targetId)
+          .collection('join_requests')
+          .doc(requestId)
+          .update({'status': 'rejected'});
+
+      return {'success': true, 'message': 'Staff request rejected'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<Map<String, dynamic>> sendBranchJoinRequest(String schoolId) async {
+    final user = _auth.currentUser;
+    if (user == null) return {'success': false, 'message': 'Not logged in'};
+
+    try {
+      isLoading.value = true;
+      await _firestore
+          .collection('users')
+          .doc(schoolId)
+          .collection('join_requests')
+          .add({
+        'staffId': user.uid,
+        'staffName': userProfileData['name'] ?? user.displayName ?? 'Unknown',
+        'staffEmail': user.email,
+        'status': 'pending',
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+
+      return {'success': true, 'message': 'Join request sent successfully'};
+    } catch (e) {
+      return {'success': false, 'message': 'Error: $e'};
     } finally {
       isLoading.value = false;
     }

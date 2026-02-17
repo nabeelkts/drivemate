@@ -41,21 +41,26 @@ class DashboardLayout2 extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _buildHeader(context, isDark, textColor),
+                _buildHeader(context, workspaceController, isDark, textColor),
                 const SizedBox(height: 12),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildTodaySchedule(context, isDark, textColor, targetId),
+                      _buildTodaySchedule(context, workspaceController, isDark,
+                          textColor, targetId),
                       const SizedBox(height: 12),
                       _buildQuickActions(context, isDark, textColor),
                       const SizedBox(height: 12),
-                      _buildRevenue(context, isDark, textColor, targetId),
+                      _buildOrgInsights(context, workspaceController, isDark,
+                          textColor, targetId),
                       const SizedBox(height: 12),
-                      _buildRecentActivity(
-                          context, isDark, textColor, targetId),
+                      _buildRevenue(context, workspaceController, isDark,
+                          textColor, targetId),
+                      const SizedBox(height: 12),
+                      _buildRecentActivity(context, workspaceController, isDark,
+                          textColor, targetId),
                       const SizedBox(height: 12),
                       _buildSchoolNews(context, isDark, textColor),
                       const SizedBox(height: 16),
@@ -70,7 +75,8 @@ class DashboardLayout2 extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader(BuildContext context, bool isDark, Color textColor) {
+  Widget _buildHeader(BuildContext context, WorkspaceController controller,
+      bool isDark, Color textColor) {
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       decoration: BoxDecoration(
@@ -83,60 +89,125 @@ class DashboardLayout2 extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Drivemate',
-                style: TextStyle(
-                  color: textColor,
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: -0.5,
-                ),
+      child: Obx(() {
+        final isOrg = controller.isOrganizationMode.value;
+        final branchData = controller.currentBranchData;
+        final branchName = branchData['branchName'] ?? 'Branch';
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Drivemate',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      GestureDetector(
+                        onTap: () => controller.toggleViewMode(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isOrg
+                                ? kOrange.withOpacity(0.1)
+                                : Colors.blue.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: isOrg
+                                  ? kOrange.withOpacity(0.2)
+                                  : Colors.blue.withOpacity(0.2),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                isOrg ? Icons.business : Icons.account_tree,
+                                size: 12,
+                                color: isOrg ? kOrange : Colors.blue,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                isOrg ? 'Organization' : 'Branch',
+                                style: TextStyle(
+                                  color: isOrg ? kOrange : Colors.blue,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    isOrg ? 'Consolidated Insights' : branchName,
+                    style: TextStyle(
+                      color: textColor.withOpacity(0.6),
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 2),
-              Text(
-                'Manage your driving school',
-                style: TextStyle(
-                  color: textColor.withOpacity(0.6),
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-          IconButton(
-            icon: Icon(Icons.notifications_outlined, color: kOrange, size: 26),
-            onPressed: () {
-              Navigator.pushNamed(context, '/notification');
-            },
-          ),
-        ],
-      ),
+            ),
+            IconButton(
+              icon:
+                  Icon(Icons.notifications_outlined, color: kOrange, size: 26),
+              onPressed: () {
+                Navigator.pushNamed(context, '/notification');
+              },
+            ),
+          ],
+        );
+      }),
     );
   }
 
   Widget _buildTodaySchedule(
-      BuildContext context, bool isDark, Color textColor, String targetId) {
+      BuildContext context,
+      WorkspaceController controller,
+      bool isDark,
+      Color textColor,
+      String targetId) {
     final dateStr = _storageDateFormat.format(DateTime.now());
+    final isOrg = controller.isOrganizationMode.value;
+    final branchId = controller.currentBranchId.value;
+
+    Query<Map<String, dynamic>> learnersQuery = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('students')
+        .where('learnersTestDate', isEqualTo: dateStr);
+
+    Query<Map<String, dynamic>> drivingQuery = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('students')
+        .where('drivingTestDate', isEqualTo: dateStr);
+
+    if (!isOrg && branchId.isNotEmpty) {
+      learnersQuery = learnersQuery.where('branchId', isEqualTo: branchId);
+      drivingQuery = drivingQuery.where('branchId', isEqualTo: branchId);
+    }
+
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('students')
-          .where('learnersTestDate', isEqualTo: dateStr)
-          .snapshots(),
+      stream: learnersQuery.snapshots(),
       builder: (context, learnersSnapshot) {
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(targetId)
-              .collection('students')
-              .where('drivingTestDate', isEqualTo: dateStr)
-              .snapshots(),
+          stream: drivingQuery.snapshots(),
           builder: (context, drivingSnapshot) {
             final learners = learnersSnapshot.data?.docs ?? [];
             final driving = drivingSnapshot.data?.docs ?? [];
@@ -414,38 +485,176 @@ class DashboardLayout2 extends StatelessWidget {
     );
   }
 
-  Widget _buildRevenue(
-      BuildContext context, bool isDark, Color textColor, String targetId) {
+  Widget _buildOrgInsights(BuildContext context, WorkspaceController controller,
+      bool isDark, Color textColor, String targetId) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF252525) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.05)
+              : Colors.black.withOpacity(0.05),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Org Insights',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'Aggregated from ${controller.ownedBranches.length} branches',
+                    style: TextStyle(
+                      color: textColor.withOpacity(0.5),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+              Icon(Icons.analytics_outlined, color: kOrange, size: 20),
+            ],
+          ),
+          const SizedBox(height: 24),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(targetId)
+                .collection('students')
+                .snapshots(),
+            builder: (context, snapshot) {
+              int totalStudents = 0;
+              double totalRevenue = 0;
+
+              if (snapshot.hasData) {
+                totalStudents = snapshot.data!.docs.length;
+                // Calculate MTD Revenue
+                final now = DateTime.now();
+                final firstDayOfMonth = DateTime(now.year, now.month, 1);
+
+                // This is a simplified calculation. Real revenue should come from a dedicated transactions collection.
+                // Assuming students have an 'advanceAmount' or similar.
+                for (var doc in snapshot.data!.docs) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final regDateStr = data['registrationDate'];
+                  if (regDateStr != null) {
+                    final regDate = DateTime.parse(regDateStr);
+                    if (regDate.isAfter(firstDayOfMonth)) {
+                      totalRevenue += double.tryParse(
+                              data['advanceAmount']?.toString() ?? '0') ??
+                          0;
+                    }
+                  }
+                }
+              }
+
+              return Row(
+                children: [
+                  Expanded(
+                    child: _buildInsightItem(
+                      icon: Icons.account_balance_wallet_outlined,
+                      label: 'Revenue (MTD)',
+                      value:
+                          '₹${NumberFormat('#,##,###').format(totalRevenue)}',
+                      textColor: textColor,
+                    ),
+                  ),
+                  Container(
+                    height: 40,
+                    width: 1,
+                    color: textColor.withOpacity(0.1),
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                  ),
+                  Expanded(
+                    child: _buildInsightItem(
+                      icon: Icons.school_outlined,
+                      label: 'Total Students',
+                      value: '$totalStudents',
+                      textColor: textColor,
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInsightItem({
+    required IconData icon,
+    required String label,
+    required String value,
+    required Color textColor,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 14, color: kOrange),
+            const SizedBox(width: 8),
+            Text(label,
+                style:
+                    TextStyle(color: textColor.withOpacity(0.5), fontSize: 11)),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(
+          value,
+          style: TextStyle(
+            color: textColor,
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRevenue(BuildContext context, WorkspaceController controller,
+      bool isDark, Color textColor, String targetId) {
+    final isOrg = controller.isOrganizationMode.value;
+    final branchId = controller.currentBranchId.value;
+
     final fs = FirebaseFirestore.instance;
     final now = DateTime.now();
 
+    // Helper to get filtered stream
+    Stream<QuerySnapshot<Map<String, dynamic>>> getFilteredStream(
+        String collection) {
+      Query<Map<String, dynamic>> query =
+          fs.collection('users').doc(targetId).collection(collection);
+      if (!isOrg && branchId.isNotEmpty) {
+        query = query.where('branchId', isEqualTo: branchId);
+      }
+      return query.snapshots();
+    }
+
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: fs
-          .collection('users')
-          .doc(targetId)
-          .collection('students')
-          .snapshots(),
+      stream: getFilteredStream('students'),
       builder: (context, s1) {
         return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: fs
-              .collection('users')
-              .doc(targetId)
-              .collection('licenseonly')
-              .snapshots(),
+          stream: getFilteredStream('licenseonly'),
           builder: (context, s2) {
             return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: fs
-                  .collection('users')
-                  .doc(targetId)
-                  .collection('endorsement')
-                  .snapshots(),
+              stream: getFilteredStream('endorsement'),
               builder: (context, s3) {
                 return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: fs
-                      .collection('users')
-                      .doc(targetId)
-                      .collection('vehicleDetails')
-                      .snapshots(),
+                  stream: getFilteredStream('vehicleDetails'),
                   builder: (context, s4) {
                     double totalRevenue = 0;
                     List<double> dailyRevenue = List.filled(8, 0.0);
@@ -602,31 +811,46 @@ class DashboardLayout2 extends StatelessWidget {
   }
 
   Widget _buildRecentActivity(
-      BuildContext context, bool isDark, Color textColor, String targetId) {
+      BuildContext context,
+      WorkspaceController controller,
+      bool isDark,
+      Color textColor,
+      String targetId) {
+    final isOrg = controller.isOrganizationMode.value;
+    final branchId = controller.currentBranchId.value;
+
+    Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('recentActivity')
+        .orderBy('timestamp', descending: true)
+        .limit(5); // Increased limit slightly for dashboard
+
+    if (!isOrg && branchId.isNotEmpty) {
+      query = query.where('branchId', isEqualTo: branchId);
+    }
+
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('recentActivity')
-          .orderBy('timestamp', descending: true)
-          .limit(1)
-          .snapshots(),
+      stream: query.snapshots(),
       builder: (context, snapshot) {
         List<Map<String, dynamic>> activities = [];
         if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
           activities = snapshot.data!.docs.map((doc) => doc.data()).toList();
         }
-        return _buildActivityCard(context, isDark, textColor, activities);
+        return _buildActivityCard(
+            context, controller, isDark, textColor, activities);
       },
     );
   }
 
   Widget _buildActivityCard(
     BuildContext context,
+    WorkspaceController controller,
     bool isDark,
     Color textColor,
     List<Map<String, dynamic>> activities,
   ) {
+    final isOrg = controller.isOrganizationMode.value;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -721,7 +945,9 @@ class DashboardLayout2 extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          title,
+                          isOrg && activity['branchName'] != null
+                              ? '${activity['branchName']} • $title'
+                              : title,
                           style: TextStyle(
                             color: textColor.withOpacity(0.6),
                             fontSize: 12,

@@ -217,9 +217,11 @@ class _StatsScreenState extends State<StatsScreen> {
     return Obx(() {
       final schoolId = _workspaceController.currentSchoolId.value;
       final targetId = schoolId.isNotEmpty ? schoolId : (user?.uid ?? '');
+      final isOrg = _workspaceController.isOrganizationMode.value;
+      final branchId = _workspaceController.currentBranchId.value;
 
       return StreamBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
-        stream: _getCombinedStatsStream(targetId),
+        stream: _getCombinedStatsStream(targetId, isOrg, branchId),
         builder: (context, snapshot) {
           if (!snapshot.hasData ||
               snapshot.connectionState == ConnectionState.waiting) {
@@ -458,288 +460,295 @@ class _StatsScreenState extends State<StatsScreen> {
 
   double _getMaxY(Map<String, double> r, Map<String, double> e) {
     double max = 0;
-    r.values.forEach((v) => max = v > max ? v : max);
-    e.values.forEach((v) => max = v > max ? v : max);
+    for (var v in r.values) {
+      if (v > max) max = v;
+    }
+    for (var v in e.values) {
+      if (v > max) max = v;
+    }
     return max == 0 ? 100 : max * 1.2;
   }
 
   Stream<List<QuerySnapshot<Map<String, dynamic>>>> _getCombinedStatsStream(
-      String targetId) {
+      String targetId, bool isOrg, String branchId) {
+    Query<Map<String, dynamic>> buildSubQuery(String collection) {
+      Query<Map<String, dynamic>> query =
+          _firestore.collection('users').doc(targetId).collection(collection);
+      if (!isOrg && branchId.isNotEmpty) {
+        query = query.where('branchId', isEqualTo: branchId);
+      }
+      return query;
+    }
+
+    Query<Map<String, dynamic>> paymentsQuery = _firestore
+        .collectionGroup('payments')
+        .where('targetId', isEqualTo: targetId);
+    if (!isOrg && branchId.isNotEmpty) {
+      paymentsQuery = paymentsQuery.where('branchId', isEqualTo: branchId);
+    }
+
     return StreamUtils.combineLatest([
-      _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('students')
-          .snapshots(),
-      _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('licenseonly')
-          .snapshots(),
-      _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('endorsement')
-          .snapshots(),
-      _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('vehicleDetails')
-          .snapshots(),
-      _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('expenses')
-          .snapshots(),
-      _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('dl_services')
-          .snapshots(),
-      _firestore
-          .collectionGroup('payments')
-          .where('targetId', isEqualTo: targetId)
-          .snapshots(),
+      buildSubQuery('students').snapshots(),
+      buildSubQuery('licenseonly').snapshots(),
+      buildSubQuery('endorsement').snapshots(),
+      buildSubQuery('vehicleDetails').snapshots(),
+      buildSubQuery('expenses').snapshots(),
+      buildSubQuery('dl_services').snapshots(),
+      paymentsQuery.snapshots(),
     ]);
   }
 
   Widget _buildMetricsGrid(bool isDark) {
-    final schoolId = _workspaceController.currentSchoolId.value;
-    final targetId = schoolId.isNotEmpty ? schoolId : (user?.uid ?? '');
+    return Obx(() {
+      final schoolId = _workspaceController.currentSchoolId.value;
+      final targetId = schoolId.isNotEmpty ? schoolId : (user?.uid ?? '');
+      final isOrg = _workspaceController.isOrganizationMode.value;
+      final branchId = _workspaceController.currentBranchId.value;
 
-    return StreamBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
-      stream: _getCombinedStatsStream(targetId),
-      builder: (context, snapshot) {
-        if (!snapshot.hasData ||
-            snapshot.connectionState == ConnectionState.waiting) {
-          return _buildShimmerLoader(100, isDark);
-        }
-
-        final List<Map<String, dynamic>> allItems = [];
-        final collections = [
-          'students',
-          'licenseonly',
-          'endorsement',
-          'vehicleDetails',
-          'expenses',
-          'dl_services',
-          'payments'
-        ];
-
-        for (int i = 0; i < snapshot.data!.length; i++) {
-          final docs = snapshot.data![i].docs;
-          final source = collections[i];
-          // We only aggregate main record collections for "Total Learners" and "Outstanding"
-          // expenses (4) and payments (6) are handled separately for revenue calculations
-          if (i == 4 || i == 6) continue;
-
-          for (var doc in docs) {
-            allItems.add({
-              'data': doc.data(),
-              'id': doc.id,
-              'source': source,
-            });
+      return StreamBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
+        stream: _getCombinedStatsStream(targetId, isOrg, branchId),
+        builder: (context, snapshot) {
+          if (!snapshot.hasData ||
+              snapshot.connectionState == ConnectionState.waiting) {
+            return _buildShimmerLoader(100, isDark);
           }
-        }
 
-        int totalLearners = allItems.length;
-        double currentMonthRevenue = 0;
-        double totalBalance = 0;
+          final List<Map<String, dynamic>> allItems = [];
+          final collections = [
+            'students',
+            'licenseonly',
+            'endorsement',
+            'vehicleDetails',
+            'expenses',
+            'dl_services',
+            'payments'
+          ];
 
-        final startOfMonth = DateTime(selectedDate.year, selectedDate.month, 1);
-        final endOfMonth =
-            DateTime(selectedDate.year, selectedDate.month + 1, 0, 23, 59, 59);
+          for (int i = 0; i < snapshot.data!.length; i++) {
+            final docs = snapshot.data![i].docs;
+            final source = collections[i];
+            // We only aggregate main record collections for "Total Learners" and "Outstanding"
+            // expenses (4) and payments (6) are handled separately for revenue calculations
+            if (i == 4 || i == 6) continue;
 
-        // Revenue from main collections
-        // Track counted installments: recordId_amount_dateStr
-        final Set<String> countedPayments = {};
+            for (var doc in docs) {
+              allItems.add({
+                'data': doc.data(),
+                'id': doc.id,
+                'source': source,
+              });
+            }
+          }
 
-        for (var item in allItems) {
-          final data = item['data'] as Map<String, dynamic>;
-          final itemId = item['id'] as String;
+          int totalLearners = allItems.length;
+          double currentMonthRevenue = 0;
+          double totalBalance = 0;
 
-          double advance =
-              double.tryParse(data['advanceAmount']?.toString() ?? '0') ?? 0;
-          double second =
-              double.tryParse(data['secondInstallment']?.toString() ?? '0') ??
+          final startOfMonth =
+              DateTime(selectedDate.year, selectedDate.month, 1);
+          final endOfMonth = DateTime(
+              selectedDate.year, selectedDate.month + 1, 0, 23, 59, 59);
+
+          // Revenue from main collections
+          // Track counted installments: recordId_amount_dateStr
+          final Set<String> countedPayments = {};
+
+          for (var item in allItems) {
+            final data = item['data'] as Map<String, dynamic>;
+            final itemId = item['id'] as String;
+
+            double advance =
+                double.tryParse(data['advanceAmount']?.toString() ?? '0') ?? 0;
+            double second =
+                double.tryParse(data['secondInstallment']?.toString() ?? '0') ??
+                    0;
+            double third =
+                double.tryParse(data['thirdInstallment']?.toString() ?? '0') ??
+                    0;
+            double balance =
+                double.tryParse(data['balanceAmount']?.toString() ?? '0') ?? 0;
+
+            totalBalance += balance;
+
+            DateTime? t1 = DateTime.tryParse(data['registrationDate'] ?? '');
+            DateTime? t2 =
+                DateTime.tryParse(data['secondInstallmentTime'] ?? '');
+            DateTime? t3 =
+                DateTime.tryParse(data['thirdInstallmentTime'] ?? '');
+
+            if (t1 != null &&
+                t1.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
+                t1.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
+              currentMonthRevenue += advance;
+              if (advance > 0) {
+                final dateStr = t1.toIso8601String().substring(0, 10);
+                countedPayments
+                    .add('${itemId}_${advance.toStringAsFixed(2)}_$dateStr');
+              }
+            }
+            if (t2 != null &&
+                t2.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
+                t2.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
+              currentMonthRevenue += second;
+              if (second > 0) {
+                final dateStr = t2.toIso8601String().substring(0, 10);
+                countedPayments
+                    .add('${itemId}_${second.toStringAsFixed(2)}_$dateStr');
+              }
+            }
+            if (t3 != null &&
+                t3.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
+                t3.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
+              currentMonthRevenue += third;
+              if (third > 0) {
+                final dateStr = t3.toIso8601String().substring(0, 10);
+                countedPayments
+                    .add('${itemId}_${third.toStringAsFixed(2)}_$dateStr');
+              }
+            }
+          }
+
+          // Revenue from Payments collectionGroup (index 6) with fixed deduplication
+          if (snapshot.data!.length > 6) {
+            for (var doc in snapshot.data![6].docs) {
+              final data = doc.data();
+              double amount = double.tryParse(data['amountPaid']?.toString() ??
+                      data['amount']?.toString() ??
+                      '0') ??
                   0;
-          double third =
-              double.tryParse(data['thirdInstallment']?.toString() ?? '0') ?? 0;
-          double balance =
-              double.tryParse(data['balanceAmount']?.toString() ?? '0') ?? 0;
-
-          totalBalance += balance;
-
-          DateTime? t1 = DateTime.tryParse(data['registrationDate'] ?? '');
-          DateTime? t2 = DateTime.tryParse(data['secondInstallmentTime'] ?? '');
-          DateTime? t3 = DateTime.tryParse(data['thirdInstallmentTime'] ?? '');
-
-          if (t1 != null &&
-              t1.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-              t1.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
-            currentMonthRevenue += advance;
-            if (advance > 0) {
-              final dateStr = t1.toIso8601String().substring(0, 10);
-              countedPayments
-                  .add('${itemId}_${advance.toStringAsFixed(2)}_$dateStr');
-            }
-          }
-          if (t2 != null &&
-              t2.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-              t2.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
-            currentMonthRevenue += second;
-            if (second > 0) {
-              final dateStr = t2.toIso8601String().substring(0, 10);
-              countedPayments
-                  .add('${itemId}_${second.toStringAsFixed(2)}_$dateStr');
-            }
-          }
-          if (t3 != null &&
-              t3.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-              t3.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
-            currentMonthRevenue += third;
-            if (third > 0) {
-              final dateStr = t3.toIso8601String().substring(0, 10);
-              countedPayments
-                  .add('${itemId}_${third.toStringAsFixed(2)}_$dateStr');
-            }
-          }
-        }
-
-        // Revenue from Payments collectionGroup (index 6) with fixed deduplication
-        if (snapshot.data!.length > 6) {
-          for (var doc in snapshot.data![6].docs) {
-            final data = doc.data();
-            double amount = double.tryParse(data['amountPaid']?.toString() ??
-                    data['amount']?.toString() ??
-                    '0') ??
-                0;
-            DateTime? pDate;
-            if (data['date'] is Timestamp) {
-              pDate = (data['date'] as Timestamp).toDate();
-            } else {
-              pDate = DateTime.tryParse(data['date']?.toString() ?? '');
-            }
-
-            if (pDate != null &&
-                pDate.isAfter(
-                    startOfMonth.subtract(const Duration(seconds: 1))) &&
-                pDate.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
-              // Get parent ID (recordId)
-              final String recordId = data['recordId'] ?? '';
-              final String dateStr = pDate.toIso8601String().substring(0, 10);
-
-              // Create deduplication key matching the main record format
-              // Note: If recordId is missing in payment doc (old data), check parent path
-              String finalRecordId = recordId;
-              if (finalRecordId.isEmpty) {
-                final parentPath = doc.reference.parent.parent?.path ?? '';
-                // path is users/{uid}/{collection}/{docId}
-                final parts = parentPath.split('/');
-                if (parts.isNotEmpty) finalRecordId = parts.last;
+              DateTime? pDate;
+              if (data['date'] is Timestamp) {
+                pDate = (data['date'] as Timestamp).toDate();
+              } else {
+                pDate = DateTime.tryParse(data['date']?.toString() ?? '');
               }
 
-              String dedupKey =
-                  '${finalRecordId}_${amount.toStringAsFixed(2)}_$dateStr';
+              if (pDate != null &&
+                  pDate.isAfter(
+                      startOfMonth.subtract(const Duration(seconds: 1))) &&
+                  pDate.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
+                // Get parent ID (recordId)
+                final String recordId = data['recordId'] ?? '';
+                final String dateStr = pDate.toIso8601String().substring(0, 10);
 
-              // Only add if not already counted via main record
-              if (!countedPayments.contains(dedupKey)) {
-                currentMonthRevenue += amount;
+                // Create deduplication key matching the main record format
+                // Note: If recordId is missing in payment doc (old data), check parent path
+                String finalRecordId = recordId;
+                if (finalRecordId.isEmpty) {
+                  final parentPath = doc.reference.parent.parent?.path ?? '';
+                  // path is users/{uid}/{collection}/{docId}
+                  final parts = parentPath.split('/');
+                  if (parts.isNotEmpty) finalRecordId = parts.last;
+                }
+
+                String dedupKey =
+                    '${finalRecordId}_${amount.toStringAsFixed(2)}_$dateStr';
+
+                // Only add if not already counted via main record
+                if (!countedPayments.contains(dedupKey)) {
+                  currentMonthRevenue += amount;
+                }
               }
             }
           }
-        }
 
-        // Calculate Total Learners Growth
-        final endOfLastMonth =
-            DateTime(selectedDate.year, selectedDate.month, 0);
+          // Calculate Total Learners Growth
+          final endOfLastMonth =
+              DateTime(selectedDate.year, selectedDate.month, 0);
 
-        int learnersLastMonthEnd = 0;
-        int learnersCurrentTotal = totalLearners;
+          int learnersLastMonthEnd = 0;
+          int learnersCurrentTotal = totalLearners;
 
-        for (var item in allItems) {
-          final data = item['data'] as Map<String, dynamic>;
-          DateTime? regDate = DateTime.tryParse(data['registrationDate'] ?? '');
-          if (regDate != null &&
-              regDate
-                  .isBefore(endOfLastMonth.add(const Duration(seconds: 1)))) {
-            learnersLastMonthEnd++;
+          for (var item in allItems) {
+            final data = item['data'] as Map<String, dynamic>;
+            DateTime? regDate =
+                DateTime.tryParse(data['registrationDate'] ?? '');
+            if (regDate != null &&
+                regDate
+                    .isBefore(endOfLastMonth.add(const Duration(seconds: 1)))) {
+              learnersLastMonthEnd++;
+            }
           }
-        }
 
-        double growthPercentage = 0;
-        if (learnersLastMonthEnd > 0) {
-          growthPercentage = ((learnersCurrentTotal - learnersLastMonthEnd) /
-                  learnersLastMonthEnd) *
-              100;
-        } else if (learnersCurrentTotal > 0) {
-          growthPercentage = 100; // From 0 to something is 100% (or infinite)
-        }
+          double growthPercentage = 0;
+          if (learnersLastMonthEnd > 0) {
+            growthPercentage = ((learnersCurrentTotal - learnersLastMonthEnd) /
+                    learnersLastMonthEnd) *
+                100;
+          } else if (learnersCurrentTotal > 0) {
+            growthPercentage = 100; // From 0 to something is 100% (or infinite)
+          }
 
-        String growthString = '${growthPercentage.abs().toStringAsFixed(1)}%';
-        String growthLabel = growthPercentage >= 0
-            ? '+$growthString from last month'
-            : '-$growthString from last month';
-        Color growthColor = growthPercentage >= 0 ? Colors.green : Colors.red;
+          String growthString = '${growthPercentage.abs().toStringAsFixed(1)}%';
+          String growthLabel = growthPercentage >= 0
+              ? '+$growthString from last month'
+              : '-$growthString from last month';
+          Color growthColor = growthPercentage >= 0 ? Colors.green : Colors.red;
 
-        return Column(
-          children: [
-            GestureDetector(
-              onTap: () => _showLearnersSummary(context, snapshot.data!),
-              child: _buildMetricCard(
-                'Total Learners',
-                totalLearners.toString(),
-                growthLabel,
-                growthColor, // Pass color
-                isDark,
+          return Column(
+            children: [
+              GestureDetector(
+                onTap: () => _showLearnersSummary(context, snapshot.data!),
+                child: _buildMetricCard(
+                  'Total Learners',
+                  totalLearners.toString(),
+                  growthLabel,
+                  growthColor, // Pass color
+                  isDark,
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _showRevenueDetails(context, allItems),
-                    child: _buildMetricCard(
-                      'Revenue (${DateFormat('MMM').format(selectedDate)})',
-                      'Rs. ${currentMonthRevenue.toStringAsFixed(0)}',
-                      null,
-                      kOrange,
-                      isDark,
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _showRevenueDetails(context, allItems),
+                      child: _buildMetricCard(
+                        'Revenue (${DateFormat('MMM').format(selectedDate)})',
+                        'Rs. ${currentMonthRevenue.toStringAsFixed(0)}',
+                        null,
+                        kOrange,
+                        isDark,
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => _showOutstandingDetails(context, allItems),
-                    child: _buildMetricCard(
-                      'Outstanding Due',
-                      'Rs. ${totalBalance.toStringAsFixed(0)}',
-                      null,
-                      Colors.redAccent,
-                      isDark,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: () => _showOutstandingDetails(context, allItems),
+                      child: _buildMetricCard(
+                        'Outstanding Due',
+                        'Rs. ${totalBalance.toStringAsFixed(0)}',
+                        null,
+                        Colors.redAccent,
+                        isDark,
+                      ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
-        );
-      },
-    );
+                ],
+              ),
+            ],
+          );
+        },
+      );
+    });
   }
 
   Widget _buildExpensesCard(bool isDark) {
     final schoolId = _workspaceController.currentSchoolId.value;
-    final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
+    final targetId = schoolId.isNotEmpty ? schoolId : (user?.uid ?? '');
+    final isOrg = _workspaceController.isOrganizationMode.value;
+    final branchId = _workspaceController.currentBranchId.value;
+
+    Query<Map<String, dynamic>> query =
+        _firestore.collection('users').doc(targetId).collection('expenses');
+
+    if (!isOrg && branchId.isNotEmpty) {
+      query = query.where('branchId', isEqualTo: branchId);
+    }
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('expenses')
-          .snapshots(),
+      stream: query.snapshots(),
       builder: (context, snapshot) {
         double totalExpenses = 0;
         List<String> categories = [];

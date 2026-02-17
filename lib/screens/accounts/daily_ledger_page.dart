@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/services/ledger_pdf_service.dart';
+import 'package:mds/services/image_cache_service.dart';
 import 'package:mds/utils/loading_utils.dart';
 import 'package:mds/models/transaction_data.dart';
 import 'accounts_screen.dart';
@@ -460,11 +461,20 @@ class _DailyLedgerPageState extends State<DailyLedgerPage> {
         context,
         () async {
           final workspace = Get.find<WorkspaceController>();
+
+          // Fetch company logo bytes if URL exists
+          Uint8List? logoBytes;
+          if (workspace.companyData['companyLogo'] != null) {
+            logoBytes = await ImageCacheService()
+                .fetchAndCache(workspace.companyData['companyLogo']);
+          }
+
           final file = await LedgerPdfService.generateLedgerStatement(
             companyData: workspace.companyData,
             transactions: filtered,
             startDate: start,
             endDate: end,
+            companyLogoBytes: logoBytes,
           );
 
           await Share.shareXFiles([XFile(file.path)], text: 'Ledger Statement');

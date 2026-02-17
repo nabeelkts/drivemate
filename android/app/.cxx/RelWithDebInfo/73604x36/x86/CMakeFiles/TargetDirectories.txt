@@ -1,2 +1,0 @@
-D:/mds/mds/android/app/.cxx/RelWithDebInfo/73604x36/x86/CMakeFiles/edit_cache.dir
-D:/mds/mds/android/app/.cxx/RelWithDebInfo/73604x36/x86/CMakeFiles/rebuild_cache.dir

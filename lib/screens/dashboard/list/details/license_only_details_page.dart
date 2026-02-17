@@ -6,6 +6,7 @@ import 'package:mds/screens/dashboard/form/edit_forms/edit_licence_only_details_
 import 'package:mds/screens/profile/action_button.dart';
 import 'package:mds/screens/dashboard/list/details/pdf_preview_screen.dart';
 import 'package:mds/services/pdf_service.dart';
+import 'package:mds/services/image_cache_service.dart';
 import 'package:mds/utils/loading_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -29,8 +30,6 @@ class LicenseOnlyDetailsPage extends StatefulWidget {
 class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
   late Map<String, dynamic> licenseDetails;
   final List<String> _selectedTransactionIds = [];
-  Map<String, dynamic>? _cachedCompanyData;
-  Uint8List? _cachedCompanyLogo;
   static const Color kAccentRed = Color(0xFFD32F2F);
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
@@ -643,34 +642,25 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
     Uint8List? pdfBytes;
     try {
       pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
-        final schoolId = _workspaceController.currentSchoolId.value;
-        final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
+        final workspace = Get.find<WorkspaceController>();
+        final companyData = workspace.companyData;
 
-        if (_cachedCompanyData == null) {
-          final userDoc = await FirebaseFirestore.instance
-              .collection('users')
-              .doc(targetId)
-              .get();
-          _cachedCompanyData = userDoc.data();
-        }
-
-        if (_cachedCompanyData == null ||
-            _cachedCompanyData!['hasCompanyProfile'] != true) {
+        if (companyData['hasCompanyProfile'] != true) {
           throw 'Please set up your Company Profile first';
         }
 
-        if (_cachedCompanyData!['companyLogo'] != null &&
-            _cachedCompanyData!['companyLogo'].toString().isNotEmpty &&
-            _cachedCompanyLogo == null) {
-          _cachedCompanyLogo = await _getImageBytes(
-              NetworkImage(_cachedCompanyData!['companyLogo']));
+        Uint8List? logoBytes;
+        if (companyData['companyLogo'] != null &&
+            companyData['companyLogo'].toString().isNotEmpty) {
+          logoBytes = await ImageCacheService()
+              .fetchAndCache(companyData['companyLogo']);
         }
 
         return await PdfService.generateReceipt(
-          companyData: _cachedCompanyData!,
+          companyData: companyData,
           studentDetails: licenseDetails,
           transactions: transactions,
-          companyLogoBytes: _cachedCompanyLogo,
+          companyLogoBytes: logoBytes,
         );
       });
     } catch (e) {
@@ -777,45 +767,36 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
     Uint8List? pdfBytes;
     try {
       pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
-        final user = FirebaseAuth.instance.currentUser;
-        if (user == null) throw 'User not logged in';
+        final workspace = Get.find<WorkspaceController>();
+        final companyData = workspace.companyData;
 
-        // Parallelize fetching student image and company data
-        final results = await Future.wait([
-          if (licenseDetails['image'] != null &&
-              licenseDetails['image'].toString().isNotEmpty)
-            _getImageBytes(NetworkImage(licenseDetails['image']))
-          else
-            Future.value(null),
-          if (_cachedCompanyData == null)
-            FirebaseFirestore.instance
-                .collection('users')
-                .doc(user.uid)
-                .get()
-                .then((doc) => doc.data())
-          else
-            Future.value(_cachedCompanyData),
-        ]);
+        if (companyData['hasCompanyProfile'] != true) {
+          throw 'Please set up your Company Profile first';
+        }
 
-        final Uint8List? imageBytes = results[0] as Uint8List?;
-        _cachedCompanyData = results[1] as Map<String, dynamic>?;
+        // Fetch student image
+        Uint8List? studentImage;
+        if (licenseDetails['image'] != null &&
+            licenseDetails['image'].toString().isNotEmpty) {
+          studentImage =
+              await ImageCacheService().fetchAndCache(licenseDetails['image']);
+        }
 
-        if (_cachedCompanyData != null &&
-            _cachedCompanyData!['hasCompanyProfile'] == true &&
-            _cachedCompanyData!['companyLogo'] != null &&
-            _cachedCompanyData!['companyLogo'].toString().isNotEmpty &&
-            _cachedCompanyLogo == null) {
-          _cachedCompanyLogo = await _getImageBytes(
-              NetworkImage(_cachedCompanyData!['companyLogo']));
+        // Fetch company logo
+        Uint8List? logoBytes;
+        if (companyData['companyLogo'] != null &&
+            companyData['companyLogo'].toString().isNotEmpty) {
+          logoBytes = await ImageCacheService()
+              .fetchAndCache(companyData['companyLogo']);
         }
 
         return await PdfService.generatePdf(
           title: 'License Only Details',
           data: licenseDetails,
           includePayment: includePayment,
-          imageBytes: imageBytes,
-          companyData: _cachedCompanyData,
-          companyLogoBytes: _cachedCompanyLogo,
+          imageBytes: studentImage,
+          companyData: companyData,
+          companyLogoBytes: logoBytes,
         );
       });
     } catch (e) {
@@ -838,33 +819,5 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
         builder: (context) => PdfPreviewScreen(pdfBytes: pdfBytes),
       ),
     );
-  }
-
-  Future<Uint8List?> _getImageBytes(ImageProvider imageProvider) async {
-    try {
-      if (imageProvider is NetworkImage) {
-        final url = imageProvider.url;
-        debugPrint('Attempting to load image from: $url');
-
-        final response =
-            await http.get(Uri.parse(url)).timeout(const Duration(seconds: 5));
-
-        if (response.statusCode == 200) {
-          debugPrint(
-              'Image loaded successfully: ${response.bodyBytes.length} bytes');
-          return response.bodyBytes;
-        } else {
-          debugPrint('Image load failed with status: ${response.statusCode}');
-          return null;
-        }
-      } else if (imageProvider is AssetImage) {
-        final byteData = await rootBundle.load(imageProvider.assetName);
-        return byteData.buffer.asUint8List();
-      }
-    } catch (e) {
-      debugPrint('Error loading image for PDF: $e');
-      return null;
-    }
-    return null;
   }
 }

@@ -15,8 +15,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:mds/utils/loading_utils.dart';
 import 'package:mds/screens/profile/widgets/profile_header.dart';
 import 'package:mds/screens/profile/widgets/subscription_card.dart';
-import 'package:mds/screens/profile/widgets/workspace_section.dart';
-import 'package:mds/screens/profile/widgets/company_profile_section.dart';
+import 'package:mds/screens/profile/admin/organization_management_page.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
@@ -29,6 +28,8 @@ import 'package:mds/screens/profile/admin/admin_subscription_page.dart';
 import 'package:mds/screens/profile/admin/manage_staff_page.dart';
 import 'package:mds/screens/authentication/google_sign_in.dart';
 import 'package:mds/screens/profile/settings_page.dart';
+import 'package:mds/features/tracking/presentation/screens/owner_map_screen.dart';
+import 'package:mds/features/tracking/presentation/screens/staff_tracking_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onSubscriptionRenewed;
@@ -483,17 +484,20 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   onSubscribeDialog: _showSubscribeDialog,
                 );
               }),
-              const SizedBox(height: 20),
-              WorkspaceSection(
-                cardColor: cardColor,
-                borderColor: borderColor,
-                textColor: textColor,
-                onJoinSchool: _showJoinSchoolDialog,
+              _buildMyOrganizationTile(
+                context,
+                _workspaceController,
+                cardColor,
+                borderColor,
+                textColor,
               ),
-              const SizedBox(height: 20),
-              CompanyProfileSection(
-                cardColor: cardColor,
-                textColor: textColor,
+              const SizedBox(height: 12),
+              _buildTrackingTile(
+                context,
+                _workspaceController,
+                cardColor,
+                borderColor,
+                textColor,
               ),
               const SizedBox(height: 20),
               _buildSettingTile(
@@ -635,6 +639,183 @@ class _ProfileScreenState extends State<ProfileScreen> {
         ),
       ),
     );
+  }
+
+  Widget _buildMyOrganizationTile(
+    BuildContext context,
+    WorkspaceController controller,
+    Color cardColor,
+    Color borderColor,
+    Color textColor,
+  ) {
+    return Obx(() {
+      final isStaff = controller.userRole.value == 'Staff';
+      if (isStaff) return const SizedBox.shrink();
+
+      final branchData = controller.currentBranchData;
+      final branchName = branchData['branchName'] ?? 'Manage Organization';
+      final schoolName =
+          controller.userProfileData['schoolName'] ?? 'My Organization';
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Organization',
+            style: TextStyle(
+              color: textColor.withOpacity(0.5),
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: borderColor.withOpacity(0.5)),
+            ),
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const OrganizationManagementPage(),
+                  ),
+                );
+              },
+              borderRadius: BorderRadius.circular(16),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: kOrange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Icon(Icons.business_center_outlined,
+                          color: kOrange, size: 24),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            schoolName,
+                            style: TextStyle(
+                              color: textColor,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            branchName,
+                            style: TextStyle(
+                              color: textColor.withOpacity(0.6),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Icon(Icons.chevron_right,
+                        color: textColor.withOpacity(0.3)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildTrackingTile(
+    BuildContext context,
+    WorkspaceController controller,
+    Color cardColor,
+    Color borderColor,
+    Color textColor,
+  ) {
+    return Obx(() {
+      final isStaff = controller.userRole.value == 'Staff';
+      final isAdmin = controller.userRole.value == 'Owner' ||
+          controller.userRole.value == 'Admin';
+
+      if (!isStaff && !isAdmin) return const SizedBox.shrink();
+
+      return Container(
+        decoration: BoxDecoration(
+          color: cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: borderColor.withOpacity(0.5)),
+        ),
+        child: InkWell(
+          onTap: () {
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => isStaff
+                    ? const StaffTrackingScreen()
+                    : const OwnerMapScreen(),
+              ),
+            );
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    isStaff ? Icons.my_location : Icons.map_outlined,
+                    color: Colors.blue,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isStaff ? 'My Tracking Status' : 'Live Fleet Tracking',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isStaff
+                            ? 'Manage your location sharing'
+                            : 'Monitor all drivers in real-time',
+                        style: TextStyle(
+                          color: textColor.withOpacity(0.6),
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: textColor.withOpacity(0.3)),
+              ],
+            ),
+          ),
+        ),
+      );
+    });
   }
 
   void _showJoinSchoolDialog() {
