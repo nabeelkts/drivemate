@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/constants/colors.dart';
@@ -57,14 +58,8 @@ class _BaseListWidgetState extends State<BaseListWidget> {
   }
 
   void _setupStream() {
-    final schoolId = _workspaceController.currentSchoolId.value;
-    final targetId =
-        schoolId.isNotEmpty ? schoolId : FirebaseAuth.instance.currentUser?.uid;
-
-    _userStreamSubscription = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection(widget.collectionName)
+    _userStreamSubscription = _workspaceController
+        .getFilteredCollection(widget.collectionName)
         .snapshots()
         .listen(
       (snapshot) {
@@ -231,28 +226,7 @@ class _BaseListWidgetState extends State<BaseListWidget> {
             fontWeight: FontWeight.w500,
           ),
         ),
-        leading: Center(
-          child: CircleAvatar(
-            backgroundColor: kPrimaryColor,
-            radius: 15,
-            child: Center(
-              child: CircleAvatar(
-                radius: 14,
-                backgroundColor: kWhite,
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios,
-                    color: kPrimaryColor,
-                    size: 15,
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                ),
-              ),
-            ),
-          ),
-        ),
+        leading: const CustomBackButton(),
         actions: widget.onViewDeactivated != null
             ? [
                 IconButton(

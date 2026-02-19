@@ -6,12 +6,23 @@ import 'package:get/get.dart';
 import 'package:mds/features/tracking/data/repositories/tracking_repository.dart';
 import 'package:mds/features/tracking/domain/entities/driver_location.dart';
 
+import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:flutter_background_service_android/flutter_background_service_android.dart';
+
 /// Service for tracking driver location in real-time
 ///
 /// Observes Firestore for active lessons and automatically starts/stops tracking.
 /// Runs independently of UI state - works in background isolate.
 class LocationTrackingService extends GetxService {
-  final TrackingRepository _repository = Get.find<TrackingRepository>();
+  late final TrackingRepository _repository;
+  final ServiceInstance? _serviceInstance;
+
+  LocationTrackingService({
+    TrackingRepository? repository,
+    ServiceInstance? serviceInstance,
+  }) : _serviceInstance = serviceInstance {
+    _repository = repository ?? Get.find<TrackingRepository>();
+  }
 
   StreamSubscription<Position>? _positionStreamSubscription;
   StreamSubscription<QuerySnapshot>? _lessonStreamSubscription;
@@ -20,15 +31,19 @@ class LocationTrackingService extends GetxService {
   String? _currentLessonId;
   bool _isTracking = false;
 
+  // Distance tracking
+  double _totalDistance = 0.0; // in meters
+  Position? _lastPosition;
+
   /// Initialize service
   @override
   void onInit() {
     super.onInit();
-    _checkLocationPermission();
+    checkLocationPermission();
   }
 
   /// Check and request location permissions
-  Future<bool> _checkLocationPermission() async {
+  Future<bool> checkLocationPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) {
       return false;
@@ -55,6 +70,9 @@ class LocationTrackingService extends GetxService {
   Future<void> observeLessonStatus(String driverId) async {
     _currentDriverId = driverId;
 
+    // Start tracking immediately (Uber-style, always on when app is open/service started)
+    await startTracking(driverId, null);
+
     // Cancel existing subscription
     await _lessonStreamSubscription?.cancel();
 
@@ -66,26 +84,35 @@ class LocationTrackingService extends GetxService {
 
     _lessonStreamSubscription = query.snapshots().listen((snapshot) async {
       if (snapshot.docs.isNotEmpty) {
-        // Active lesson found - start tracking
+        // Active lesson found - update lessonId
         final lessonId = snapshot.docs.first.id;
         if (_currentLessonId != lessonId) {
           _currentLessonId = lessonId;
-          await startTracking(driverId, lessonId);
+          print('Lesson started: $lessonId');
         }
       } else {
-        // No active lessons - stop tracking
-        if (_isTracking) {
-          await stopTracking();
+        // No active lessons - clear lessonId but keep tracking
+        if (_currentLessonId != null) {
+          _currentLessonId = null;
+          print('Lesson ended');
         }
       }
     });
   }
 
   /// Start location tracking
-  Future<void> startTracking(String driverId, String lessonId) async {
-    if (_isTracking) return;
+  Future<void> startTracking(String driverId, String? lessonId) async {
+    _currentDriverId = driverId;
 
-    final hasPermission = await _checkLocationPermission();
+    if (_isTracking) {
+      // If already tracking, just update the lessonId if provided (or if it changed)
+      if (lessonId != _currentLessonId) {
+        _currentLessonId = lessonId;
+      }
+      return;
+    }
+
+    final hasPermission = await checkLocationPermission();
     if (!hasPermission) {
       print('Location permission denied');
       return;
@@ -94,6 +121,10 @@ class LocationTrackingService extends GetxService {
     // Initialize tracking in repository
     await _repository.startTracking(driverId, lessonId);
 
+    // Reset distance tracking
+    _totalDistance = 0.0;
+    _lastPosition = null;
+
     // Configure location settings
     const locationSettings = LocationSettings(
       accuracy: LocationAccuracy.high,
@@ -101,25 +132,38 @@ class LocationTrackingService extends GetxService {
     );
 
     // Start streaming location
-    _positionStreamSubscription =
-        Geolocator.getPositionStream(locationSettings: locationSettings).listen(
-      (Position position) {
-        _updateLocation(position);
-      },
-      onError: (error) {
-        print('Location stream error: $error');
-      },
-    );
+    try {
+      _positionStreamSubscription =
+          Geolocator.getPositionStream(locationSettings: locationSettings)
+              .listen(
+        (Position position) {
+          print('Location update: ${position.latitude}, ${position.longitude}');
+          _calculateDistance(position);
+          _updateLocation(position);
+        },
+        onError: (error) {
+          print('Location stream error: $error');
+          // Optional: Attempt to restart stream or notify user via local notification if possible
+        },
+      );
 
-    _isTracking = true;
-    _currentLessonId = lessonId;
-    print('Started tracking for driver $driverId, lesson $lessonId');
+      _isTracking = true;
+      _currentLessonId = lessonId;
+      print('Started tracking for driver $driverId, lesson $lessonId');
+    } catch (e) {
+      print('Error starting location stream: $e');
+      _isTracking = false;
+    }
   }
 
   /// Update location to Firebase
   void _updateLocation(Position position) {
-    if (_currentDriverId == null) return;
+    if (_currentDriverId == null) {
+      print('Cannot update location: driverId is null');
+      return;
+    }
 
+    // print('Updating location for $_currentDriverId to Firebase');
     final location = DriverLocation(
       driverId: _currentDriverId!,
       latitude: position.latitude,
@@ -131,7 +175,35 @@ class LocationTrackingService extends GetxService {
       updatedAt: DateTime.now(),
     );
 
-    _repository.updateLocation(location);
+    _repository.updateLocation(location).then((_) {
+      // Success - maybe too verbose to print every time
+    }).catchError((e) {
+      print('Error updating location: $e');
+    });
+
+    // Update background service notification if available
+    if (_serviceInstance is AndroidServiceInstance) {
+      (_serviceInstance as AndroidServiceInstance)
+          .setForegroundNotificationInfo(
+        title: 'Drivemate: Active Lesson',
+        content:
+            'Speed: ${(location.speed * 3.6).toStringAsFixed(1)} km/h | Dist: ${(_totalDistance / 1000).toStringAsFixed(2)} km',
+      );
+    }
+  }
+
+  /// Calculate distance between positions
+  void _calculateDistance(Position currentPosition) {
+    if (_lastPosition != null) {
+      double distance = Geolocator.distanceBetween(
+        _lastPosition!.latitude,
+        _lastPosition!.longitude,
+        currentPosition.latitude,
+        currentPosition.longitude,
+      );
+      _totalDistance += distance;
+    }
+    _lastPosition = currentPosition;
   }
 
   /// Stop tracking
@@ -166,4 +238,7 @@ class LocationTrackingService extends GetxService {
 
   /// Get current lesson ID
   String? get currentLessonId => _currentLessonId;
+
+  /// Get total distance covered in current session (in meters)
+  double get totalDistance => _totalDistance;
 }

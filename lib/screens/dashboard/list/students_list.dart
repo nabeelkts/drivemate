@@ -10,6 +10,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/screens/authentication/widgets/my_button.dart';
 import 'package:mds/screens/dashboard/form/edit_forms/edit_student_details_form.dart';
 import 'package:mds/screens/dashboard/form/new_forms/new_student_form.dart';
@@ -45,13 +46,9 @@ class _StudentListState extends State<StudentList> {
   @override
   void initState() {
     super.initState();
-    final schoolId = _workspaceController.currentSchoolId.value;
-    final targetId = schoolId.isNotEmpty ? schoolId : widget.userId;
 
-    _userStreamSubscription = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('students')
+    _userStreamSubscription = _workspaceController
+        .getFilteredCollection('students')
         .snapshots()
         .listen((snapshot) {
       if (mounted) {
@@ -95,28 +92,7 @@ class _StudentListState extends State<StudentList> {
             fontWeight: FontWeight.w500,
           ),
         ),
-        leading: Center(
-          child: CircleAvatar(
-            backgroundColor: kPrimaryColor,
-            radius: 15,
-            child: Center(
-              child: CircleAvatar(
-                radius: 14,
-                backgroundColor: kWhite,
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios,
-                    color: kPrimaryColor,
-                    size: 15,
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                ),
-              ),
-            ),
-          ),
-        ),
+        leading: const CustomBackButton(),
         actions: [
           IconButton(
             onPressed: () {
@@ -260,7 +236,7 @@ class _StudentListState extends State<StudentList> {
                 title: const Text('Mark as Course Completed'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _showDeleteConfirmationDialog(doc.id);
+                  await _showDeleteConfirmationDialog(doc.id, doc.data());
                   setState(() {});
                 },
               ),
@@ -271,24 +247,18 @@ class _StudentListState extends State<StudentList> {
     );
   }
 
-  Future<void> _deleteData(String studentId) async {
+  Future<void> _deleteData(
+      String studentId, Map<String, dynamic> studentData) async {
     final schoolId = _workspaceController.currentSchoolId.value;
     final targetId = schoolId.isNotEmpty ? schoolId : widget.userId;
 
-    if (studentId.isNotEmpty) {
-      var studentData = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('students')
-          .doc(studentId)
-          .get();
-
+    if (studentId.isNotEmpty && studentData.isNotEmpty) {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(targetId)
           .collection('deactivated_students')
           .doc(studentId)
-          .set(studentData.data() ?? {});
+          .set(studentData);
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -299,13 +269,14 @@ class _StudentListState extends State<StudentList> {
     }
   }
 
-  Future<void> _showDeleteConfirmationDialog(String documentId) async {
+  Future<void> _showDeleteConfirmationDialog(
+      String documentId, Map<String, dynamic> studentData) async {
     showCustomConfirmationDialog(
       context,
       'Confirm Course Completion',
       'Are you sure ?',
       () async {
-        await _deleteData(documentId);
+        await _deleteData(documentId, studentData);
         Navigator.of(context).pop();
         Navigator.pushReplacement(
           context,

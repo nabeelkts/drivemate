@@ -68,29 +68,38 @@ class FirebaseTrackingRepository implements TrackingRepository {
 
   @override
   Stream<List<DriverLocation>> getOnlineDriverLocations() {
-    return _database
-        .ref(_basePath)
-        .orderByChild('isOnline')
-        .equalTo(true)
-        .onValue
-        .map((event) {
-      final data = event.snapshot.value as Map<dynamic, dynamic>?;
-      if (data == null) return <DriverLocation>[];
+    return _database.ref(_basePath).onValue.map((event) {
+      if (!event.snapshot.exists) {
+        print('No live locations found at $_basePath');
+        return <DriverLocation>[];
+      }
 
-      return data.entries
-          .map((entry) {
+      final locations = event.snapshot.children
+          .map((childSnapshot) {
             try {
-              final driverId = entry.key as String;
-              final snapshot = event.snapshot.child(driverId);
-              return DriverLocationModel.fromSnapshot(driverId, snapshot)
-                  .toEntity();
+              final driverId = childSnapshot.key;
+              if (driverId == null) return null;
+
+              final location =
+                  DriverLocationModel.fromSnapshot(driverId, childSnapshot)
+                      .toEntity();
+
+              // Debug print
+              // print('Parsed location for $driverId: ${location.latitude}, ${location.longitude}, online: ${location.isOnline}');
+
+              return location;
             } catch (e) {
-              // Skip invalid entries
+              print(
+                  'Error parsing driver location for ${childSnapshot.key}: $e');
               return null;
             }
           })
           .whereType<DriverLocation>()
+          .where((l) => l.isOnline)
           .toList();
+
+      print('Found ${locations.length} online drivers');
+      return locations;
     });
   }
 

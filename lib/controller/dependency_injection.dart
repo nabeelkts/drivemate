@@ -8,9 +8,11 @@ import 'package:mds/features/tracking/data/repositories/firebase_tracking_reposi
 import 'package:mds/features/tracking/data/repositories/tracking_repository.dart';
 import 'package:mds/features/tracking/services/location_tracking_service.dart';
 import 'package:mds/features/tracking/services/background_service.dart';
+import 'package:mds/controller/permission_controller.dart';
 
 class DependencyInjection {
   static void init() {
+    Get.put<PermissionController>(PermissionController(), permanent: true);
     Get.put<NetworkController>(NetworkController(), permanent: true);
     Get.put<AppLifecycleService>(AppLifecycleService(), permanent: true);
     Get.put<AppController>(AppController(), permanent: true);

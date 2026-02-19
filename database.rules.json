@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "live_locations": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    }
+  }
+}

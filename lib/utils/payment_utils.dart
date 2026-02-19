@@ -9,6 +9,7 @@ class PaymentUtils {
     required DocumentSnapshot<Map<String, dynamic>> doc,
     required String targetId,
     required String category,
+    String? branchId,
   }) async {
     final data = doc.data()!;
     final name = data['fullName'] ?? data['vehicleNumber'] ?? 'N/A';
@@ -109,6 +110,7 @@ class PaymentUtils {
                     'recordId': doc.id,
                     'recordName': name,
                     'category': category,
+                    'branchId': branchId ?? targetId,
                   });
 
                   // Add to recent activity
@@ -156,6 +158,7 @@ class PaymentUtils {
     required String targetId,
     required String category,
     String description = 'Payment Received',
+    String? branchId,
   }) async {
     final data = doc.data()!;
     final name = data['fullName'] ?? data['vehicleNumber'] ?? 'N/A';
@@ -244,6 +247,7 @@ class PaymentUtils {
                   'recordId': doc.id,
                   'recordName': name,
                   'category': category,
+                  'branchId': branchId ?? targetId,
                 });
 
                 await batch.commit();

@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 
 class AddExpenseScreen extends StatefulWidget {
   const AddExpenseScreen({super.key});
@@ -14,6 +17,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _noteController = TextEditingController();
+  final WorkspaceController _workspaceController =
+      Get.find<WorkspaceController>();
   String _selectedCategoryId = 'fuel';
   DateTime _selectedDate = DateTime.now();
   bool _saving = false;
@@ -62,10 +67,15 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     final categoryLabel = categories.firstWhere(
         (c) => c['id'] == _selectedCategoryId,
         orElse: () => {'label': 'Other'})['label']!;
+
+    final schoolId = _workspaceController.currentSchoolId.value;
+    final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
+    final branchId = _workspaceController.currentBranchId.value;
+
     try {
       await FirebaseFirestore.instance
           .collection('users')
-          .doc(user.uid)
+          .doc(targetId)
           .collection('expenses')
           .add({
         'category': _selectedCategoryId,
@@ -75,6 +85,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         'timestamp': Timestamp.fromDate(_selectedDate),
         'note': _noteController.text.trim(),
         'createdAt': FieldValue.serverTimestamp(),
+        'targetId': targetId,
+        'branchId': branchId.isNotEmpty ? branchId : targetId,
       });
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -103,7 +115,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       appBar: AppBar(
         backgroundColor: isDark ? Colors.black : Colors.white,
         title: Text('Add Expense', style: TextStyle(color: textColor)),
-        iconTheme: IconThemeData(color: textColor),
+        leading: const CustomBackButton(),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -151,6 +163,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                     labelStyle: TextStyle(color: textColor),
                   ),
                   style: TextStyle(color: textColor),
+                  textInputAction: TextInputAction.next,
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) return 'Enter amount';
                     if (double.tryParse(v.trim()) == null ||
@@ -191,6 +204,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                   controller: _noteController,
                   maxLines: 2,
                   textCapitalization: TextCapitalization.words,
+                  textInputAction: TextInputAction.next,
                   decoration: InputDecoration(
                     labelText: 'Note (optional)',
                     border: const OutlineInputBorder(),

@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
+import 'dart:async';
 import 'package:mds/services/subscription_service.dart';
 import 'package:mds/services/storage_service.dart';
 import 'package:get_storage/get_storage.dart';
@@ -27,6 +28,7 @@ class WorkspaceController extends GetxController {
   final RxBool isAppDataLoading = false.obs;
   bool _isInitializing = false;
   final SubscriptionService _subscriptionService = SubscriptionService();
+  StreamSubscription? _userDocSubscription;
 
   // Branch Management State
   final RxList<Map<String, dynamic>> ownedBranches =
@@ -35,11 +37,38 @@ class WorkspaceController extends GetxController {
 
   /// Returns the data for the currently active branch
   Map<String, dynamic> get currentBranchData {
-    if (currentBranchId.value.isEmpty) return {};
-    return ownedBranches.firstWhere(
+    if (currentBranchId.value.isEmpty) {
+      if (companyData.isNotEmpty) {
+        return _normalizeCompanyData(companyData);
+      }
+      return {};
+    }
+
+    // Try to find in owned branches
+    final branch = ownedBranches.firstWhere(
       (b) => b['id'] == currentBranchId.value,
       orElse: () => {},
     );
+
+    if (branch.isNotEmpty) return branch;
+
+    // Fallback to main company data if currentBranchId matches targetId
+    if (currentBranchId.value == targetId && companyData.isNotEmpty) {
+      return _normalizeCompanyData(companyData);
+    }
+
+    return {};
+  }
+
+  Map<String, dynamic> _normalizeCompanyData(Map<String, dynamic> data) {
+    return {
+      'id': targetId,
+      'branchName': data['companyName'] ?? data['branchName'] ?? 'Main Branch',
+      'logoUrl': data['companyLogo'] ?? data['logoUrl'],
+      'location': data['companyAddress'] ?? data['location'],
+      'contactPhone': data['contactPhone'] ?? data['companyPhone'],
+      'contactEmail': data['contactEmail'] ?? data['companyEmail'],
+    };
   }
 
   /// Returns the ID that should be used for Firestore operations.
@@ -47,6 +76,24 @@ class WorkspaceController extends GetxController {
   String get targetId {
     if (currentSchoolId.value.isNotEmpty) return currentSchoolId.value;
     return _auth.currentUser?.uid ?? "";
+  }
+
+  /// Helper to get a filtered Query for any top-level collection of a user/school
+  Query<Map<String, dynamic>> getFilteredCollection(String collectionName) {
+    Query<Map<String, dynamic>> query =
+        _firestore.collection('users').doc(targetId).collection(collectionName);
+
+    // Apply branch filter only if:
+    // 1. Not in organization mode
+    // 2. A branch ID is selected
+    // 3. The selected branch is NOT the primary/main branch (to support legacy data visibility)
+    if (!isOrganizationMode.value &&
+        currentBranchId.value.isNotEmpty &&
+        currentBranchId.value != targetId) {
+      query = query.where('branchId', isEqualTo: currentBranchId.value);
+    }
+
+    return query;
   }
 
   @override
@@ -59,8 +106,10 @@ class WorkspaceController extends GetxController {
     _auth.authStateChanges().listen((user) {
       if (user != null) {
         initializeWorkspace();
+        _listenToUserDoc(user.uid);
       } else {
         currentSchoolId.value = "";
+        _userDocSubscription?.cancel();
       }
     });
 
@@ -102,6 +151,9 @@ class WorkspaceController extends GetxController {
       return;
     }
 
+    // Persist userId for background tracking service
+    _storage.write('userId', user.uid);
+
     try {
       _isInitializing = true;
       isLoading.value = true;
@@ -138,6 +190,7 @@ class WorkspaceController extends GetxController {
           }
         }
         currentSchoolId.value = schoolId ?? "";
+        currentBranchId.value = data?['branchId'] ?? "";
 
         // Determine connection status
         if (role == 'Owner') {
@@ -152,8 +205,10 @@ class WorkspaceController extends GetxController {
       }
 
       await _fetchAllAppData();
-      // Load branches if Owner
-      if (userRole.value == 'Owner') {
+      // Load branches if Owner, Admin, or Staff
+      if (userRole.value == 'Owner' ||
+          userRole.value == 'Admin' ||
+          userRole.value == 'Staff') {
         await _fetchBranches();
       }
     } catch (e) {
@@ -254,10 +309,21 @@ class WorkspaceController extends GetxController {
     try {
       isLoading.value = true;
 
+      final String rawId = newSchoolId.trim();
+      String finalSchoolId = rawId;
+      String? finalBranchId;
+
+      // Check for composite ID (OwnerID:BranchID)
+      if (rawId.contains(':')) {
+        final parts = rawId.split(':');
+        finalSchoolId = parts[0].trim();
+        finalBranchId = parts[1].trim();
+      }
+
       // Validate that the school ID exists in the database
       final schoolDoc = await _firestore
           .collection('users')
-          .doc(newSchoolId.trim())
+          .doc(finalSchoolId)
           .get()
           .timeout(const Duration(seconds: 10));
 
@@ -268,22 +334,29 @@ class WorkspaceController extends GetxController {
         };
       }
 
-      // Optional: Verify the school has basic setup (company data)
       final schoolData = schoolDoc.data();
       if (schoolData == null) {
         return {
           'success': false,
-          'message':
-              'School data is incomplete. Please contact the school administrator.',
+          'message': 'School data is incomplete.',
         };
       }
 
-      // Update user's schoolId
-      await _firestore.collection('users').doc(user.uid).update({
-        'schoolId': newSchoolId.trim(),
-      });
+      // Update user's schoolId and branchId
+      final updates = <String, dynamic>{
+        'schoolId': finalSchoolId,
+      };
+      if (finalBranchId != null) {
+        updates['branchId'] = finalBranchId;
+      }
 
-      currentSchoolId.value = newSchoolId.trim();
+      await _firestore.collection('users').doc(user.uid).update(updates);
+
+      currentSchoolId.value = finalSchoolId;
+      if (finalBranchId != null) {
+        currentBranchId.value = finalBranchId;
+      }
+
       if (userRole.value == 'Staff') {
         isConnected.value = true;
       }
@@ -343,24 +416,35 @@ class WorkspaceController extends GetxController {
     try {
       final snapshot = await _firestore
           .collection('users')
-          .doc(user.uid)
+          .doc(targetId) // Use targetId instead of user.uid
           .collection('branches')
           .get();
 
-      final branches = snapshot.docs.map((doc) {
+      final List<Map<String, dynamic>> branches = snapshot.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id;
         return data;
       }).toList();
 
+      // Always prepend the "Main Branch" (Owner's personal workspace context)
+      // but ONLY for owners. Staff focus should be on their assigned branch.
+      if (userRole.value == 'Owner') {
+        // Deduplicate: remove if exists in subcollection to ensure Main is at index 0
+        branches.removeWhere((b) => b['id'] == targetId);
+
+        final mainBranch = _normalizeCompanyData(companyData);
+        mainBranch['id'] = targetId;
+        mainBranch['isMain'] = true;
+        branches.insert(0, mainBranch);
+      }
+
       ownedBranches.assignAll(branches);
 
-      // Set default branch if none selected
-      if (currentBranchId.value.isEmpty && branches.isNotEmpty) {
-        currentBranchId.value = branches[0]['id'];
-      } else if (currentBranchId.value.isEmpty) {
-        // If no branches, owner's own UID acts as the primary "branch" or organization context
-        currentBranchId.value = user.uid;
+      // Set default branch if none selected OR if current is invalid
+      final isValid = branches.any((b) => b['id'] == currentBranchId.value);
+      if (currentBranchId.value.isEmpty || !isValid) {
+        // Default to main branch (targetId) for Owners
+        currentBranchId.value = targetId;
       }
     } catch (e) {
       print("Error fetching branches: $e");
@@ -396,7 +480,7 @@ class WorkspaceController extends GetxController {
 
       final docRef = await _firestore
           .collection('users')
-          .doc(user.uid)
+          .doc(targetId)
           .collection('branches')
           .add(branchData);
 
@@ -423,7 +507,7 @@ class WorkspaceController extends GetxController {
       isLoading.value = true;
       await _firestore
           .collection('users')
-          .doc(user.uid)
+          .doc(targetId)
           .collection('branches')
           .doc(branchId)
           .update(updates);
@@ -445,7 +529,7 @@ class WorkspaceController extends GetxController {
       isLoading.value = true;
       await _firestore
           .collection('users')
-          .doc(user.uid)
+          .doc(targetId)
           .collection('branches')
           .doc(branchId)
           .delete();
@@ -572,5 +656,43 @@ class WorkspaceController extends GetxController {
     } finally {
       isLoading.value = false;
     }
+  }
+
+  void _listenToUserDoc(String uid) {
+    _userDocSubscription?.cancel();
+    _userDocSubscription =
+        _firestore.collection('users').doc(uid).snapshots().listen((snapshot) {
+      if (snapshot.exists) {
+        final data = snapshot.data();
+        final newSchoolId = data?['schoolId'] ?? "";
+        final newBranchId = data?['branchId'] ?? "";
+        final newRole = data?['role'] ?? "Owner";
+
+        bool needsRefresh = false;
+        if (newSchoolId != currentSchoolId.value) {
+          currentSchoolId.value = newSchoolId;
+          needsRefresh = true;
+        }
+        if (newBranchId != currentBranchId.value) {
+          currentBranchId.value = newBranchId;
+          needsRefresh = true;
+        }
+        if (newRole != userRole.value) {
+          userRole.value = newRole;
+          needsRefresh = true;
+        }
+
+        if (needsRefresh) {
+          print("DEBUG: User doc changed, refreshing workspace...");
+          initializeWorkspace();
+        }
+      }
+    });
+  }
+
+  @override
+  void onClose() {
+    _userDocSubscription?.cancel();
+    super.onClose();
   }
 }

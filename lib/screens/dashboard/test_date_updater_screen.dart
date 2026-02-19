@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:iconly/iconly.dart';
 import 'package:mds/utils/date_utils.dart';
 import 'package:get/get.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/controller/workspace_controller.dart';
 
 class TestDateUpdaterScreen extends StatefulWidget {
@@ -99,6 +100,7 @@ class _TestDateUpdaterScreenState extends State<TestDateUpdaterScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Update Test Dates'),
+        leading: const CustomBackButton(),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Padding(

@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/screens/dashboard/form/edit_forms/edit_student_details_form.dart';
 import 'package:get/get.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
 import 'package:mds/screens/dashboard/list/widgets/search_widget.dart';
@@ -88,28 +89,7 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
             fontWeight: FontWeight.w500,
           ),
         ),
-        leading: Center(
-          child: CircleAvatar(
-            backgroundColor: kPrimaryColor,
-            radius: 15,
-            child: Center(
-              child: CircleAvatar(
-                radius: 14,
-                backgroundColor: kWhite,
-                child: IconButton(
-                  icon: const Icon(
-                    Icons.arrow_back_ios,
-                    color: kPrimaryColor,
-                    size: 15,
-                  ),
-                  onPressed: () {
-                    Navigator.pop(context);
-                  },
-                ),
-              ),
-            ),
-          ),
-        ),
+        leading: const CustomBackButton(),
       ),
       body: Column(
         children: [
@@ -216,7 +196,8 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
                 title: const Text('Reactivate Student'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _showActivateConfirmationDialog(doc.id);
+                  await _showActivateConfirmationDialog(
+                      doc.id, doc.data() ?? {});
                 },
               ),
               ListTile(
@@ -230,10 +211,15 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
                       builder: (context) => EditStudentDetailsForm(
                         initialValues: doc.data() ?? {},
                         items: const [
-                          'M/C Study',
+                          'MC Study',
+                          'MCWOG Study',
                           'LMV Study',
-                          'LMV Study + M/C Study',
-                          'LMV Study + M/C License'
+                          'LMV Study + MC Study',
+                          'LMV Study + MCWOG Study',
+                          'LMV Study + MC License',
+                          'LMV Study + MCWOG License',
+                          'LMV License + MC Study',
+                          'LMV License + MCWOG Study',
                         ],
                       ),
                     ),
@@ -247,26 +233,20 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
     );
   }
 
-  Future<void> _activateData(String studentId) async {
+  Future<void> _activateData(
+      String studentId, Map<String, dynamic> studentData) async {
     final schoolId = _workspaceController.currentSchoolId.value;
     final user = FirebaseAuth.instance.currentUser;
     final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
 
-    if (studentId.isNotEmpty) {
+    if (studentId.isNotEmpty && studentData.isNotEmpty) {
       if (targetId == null) return;
-      var studentData = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('deactivated_students')
-          .doc(studentId)
-          .get();
-
       await FirebaseFirestore.instance
           .collection('users')
           .doc(targetId)
           .collection('students')
           .doc(studentId)
-          .set(studentData.data() ?? {});
+          .set(studentData);
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -277,13 +257,14 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
     }
   }
 
-  Future<void> _showActivateConfirmationDialog(String documentId) async {
+  Future<void> _showActivateConfirmationDialog(
+      String documentId, Map<String, dynamic> studentData) async {
     showCustomConfirmationDialog(
       context,
       'Confirm Activation?',
       'Are you sure ?',
       () async {
-        await _activateData(documentId);
+        await _activateData(documentId, studentData);
         Navigator.of(context).pop();
         Navigator.pushReplacement(
           context,

@@ -49,9 +49,11 @@ class _LicenseOnlyState extends State<LicenseOnly> {
       body: CommonForm(
         key: _formKey,
         items: const [
-          'M/C License',
-          'LMV License',
-          'LMV License + M/C License',
+          'M/C',
+          'M/C WOG',
+          'LMV ',
+          'LMV + M/C',
+          'LMV + M/C WOG',
         ],
         index: 0,
         showLicenseField: false,

@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/features/tracking/services/background_service.dart';
 import 'package:mds/features/tracking/services/location_tracking_service.dart';
+import 'package:geolocator/geolocator.dart';
 
 /// Staff dashboard for tracking status
 ///
@@ -38,6 +39,41 @@ class _StaffTrackingScreenState extends State<StaffTrackingScreen> {
       await BackgroundService.stop();
       await _trackingService.stopTracking();
     } else {
+      // Check permissions first
+      bool hasPermission = await _trackingService.checkLocationPermission();
+      if (!hasPermission) {
+        if (!mounted) return;
+
+        // Show dialog explaining why we need permissions
+        final shouldOpenSettings = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Location Permission Required'),
+            content: const Text(
+              'To track your location during lessons even when the app is in the background, '
+              'please allow "Always" location access in settings.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Open Settings'),
+              ),
+            ],
+          ),
+        );
+
+        if (shouldOpenSettings == true) {
+          await Geolocator.openAppSettings();
+          // Re-check after returning from settings?
+          // For now, user has to click button again
+        }
+        return;
+      }
+
       await BackgroundService.start();
     }
     await _checkServiceStatus();

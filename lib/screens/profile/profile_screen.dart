@@ -309,21 +309,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return SafeArea(
       child: Scaffold(
         backgroundColor: isDarkMode ? Colors.black : Colors.grey.shade200,
-        appBar: AppBar(
-          backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          elevation: 0,
-          automaticallyImplyLeading: false,
-          title: Text(
-            'Profile',
-            style: TextStyle(
-                color: textColor, fontSize: 22, fontWeight: FontWeight.bold),
-          ),
-        ),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const SizedBox(height: 8),
               Obx(() {
                 final subData = _workspaceController.subscriptionData;
                 if (_workspaceController.isAppDataLoading.value &&
@@ -650,18 +641,45 @@ class _ProfileScreenState extends State<ProfileScreen> {
   ) {
     return Obx(() {
       final isStaff = controller.userRole.value == 'Staff';
-      if (isStaff) return const SizedBox.shrink();
-
+      final isConnected = controller.isConnected.value;
       final branchData = controller.currentBranchData;
-      final branchName = branchData['branchName'] ?? 'Manage Organization';
-      final schoolName =
+      SizedBox(
+        height: 10,
+      );
+      String title = 'Organization';
+      String name =
           controller.userProfileData['schoolName'] ?? 'My Organization';
+      String subtitle = branchData['branchName'] ?? 'Manage Organization';
+      IconData icon = Icons.business_center_outlined;
+      VoidCallback onTap = () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const OrganizationManagementPage(),
+          ),
+        );
+      };
+
+      if (isStaff) {
+        if (!isConnected) {
+          // Show Join School option
+          name = 'Join School Workspace';
+          subtitle = 'Connect with your school owner';
+          icon = Icons.add_business_outlined;
+          onTap = () => _showJoinSchoolDialog();
+        } else {
+          // Show current workplace info but navigate to workplace info page
+          title = 'My Workplace';
+          name = branchData['branchName'] ?? 'Connected School';
+          subtitle = 'Working at this branch';
+        }
+      }
 
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Organization',
+            title,
             style: TextStyle(
               color: textColor.withOpacity(0.5),
               fontSize: 12,
@@ -677,14 +695,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               border: Border.all(color: borderColor.withOpacity(0.5)),
             ),
             child: InkWell(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const OrganizationManagementPage(),
-                  ),
-                );
-              },
+              onTap: onTap,
               borderRadius: BorderRadius.circular(16),
               child: Padding(
                 padding: const EdgeInsets.all(16),
@@ -696,8 +707,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         color: kOrange.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(Icons.business_center_outlined,
-                          color: kOrange, size: 24),
+                      child: Icon(icon, color: kOrange, size: 24),
                     ),
                     const SizedBox(width: 16),
                     Expanded(
@@ -705,7 +715,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            schoolName,
+                            name,
                             style: TextStyle(
                               color: textColor,
                               fontSize: 16,
@@ -714,7 +724,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            branchName,
+                            subtitle,
                             style: TextStyle(
                               color: textColor.withOpacity(0.6),
                               fontSize: 13,

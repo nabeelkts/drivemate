@@ -39,16 +39,12 @@ class _TodaysTestsState extends State<TodaysTests> {
           Get.find<WorkspaceController>();
       if (user == null) return;
 
-      final schoolId = workspaceController.currentSchoolId.value;
-      final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
-
       final dateStr = storageDateFormat.format(selectedDate);
       final field =
           widget.type == 'learners' ? 'learnersTestDate' : 'drivingTestDate';
-      final snapshot = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('students')
+
+      final snapshot = await workspaceController
+          .getFilteredCollection('students')
           .where(field, isEqualTo: dateStr)
           .get();
       setState(() {

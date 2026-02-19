@@ -48,7 +48,7 @@ class DeactivatedVehicleDetailsList extends StatelessWidget {
               }
             },
             onMenuPressed: () {
-              _showMenuOptions(context, doc.id);
+              _showMenuOptions(context, doc);
             },
           );
         } catch (e) {
@@ -58,7 +58,8 @@ class DeactivatedVehicleDetailsList extends StatelessWidget {
     );
   }
 
-  void _showMenuOptions(BuildContext context, String docId) {
+  void _showMenuOptions(
+      BuildContext context, QueryDocumentSnapshot<Map<String, dynamic>> doc) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -75,7 +76,8 @@ class DeactivatedVehicleDetailsList extends StatelessWidget {
                 title: const Text('Reactivate Vehicle'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _showReactivateConfirmationDialog(context, docId);
+                  await _showReactivateConfirmationDialog(
+                      context, doc.id, doc.data());
                 },
               ),
             ],
@@ -131,9 +133,13 @@ class DeactivatedVehicleDetailsList extends StatelessWidget {
     );
   }
 
-  Future<void> _reactivateVehicle(String vehicleId) async {
+  Future<void> _reactivateVehicle(
+      String vehicleId, Map<String, dynamic> vehicleData) async {
     if (vehicleId.isEmpty) {
       throw Exception('Invalid vehicle ID');
+    }
+    if (vehicleData.isEmpty) {
+      throw Exception('Vehicle data is empty');
     }
 
     final user = FirebaseAuth.instance.currentUser;
@@ -147,23 +153,6 @@ class DeactivatedVehicleDetailsList extends StatelessWidget {
     final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
 
     try {
-      // Get the vehicle data
-      final vehicleDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('deactivated_vehicleDetails')
-          .doc(vehicleId)
-          .get();
-
-      if (!vehicleDoc.exists) {
-        throw Exception('Vehicle data not found');
-      }
-
-      final vehicleData = vehicleDoc.data();
-      if (vehicleData == null) {
-        throw Exception('Vehicle data is empty');
-      }
-
       // Check if vehicle already exists in active collection
       final existingDoc = await FirebaseFirestore.instance
           .collection('users')
@@ -198,8 +187,8 @@ class DeactivatedVehicleDetailsList extends StatelessWidget {
     }
   }
 
-  Future<void> _showReactivateConfirmationDialog(
-      BuildContext context, String documentId) async {
+  Future<void> _showReactivateConfirmationDialog(BuildContext context,
+      String documentId, Map<String, dynamic> vehicleData) async {
     try {
       showCustomConfirmationDialog(
         context,
@@ -207,7 +196,7 @@ class DeactivatedVehicleDetailsList extends StatelessWidget {
         'Are you sure you want to reactivate this vehicle?',
         () async {
           try {
-            await _reactivateVehicle(documentId);
+            await _reactivateVehicle(documentId, vehicleData);
             if (context.mounted) {
               Navigator.of(context).pop(); // Close dialog
               Navigator.pushReplacement(

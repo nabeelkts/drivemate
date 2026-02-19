@@ -25,9 +25,12 @@ class StorageService {
         SettableMetadata(contentType: 'image/jpeg'),
       );
 
-      // Wait for completion and get URL
-      final TaskSnapshot snapshot = await uploadTask;
-      return await snapshot.ref.getDownloadURL();
+      // Wait for completion and get URL with timeout
+      final TaskSnapshot snapshot =
+          await uploadTask.timeout(const Duration(seconds: 10));
+      return await snapshot.ref
+          .getDownloadURL()
+          .timeout(const Duration(seconds: 5));
     } catch (e) {
       throw Exception('Failed to upload image to Firebase Storage: $e');
     }

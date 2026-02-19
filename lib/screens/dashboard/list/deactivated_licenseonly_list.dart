@@ -224,7 +224,8 @@ class _DeactivatedLicenseOnlyListState
                 title: const Text('Reactivate License Details'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _showActivateConfirmationDialog(doc.id);
+                  await _showActivateConfirmationDialog(
+                      doc.id, doc.data() ?? {});
                 },
               ),
               ListTile(
@@ -256,26 +257,20 @@ class _DeactivatedLicenseOnlyListState
     );
   }
 
-  Future<void> _activateData(String licenseId) async {
+  Future<void> _activateData(
+      String licenseId, Map<String, dynamic> licenseData) async {
     final schoolId = _workspaceController.currentSchoolId.value;
     final user = FirebaseAuth.instance.currentUser;
     final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
 
-    if (licenseId.isNotEmpty) {
+    if (licenseId.isNotEmpty && licenseData.isNotEmpty) {
       if (targetId == null) return;
-      var licenseData = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('deactivated_licenseOnly')
-          .doc(licenseId)
-          .get();
-
       await FirebaseFirestore.instance
           .collection('users')
           .doc(targetId)
           .collection('licenseonly')
           .doc(licenseId)
-          .set(licenseData.data() ?? {});
+          .set(licenseData);
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -286,13 +281,14 @@ class _DeactivatedLicenseOnlyListState
     }
   }
 
-  Future<void> _showActivateConfirmationDialog(String documentId) async {
+  Future<void> _showActivateConfirmationDialog(
+      String documentId, Map<String, dynamic> licenseData) async {
     showCustomConfirmationDialog(
       context,
       'Confirm Activation?',
       'Are you sure ?',
       () async {
-        await _activateData(documentId);
+        await _activateData(documentId, licenseData);
         Navigator.of(context).pop();
         Navigator.pushReplacement(
           context,

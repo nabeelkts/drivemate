@@ -84,7 +84,7 @@ class VehicleDetailsList extends StatelessWidget {
                 title: const Text('Mark as Services Completed'),
                 onTap: () async {
                   Navigator.pop(context);
-                  _showDeleteConfirmationDialog(context, doc.id);
+                  _showDeleteConfirmationDialog(context, doc.id, doc.data());
                 },
               ),
             ],
@@ -94,27 +94,21 @@ class VehicleDetailsList extends StatelessWidget {
     );
   }
 
-  Future<void> _deactivateVehicle(String vehicleId) async {
+  Future<void> _deactivateVehicle(
+      String vehicleId, Map<String, dynamic> vehicleData) async {
     final WorkspaceController workspaceController =
         Get.find<WorkspaceController>();
     final schoolId = workspaceController.currentSchoolId.value;
     final targetId =
         schoolId.isNotEmpty ? schoolId : FirebaseAuth.instance.currentUser?.uid;
 
-    if (vehicleId.isNotEmpty) {
-      var vehicleData = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('vehicleDetails')
-          .doc(vehicleId)
-          .get();
-
+    if (vehicleId.isNotEmpty && vehicleData.isNotEmpty) {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(targetId)
           .collection('deactivated_vehicleDetails')
           .doc(vehicleId)
-          .set(vehicleData.data() ?? {});
+          .set(vehicleData);
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -125,14 +119,14 @@ class VehicleDetailsList extends StatelessWidget {
     }
   }
 
-  Future<void> _showDeleteConfirmationDialog(
-      BuildContext context, String documentId) async {
+  Future<void> _showDeleteConfirmationDialog(BuildContext context,
+      String documentId, Map<String, dynamic> vehicleData) async {
     showCustomConfirmationDialog(
       context,
       'Confirm Services Completion',
       'Are you sure ?',
       () async {
-        await _deactivateVehicle(documentId);
+        await _deactivateVehicle(documentId, vehicleData);
         Navigator.of(context).pop();
         Navigator.pushReplacement(
           context,

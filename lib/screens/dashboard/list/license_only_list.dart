@@ -85,7 +85,7 @@ class LicenseOnlyList extends StatelessWidget {
                 title: const Text('Mark as Course Completed'),
                 onTap: () async {
                   Navigator.pop(context);
-                  _showDeleteConfirmationDialog(context, doc.id);
+                  _showDeleteConfirmationDialog(context, doc.id, doc.data());
                 },
               ),
             ],
@@ -95,26 +95,20 @@ class LicenseOnlyList extends StatelessWidget {
     );
   }
 
-  Future<void> _deactivateLicense(String licenseId) async {
+  Future<void> _deactivateLicense(
+      String licenseId, Map<String, dynamic> licenseData) async {
     final WorkspaceController workspaceController =
         Get.find<WorkspaceController>();
     final schoolId = workspaceController.currentSchoolId.value;
     final targetId = schoolId.isNotEmpty ? schoolId : userId;
 
-    if (licenseId.isNotEmpty) {
-      var licenseData = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('licenseonly')
-          .doc(licenseId)
-          .get();
-
+    if (licenseId.isNotEmpty && licenseData.isNotEmpty) {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(targetId)
           .collection('deactivated_licenseOnly')
           .doc(licenseId)
-          .set(licenseData.data() ?? {});
+          .set(licenseData);
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -125,14 +119,14 @@ class LicenseOnlyList extends StatelessWidget {
     }
   }
 
-  Future<void> _showDeleteConfirmationDialog(
-      BuildContext context, String documentId) async {
+  Future<void> _showDeleteConfirmationDialog(BuildContext context,
+      String documentId, Map<String, dynamic> licenseData) async {
     showCustomConfirmationDialog(
       context,
       'Confirm Course Completion',
       'Are you sure ?',
       () async {
-        await _deactivateLicense(documentId);
+        await _deactivateLicense(documentId, licenseData);
         Navigator.of(context).pop();
         Navigator.pushReplacement(
           context,

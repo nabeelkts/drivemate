@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:mds/constants/colors.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/screens/dashboard/list/widgets/search_widget.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
@@ -110,6 +111,7 @@ class _ReceiveMoneyPageState extends State<ReceiveMoneyPage> {
       context: context,
       doc: doc,
       targetId: targetId,
+      branchId: _workspaceController.currentBranchId.value,
       category: doc.reference.parent.id, // e.g., 'students', 'vehicleDetails'
     );
 
@@ -123,6 +125,7 @@ class _ReceiveMoneyPageState extends State<ReceiveMoneyPage> {
     return Scaffold(
       appBar: AppBar(
         title: Text('Receive Money'),
+        leading: const CustomBackButton(),
       ),
       body: Column(
         children: [

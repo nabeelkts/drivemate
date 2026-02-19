@@ -50,7 +50,8 @@ class DriverLocationModel extends DriverLocation {
       lessonId: data['lessonId'] as String?,
       isOnline: data['isOnline'] as bool? ?? false,
       updatedAt: data['updatedAt'] != null
-          ? DateTime.fromMillisecondsSinceEpoch(data['updatedAt'] as int)
+          ? DateTime.fromMillisecondsSinceEpoch(
+              (data['updatedAt'] as num).toInt())
           : DateTime.now(),
     );
   }

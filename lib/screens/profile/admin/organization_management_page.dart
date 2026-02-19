@@ -28,6 +28,10 @@ class OrganizationManagementPage extends StatelessWidget {
         elevation: 0,
       ),
       body: Obx(() {
+        if (controller.isLoading.value) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
         final branchData = controller.currentBranchData;
         final branchId = controller.currentBranchId.value;
         final isOwner = controller.userRole.value == 'Owner';
@@ -152,7 +156,10 @@ class OrganizationManagementPage extends StatelessWidget {
                 const SizedBox(height: 4),
                 GestureDetector(
                   onTap: () {
-                    Clipboard.setData(ClipboardData(text: id));
+                    final clipboardText = id == controller.currentSchoolId.value
+                        ? id
+                        : '${controller.currentSchoolId.value}:$id';
+                    Clipboard.setData(ClipboardData(text: clipboardText));
                     Get.snackbar('Copied', 'ID copied to clipboard',
                         snackPosition: SnackPosition.TOP,
                         backgroundColor: Colors.white,
@@ -162,17 +169,19 @@ class OrganizationManagementPage extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          'ID: $id',
+                          id == controller.currentSchoolId.value
+                              ? 'School ID: $id'
+                              : 'Branch Join ID: ${controller.currentSchoolId.value}:$id',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.8),
-                            fontSize: 12,
+                            fontSize: 11,
                           ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Icon(Icons.copy,
-                          size: 12, color: Colors.white.withOpacity(0.8)),
+                          size: 11, color: Colors.white.withOpacity(0.8)),
                     ],
                   ),
                 ),
@@ -554,7 +563,7 @@ class OrganizationManagementPage extends StatelessWidget {
                       branch['id'] == controller.currentBranchId.value;
                   return ListTile(
                     leading: _buildLogo(branch['logoUrl'], 40),
-                    title: Text(branch['branchName']),
+                    title: Text(branch['branchName'] ?? 'Unnamed Branch'),
                     trailing: isCurrent
                         ? const Icon(Icons.check_circle, color: kPrimaryColor)
                         : null,

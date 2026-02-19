@@ -4,6 +4,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:mds/features/tracking/data/repositories/firebase_tracking_repository.dart';
+import 'package:mds/features/tracking/data/repositories/tracking_repository.dart';
 import 'package:mds/features/tracking/services/location_tracking_service.dart';
 import 'package:mds/firebase_options.dart';
 
@@ -38,34 +41,70 @@ class BackgroundService {
   static void onStart(ServiceInstance service) async {
     // Required for background isolate
     DartPluginRegistrant.ensureInitialized();
+    print('BackgroundService: onStart called');
 
-    // Initialize Firebase in background isolate
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    try {
+      // Initialize Firebase in background isolate
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
+      print('BackgroundService: Firebase initialized');
 
-    // Initialize GetX and GetStorage
-    await GetStorage.init();
+      // Initialize GetX and GetStorage
+      await GetStorage.init();
+      print('BackgroundService: GetStorage initialized');
 
-    // Get current user ID from storage
-    final storage = GetStorage();
-    final userId = storage.read('userId') as String?;
+      // Get current user ID from storage
+      final storage = GetStorage();
+      String? userId = storage.read('userId') as String?;
+      print('BackgroundService: userId from storage: $userId');
 
-    if (userId == null) {
-      print('No user ID found, stopping service');
+      // Retry logic for userId if null (sometimes storage isn't immediately ready)
+      if (userId == null) {
+        print('BackgroundService: userId is null, retrying in 1 second...');
+        await Future.delayed(const Duration(seconds: 1));
+        userId = storage.read('userId') as String?;
+        print('BackgroundService: userId after retry: $userId');
+      }
+
+      if (userId == null) {
+        print(
+            'BackgroundService: No user ID found after retry, stopping service');
+        service.stopSelf();
+        return;
+      }
+
+      // Initialize TrackingRepository for this isolate
+      final database = FirebaseDatabase.instance;
+      // Manually instantiate repository
+      final trackingRepo = FirebaseTrackingRepository(database);
+      // We don't need Get.put in background isolate anymore as we inject manually
+      // Get.put<TrackingRepository>(trackingRepo);
+
+      // Initialize tracking service with dependencies
+      final trackingService = LocationTrackingService(
+        repository: trackingRepo,
+        serviceInstance: service,
+      );
+
+      // Manually initialize the service since we aren't using Get.put
+      trackingService.onInit();
+
+      await trackingService.observeLessonStatus(userId);
+
+      // Listen for stop command
+      service.on('stop').listen((event) {
+        trackingService.stopTracking();
+        service.stopSelf();
+        print('BackgroundService: Service stopped via event');
+      });
+
+      print('BackgroundService: Service started successfully for user $userId');
+    } catch (e, stackTrace) {
+      print('BackgroundService: Error starting service: $e');
+      print('BackgroundService: Stack trace: $stackTrace');
       service.stopSelf();
-      return;
     }
-
-    // Initialize tracking service
-    final trackingService = LocationTrackingService();
-    await trackingService.observeLessonStatus(userId);
-
-    // Listen for stop command
-    service.on('stop').listen((event) {
-      trackingService.stopTracking();
-      service.stopSelf();
-    });
   }
 
   /// iOS background handler

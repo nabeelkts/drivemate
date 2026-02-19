@@ -224,7 +224,8 @@ class _DeactivatedEndorsementListState
                 title: const Text('Reactivate Endorsement'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _showActivateConfirmationDialog(doc.id);
+                  await _showActivateConfirmationDialog(
+                      doc.id, doc.data() ?? {});
                 },
               ),
               ListTile(
@@ -238,11 +239,22 @@ class _DeactivatedEndorsementListState
                       builder: (context) => EditEndorsementDetailsForm(
                         initialValues: doc.data() ?? {},
                         items: const [
-                          'M/C Study',
-                          'LMV Study',
-                          'LMV Study + M/C Study',
-                          'LMV Study + M/C License',
-                          'Adapted Vehicle',
+                          'MC',
+                          'MCWOG',
+                          'LMV',
+                          'LMV + MC ',
+                          'LMV + MCWOG',
+                          'ADAPTED VEHICLE',
+                          'TRANS',
+                          'TRANS + MC',
+                          'TRANS + MCWOG',
+                          'EXCAVATOR',
+                          'CRANE',
+                          'FORKLIFT',
+                          'CONSTRUCTION EQUIPMENT',
+                          'TOW TRUCK',
+                          'TRAILER',
+                          'AGRICULTURAL TRACTOR',
                         ],
                       ),
                     ),
@@ -256,26 +268,20 @@ class _DeactivatedEndorsementListState
     );
   }
 
-  Future<void> _activateData(String endorsementId) async {
+  Future<void> _activateData(
+      String endorsementId, Map<String, dynamic> endorsementData) async {
     final schoolId = _workspaceController.currentSchoolId.value;
     final user = FirebaseAuth.instance.currentUser;
     final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
 
-    if (endorsementId.isNotEmpty) {
+    if (endorsementId.isNotEmpty && endorsementData.isNotEmpty) {
       if (targetId == null) return;
-      var endorsementData = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('deactivated_endorsement')
-          .doc(endorsementId)
-          .get();
-
       await FirebaseFirestore.instance
           .collection('users')
           .doc(targetId)
           .collection('endorsement')
           .doc(endorsementId)
-          .set(endorsementData.data() ?? {});
+          .set(endorsementData);
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -286,13 +292,14 @@ class _DeactivatedEndorsementListState
     }
   }
 
-  Future<void> _showActivateConfirmationDialog(String documentId) async {
+  Future<void> _showActivateConfirmationDialog(
+      String documentId, Map<String, dynamic> endorsementData) async {
     showCustomConfirmationDialog(
       context,
       'Confirm Activation?',
       'Are you sure ?',
       () async {
-        await _activateData(documentId);
+        await _activateData(documentId, endorsementData);
         Navigator.of(context).pop();
         Navigator.pushReplacement(
           context,

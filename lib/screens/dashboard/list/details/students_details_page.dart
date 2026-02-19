@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mds/constants/colors.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mds/screens/authentication/widgets/my_button.dart';
@@ -19,6 +20,8 @@ import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/utils/payment_utils.dart';
 import 'package:mds/utils/date_utils.dart';
 import 'package:http/http.dart' as http;
+import 'package:mds/features/tracking/services/background_service.dart';
+import 'package:mds/features/tracking/services/location_tracking_service.dart';
 
 class StudentDetailsPage extends StatefulWidget {
   final Map<String, dynamic> studentDetails;
@@ -59,7 +62,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         title: Text('Student Details', style: TextStyle(color: textColor)),
         elevation: 0,
-        iconTheme: IconThemeData(color: textColor),
+        leading: const CustomBackButton(),
         actions: [
           IconButton(
             icon: Icon(Icons.picture_as_pdf, color: subTextColor),
@@ -74,10 +77,15 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                   builder: (context) => EditStudentDetailsForm(
                     initialValues: studentDetails,
                     items: const [
-                      'M/C Study',
+                      'MC Study',
+                      'MCWOG Study',
                       'LMV Study',
-                      'LMV Study + M/C Study',
-                      'LMV Study + M/C License'
+                      'LMV Study + MC Study',
+                      'LMV Study + MCWOG Study',
+                      'LMV Study + MC License',
+                      'LMV Study + MCWOG License',
+                      'LMV License + MC Study',
+                      'LMV License + MCWOG Study',
                     ],
                   ),
                 ),
@@ -114,6 +122,10 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                 ),
                 const SizedBox(height: 16),
                 _buildPaymentOverviewCard(context),
+                const SizedBox(height: 16),
+                _buildLessonStatusCard(context, targetId),
+                const SizedBox(height: 16),
+                _buildAttendanceCard(context, targetId),
                 const SizedBox(height: 16),
                 _buildTestDateCard(context),
                 const SizedBox(height: 16),
@@ -420,6 +432,8 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                                 doc: snapshot.data!
                                     as DocumentSnapshot<Map<String, dynamic>>,
                                 targetId: targetId!,
+                                branchId:
+                                    _workspaceController.currentBranchId.value,
                                 category: 'students',
                               );
                             }
@@ -858,6 +872,400 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       context,
       MaterialPageRoute(
         builder: (context) => PdfPreviewScreen(pdfBytes: pdfBytes),
+      ),
+    );
+  }
+
+  Widget _buildLessonStatusCard(BuildContext context, String targetId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final cardColor = Theme.of(context).cardColor;
+    final lessonStatus = studentDetails['lessonStatus'] ?? 'none';
+    final isLessonActive = lessonStatus == 'started';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isLessonActive ? Colors.green : Colors.grey.withOpacity(0.5),
+          width: 2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Lesson Control',
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              if (isLessonActive)
+                const Icon(Icons.emergency_recording,
+                    color: Colors.green, size: 20),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            isLessonActive
+                ? 'Lesson is currently in progress. Location is being shared with the owner.'
+                : 'Start a lesson to begin real-time location tracking for the owner.',
+            style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 13),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => _toggleLessonStatus(targetId, isLessonActive),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isLessonActive ? Colors.red : Colors.green,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(
+                isLessonActive ? 'End Lesson' : 'Start Lesson',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _toggleLessonStatus(String targetId, bool isLessonActive) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final studentId = studentDetails['studentId'].toString();
+      final collection = FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection('students');
+
+      if (!isLessonActive) {
+        // Start Lesson
+        await collection.doc(studentId).update({
+          'lessonStatus': 'started',
+          'assignedDriver': user.uid,
+          'assignedDriverName': _workspaceController.userProfileData['name'] ??
+              user.displayName ??
+              'Unknown',
+          'lessonStartTime': FieldValue.serverTimestamp(),
+        });
+
+        // Ensure background service is running
+        await BackgroundService.start();
+
+        Get.snackbar(
+          'Lesson Started',
+          'Real-time tracking is now active for this session.',
+          backgroundColor: Colors.green,
+          colorText: Colors.white,
+        );
+      } else {
+        // End Lesson
+        final snapshot = await collection.doc(studentId).get();
+        final data = snapshot.data();
+        final startTime = (data?['lessonStartTime'] as Timestamp?)?.toDate();
+        final now = DateTime.now();
+
+        // Calculate duration and distance
+        String durationStr = 'N/A';
+        if (startTime != null) {
+          final diff = now.difference(startTime);
+          final hours = diff.inHours;
+          final minutes = diff.inMinutes.remainder(60);
+          durationStr = hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
+        }
+
+        final trackingService = Get.find<LocationTrackingService>();
+        final distanceMeters = trackingService.totalDistance;
+        final distanceKm = (distanceMeters / 1000).toStringAsFixed(2);
+
+        // Record attendance
+        await collection.doc(studentId).collection('attendance').add({
+          'instructorName': _workspaceController.userProfileData['name'] ??
+              user.displayName ??
+              'Unknown',
+          'date': FieldValue.serverTimestamp(),
+          'startTime': startTime != null ? Timestamp.fromDate(startTime) : null,
+          'endTime': FieldValue.serverTimestamp(),
+          'duration': durationStr,
+          'distance': '$distanceKm KM',
+          'instructorId': user.uid,
+        });
+
+        await collection.doc(studentId).update({
+          'lessonStatus': 'completed',
+          'lessonEndTime': FieldValue.serverTimestamp(),
+        });
+
+        Get.snackbar(
+          'Lesson Completed',
+          'Tracking disabled. Attendance recorded: $durationStr, $distanceKm KM',
+          backgroundColor: Colors.red,
+          colorText: Colors.white,
+        );
+      }
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to update lesson status: $e');
+    }
+  }
+
+  Widget _buildAttendanceCard(BuildContext context, String targetId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final cardColor = Theme.of(context).cardColor;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kAccentRed.withOpacity(0.5)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Attendance Logs',
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              TextButton.icon(
+                onPressed: () => _showAttendanceLogs(context, targetId),
+                icon: const Icon(Icons.history, size: 18, color: kAccentRed),
+                label:
+                    const Text('View All', style: TextStyle(color: kAccentRed)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(targetId)
+                .collection('students')
+                .doc(studentDetails['studentId'].toString())
+                .collection('attendance')
+                .orderBy('date', descending: true)
+                .limit(2)
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                return Text(
+                  'No classes recorded yet.',
+                  style: TextStyle(
+                      color: textColor.withOpacity(0.5), fontSize: 13),
+                );
+              }
+
+              return Column(
+                children: snapshot.data!.docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  final date =
+                      (data['date'] as Timestamp?)?.toDate() ?? DateTime.now();
+                  final startTime = (data['startTime'] as Timestamp?)?.toDate();
+                  final endTime = (data['endTime'] as Timestamp?)?.toDate();
+
+                  String timeRange = 'N/A';
+                  if (startTime != null && endTime != null) {
+                    timeRange =
+                        '${DateFormat('hh:mm a').format(startTime)} - ${DateFormat('hh:mm a').format(endTime)}';
+                  }
+
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12.0),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                DateFormat('dd MMM yyyy').format(date),
+                                style: TextStyle(
+                                    color: textColor,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13),
+                              ),
+                              Text(
+                                timeRange,
+                                style: TextStyle(
+                                    color: textColor.withOpacity(0.6),
+                                    fontSize: 11),
+                              ),
+                              Text(
+                                data['instructorName'] ?? 'Unknown',
+                                style: TextStyle(
+                                    color: textColor.withOpacity(0.6),
+                                    fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              data['duration'] ?? 'N/A',
+                              style: const TextStyle(
+                                  color: kAccentRed,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13),
+                            ),
+                            Text(
+                              data['distance'] ?? '0 KM',
+                              style: TextStyle(
+                                  color: textColor.withOpacity(0.6),
+                                  fontSize: 11),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showAttendanceLogs(BuildContext context, String targetId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.7,
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          children: [
+            Container(
+              margin: const EdgeInsets.only(top: 8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.all(20),
+              child: Text(
+                'Full Attendance History',
+                style: TextStyle(
+                    color: textColor,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18),
+              ),
+            ),
+            Expanded(
+              child: StreamBuilder<QuerySnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(targetId)
+                    .collection('students')
+                    .doc(studentDetails['studentId'].toString())
+                    .collection('attendance')
+                    .orderBy('date', descending: true)
+                    .snapshots(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+                    return const Center(
+                        child: Text('No attendance history found.'));
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 10),
+                    itemCount: snapshot.data!.docs.length,
+                    separatorBuilder: (context, index) => const Divider(),
+                    itemBuilder: (context, index) {
+                      final data = snapshot.data!.docs[index].data()
+                          as Map<String, dynamic>;
+                      final date = (data['date'] as Timestamp?)?.toDate() ??
+                          DateTime.now();
+                      final startTime =
+                          (data['startTime'] as Timestamp?)?.toDate();
+                      final endTime = (data['endTime'] as Timestamp?)?.toDate();
+
+                      String timeRange = 'N/A';
+                      if (startTime != null && endTime != null) {
+                        timeRange =
+                            '${DateFormat('hh:mm a').format(startTime)} - ${DateFormat('hh:mm a').format(endTime)}';
+                      }
+
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(
+                          DateFormat('EEEE, dd MMM yyyy').format(date),
+                          style: TextStyle(
+                              color: textColor, fontWeight: FontWeight.bold),
+                        ),
+                        subtitle: Text(
+                          'Instructor: ${data['instructorName']}\nTime: $timeRange\nDuration: ${data['duration']} | Distance: ${data['distance']}',
+                          style: TextStyle(
+                              color: textColor.withOpacity(0.7), fontSize: 13),
+                        ),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            const Text(
+                              'COMPLETED',
+                              style: TextStyle(
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10),
+                            ),
+                            Icon(Icons.chevron_right,
+                                color: textColor.withOpacity(0.3)),
+                          ],
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

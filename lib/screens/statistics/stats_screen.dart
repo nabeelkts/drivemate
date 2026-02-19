@@ -156,7 +156,7 @@ class _StatsScreenState extends State<StatsScreen> {
         child: Row(
           children: [
             Text(
-              DateFormat('MMM yyyy').format(selectedDate),
+              DateFormat('MMM').format(selectedDate),
               style: const TextStyle(fontWeight: FontWeight.w600),
             ),
             const SizedBox(width: 4),
@@ -223,6 +223,36 @@ class _StatsScreenState extends State<StatsScreen> {
       return StreamBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
         stream: _getCombinedStatsStream(targetId, isOrg, branchId),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.error_outline,
+                        color: Colors.red, size: 48),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Error loading chart: ${snapshot.error}',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(color: Colors.red),
+                    ),
+                    if (snapshot.error.toString().contains('index'))
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          'This may be due to missing Firestore indexes.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 12, color: Colors.grey),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            );
+          }
+
           if (!snapshot.hasData ||
               snapshot.connectionState == ConnectionState.waiting) {
             return _buildShimmerLoader(200, isDark);
@@ -471,29 +501,20 @@ class _StatsScreenState extends State<StatsScreen> {
 
   Stream<List<QuerySnapshot<Map<String, dynamic>>>> _getCombinedStatsStream(
       String targetId, bool isOrg, String branchId) {
-    Query<Map<String, dynamic>> buildSubQuery(String collection) {
-      Query<Map<String, dynamic>> query =
-          _firestore.collection('users').doc(targetId).collection(collection);
-      if (!isOrg && branchId.isNotEmpty) {
-        query = query.where('branchId', isEqualTo: branchId);
-      }
-      return query;
-    }
-
     Query<Map<String, dynamic>> paymentsQuery = _firestore
         .collectionGroup('payments')
         .where('targetId', isEqualTo: targetId);
-    if (!isOrg && branchId.isNotEmpty) {
+    if (!isOrg && branchId.isNotEmpty && branchId != targetId) {
       paymentsQuery = paymentsQuery.where('branchId', isEqualTo: branchId);
     }
 
     return StreamUtils.combineLatest([
-      buildSubQuery('students').snapshots(),
-      buildSubQuery('licenseonly').snapshots(),
-      buildSubQuery('endorsement').snapshots(),
-      buildSubQuery('vehicleDetails').snapshots(),
-      buildSubQuery('expenses').snapshots(),
-      buildSubQuery('dl_services').snapshots(),
+      _workspaceController.getFilteredCollection('students').snapshots(),
+      _workspaceController.getFilteredCollection('licenseonly').snapshots(),
+      _workspaceController.getFilteredCollection('endorsement').snapshots(),
+      _workspaceController.getFilteredCollection('vehicleDetails').snapshots(),
+      _workspaceController.getFilteredCollection('expenses').snapshots(),
+      _workspaceController.getFilteredCollection('dl_services').snapshots(),
       paymentsQuery.snapshots(),
     ]);
   }
@@ -508,6 +529,25 @@ class _StatsScreenState extends State<StatsScreen> {
       return StreamBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
         stream: _getCombinedStatsStream(targetId, isOrg, branchId),
         builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            debugPrint('StatsStream Error: ${snapshot.error}');
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline_rounded,
+                      color: Colors.red, size: 28),
+                  SizedBox(height: 8),
+                  Text(
+                    'Failed to load statistics',
+                    style: TextStyle(color: Colors.red, fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            );
+          }
+
           if (!snapshot.hasData ||
               snapshot.connectionState == ConnectionState.waiting) {
             return _buildShimmerLoader(100, isDark);

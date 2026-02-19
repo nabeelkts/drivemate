@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -504,17 +505,20 @@ class BranchesPage extends StatelessWidget {
   }
 
   void _copyBranchId(BuildContext context, String id) {
-    // We could use Clipboard here if needed
+    final WorkspaceController controller = Get.find<WorkspaceController>();
+    final schoolId = controller.currentSchoolId.value;
+    final joinId = id == schoolId ? id : '$schoolId:$id';
+
+    Clipboard.setData(ClipboardData(text: joinId));
+
     Get.snackbar(
-      'Branch ID',
-      id,
+      'Join ID Copied',
+      joinId,
       snackPosition: SnackPosition.BOTTOM,
-      mainButton: TextButton(
-        onPressed: () {
-          // Logic for copying to clipboard
-        },
-        child: const Text('Copy'),
-      ),
+      backgroundColor: Colors.white.withOpacity(0.9),
+      colorText: kPrimaryColor,
+      duration: const Duration(seconds: 3),
+      icon: const Icon(Icons.copy, color: kPrimaryColor),
     );
   }
 }

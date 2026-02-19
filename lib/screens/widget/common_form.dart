@@ -91,7 +91,7 @@ class CommonFormState extends State<CommonForm> {
   @override
   void initState() {
     super.initState();
-    _currentIndex = widget.index;
+    _currentIndex = widget.index >= 0 ? widget.index : 0;
     scrollController = FixedExtentScrollController(initialItem: _currentIndex);
 
     // Initialize all controllers
@@ -177,8 +177,10 @@ class CommonFormState extends State<CommonForm> {
     }
 
     final initItem = widget.items.indexOf(widget.initialValues?['cov'] ?? '');
-    scrollController = FixedExtentScrollController(
-        initialItem: initItem >= 0 ? initItem : widget.index);
+    final safeInitItem =
+        initItem >= 0 ? initItem : (widget.index >= 0 ? widget.index : 0);
+    _currentIndex = safeInitItem;
+    scrollController = FixedExtentScrollController(initialItem: safeInitItem);
   }
 
   void _calculateBalance() {
@@ -344,7 +346,29 @@ class CommonFormState extends State<CommonForm> {
 
     try {
       // Upload image first if picked
-      final String uploadedImageUrl = await uploadImage();
+      String uploadedImageUrl = '';
+      try {
+        uploadedImageUrl = await uploadImage();
+      } catch (uploadError) {
+        if (kDebugMode) {
+          print('Image upload failed (likely offline): $uploadError');
+        }
+        // If offline, use existing image or empty string.
+        // Firestore persistence will sync the text data, but Storage usually fails offline.
+        uploadedImageUrl = widget.initialValues?['image'] ?? '';
+
+        // Notify user about image upload delay if mounted
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Image upload skipped (offline). The student details will be saved.'),
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+
       setState(() {
         imageUrl = uploadedImageUrl;
       });
@@ -612,8 +636,9 @@ class CommonFormState extends State<CommonForm> {
         CupertinoTextField(
           onTap: () {
             scrollController.dispose();
+            final safeIndex = _currentIndex >= 0 ? _currentIndex : 0;
             scrollController =
-                FixedExtentScrollController(initialItem: _currentIndex);
+                FixedExtentScrollController(initialItem: safeIndex);
             showCupertinoModalPopup(
               context: context,
               builder: (context) => CupertinoActionSheet(
@@ -660,8 +685,9 @@ class CommonFormState extends State<CommonForm> {
         CupertinoTextField(
           onTap: () {
             scrollController.dispose();
+            final safeIndex = _currentIndex >= 0 ? _currentIndex : 0;
             scrollController =
-                FixedExtentScrollController(initialItem: _currentIndex);
+                FixedExtentScrollController(initialItem: safeIndex);
             showCupertinoModalPopup(
               context: context,
               builder: (context) => CupertinoActionSheet(
@@ -704,6 +730,7 @@ class CommonFormState extends State<CommonForm> {
             // We need a controller for this.
             // Let's add `otherServiceController` to CommonForm state.
             controller: otherServiceController,
+            textInputAction: TextInputAction.next,
           ),
         ]
       ],
@@ -761,6 +788,7 @@ class CommonFormState extends State<CommonForm> {
                     ),
                   ),
                   keyboardType: keyboardType,
+                  textInputAction: TextInputAction.next,
                   readOnly: readOnly,
                   textCapitalization: capitalization,
                   inputFormatters: formatters,

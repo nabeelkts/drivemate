@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/screens/authentication/widgets/my_button.dart';
 import 'package:mds/screens/dashboard/form/edit_forms/edit_licence_only_details_form.dart';
 import 'package:mds/screens/profile/action_button.dart';
@@ -56,7 +57,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         title: Text('License Only Details', style: TextStyle(color: textColor)),
         elevation: 0,
-        iconTheme: IconThemeData(color: textColor),
+        leading: const CustomBackButton(),
         actions: [
           IconButton(
             icon: Icon(Icons.picture_as_pdf, color: subTextColor),
@@ -71,11 +72,11 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                   builder: (context) => EditLicenseOnlyForm(
                     initialValues: licenseDetails,
                     items: const [
-                      'M/C Study',
-                      'LMV Study',
-                      'LMV Study + M/C Study',
-                      'LMV Study + M/C License',
-                      'Adapted Vehicle',
+                      'M/C',
+                      'M/C WOG',
+                      'LMV ',
+                      'LMV + M/C',
+                      'LMV + M/C WOG',
                     ],
                   ),
                 ),
@@ -434,6 +435,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                           doc: snapshot.data!
                               as DocumentSnapshot<Map<String, dynamic>>,
                           targetId: targetId,
+                          branchId: _workspaceController.currentBranchId.value,
                           category: 'licenseonly',
                         );
                       }

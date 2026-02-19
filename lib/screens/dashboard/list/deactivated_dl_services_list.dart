@@ -64,7 +64,8 @@ class DeactivatedDlServicesList extends StatelessWidget {
                 title: const Text('Restore to Active'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _showRestoreConfirmationDialog(context, doc.id, userId);
+                  await _showRestoreConfirmationDialog(
+                      context, doc.id, doc.data(), userId);
                 },
               ),
               ListTile(
@@ -84,13 +85,16 @@ class DeactivatedDlServicesList extends StatelessWidget {
   }
 
   Future<void> _showRestoreConfirmationDialog(
-      BuildContext context, String documentId, String userId) async {
+      BuildContext context,
+      String documentId,
+      Map<String, dynamic> serviceData,
+      String userId) async {
     showCustomConfirmationDialog(
       context,
       'Confirm Restore',
       'Are you sure you want to restore this service to active list?',
       () async {
-        await _restoreData(documentId, userId);
+        await _restoreData(documentId, serviceData, userId);
         if (context.mounted) {
           Navigator.of(context).pop();
         }
@@ -113,21 +117,15 @@ class DeactivatedDlServicesList extends StatelessWidget {
     );
   }
 
-  Future<void> _restoreData(String serviceId, String targetId) async {
-    if (serviceId.isNotEmpty) {
-      var serviceData = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('deactivated_dl_services')
-          .doc(serviceId)
-          .get();
-
+  Future<void> _restoreData(String serviceId, Map<String, dynamic> serviceData,
+      String targetId) async {
+    if (serviceId.isNotEmpty && serviceData.isNotEmpty) {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(targetId)
           .collection('dl_services')
           .doc(serviceId)
-          .set(serviceData.data() ?? {});
+          .set(serviceData);
 
       await FirebaseFirestore.instance
           .collection('users')

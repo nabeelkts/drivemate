@@ -85,7 +85,8 @@ class EndorsementList extends StatelessWidget {
                 title: const Text('Mark as Course Completed'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _showDeleteConfirmationDialog(context, doc.id);
+                  await _showDeleteConfirmationDialog(
+                      context, doc.id, doc.data());
                 },
               ),
             ],
@@ -111,14 +112,14 @@ class EndorsementList extends StatelessWidget {
     );
   }
 
-  Future<void> _showDeleteConfirmationDialog(
-      BuildContext context, String documentId) async {
+  Future<void> _showDeleteConfirmationDialog(BuildContext context,
+      String documentId, Map<String, dynamic> endorsementData) async {
     showCustomConfirmationDialog(
       context,
       'Confirm Course Completion',
       'Are you sure ?',
       () async {
-        await _deleteData(documentId);
+        await _deleteData(documentId, endorsementData);
         Navigator.of(context).pop();
         Navigator.pushReplacement(
           context,
@@ -130,26 +131,20 @@ class EndorsementList extends StatelessWidget {
     );
   }
 
-  Future<void> _deleteData(String endorsementId) async {
+  Future<void> _deleteData(
+      String endorsementId, Map<String, dynamic> endorsementData) async {
     final WorkspaceController workspaceController =
         Get.find<WorkspaceController>();
     final schoolId = workspaceController.currentSchoolId.value;
     final targetId = schoolId.isNotEmpty ? schoolId : userId;
 
-    if (endorsementId.isNotEmpty) {
-      var endorsementData = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('endorsement')
-          .doc(endorsementId)
-          .get();
-
+    if (endorsementId.isNotEmpty && endorsementData.isNotEmpty) {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(targetId)
           .collection('deactivated_endorsement')
           .doc(endorsementId)
-          .set(endorsementData.data() ?? {});
+          .set(endorsementData);
 
       await FirebaseFirestore.instance
           .collection('users')

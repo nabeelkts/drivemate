@@ -251,41 +251,28 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
   Stream<List<QuerySnapshot<Map<String, dynamic>>>>
       _getCombinedTransactionsStream(String targetId) {
+    final workspaceController = Get.find<WorkspaceController>();
+
+    // Payments collectionGroup query
+    Query<Map<String, dynamic>> paymentsQuery = _firestore
+        .collectionGroup('payments')
+        .where('targetId', isEqualTo: targetId);
+
+    if (!workspaceController.isOrganizationMode.value &&
+        workspaceController.currentBranchId.value.isNotEmpty &&
+        workspaceController.currentBranchId.value != targetId) {
+      paymentsQuery = paymentsQuery.where('branchId',
+          isEqualTo: workspaceController.currentBranchId.value);
+    }
+
     final streams = [
-      _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('students')
-          .snapshots(),
-      _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('licenseonly')
-          .snapshots(),
-      _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('endorsement')
-          .snapshots(),
-      _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('vehicleDetails')
-          .snapshots(),
-      _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('expenses')
-          .snapshots(),
-      _firestore
-          .collection('users')
-          .doc(targetId)
-          .collection('dl_services')
-          .snapshots(),
-      _firestore
-          .collectionGroup('payments')
-          .where('targetId', isEqualTo: targetId)
-          .snapshots(),
+      workspaceController.getFilteredCollection('students').snapshots(),
+      workspaceController.getFilteredCollection('licenseonly').snapshots(),
+      workspaceController.getFilteredCollection('endorsement').snapshots(),
+      workspaceController.getFilteredCollection('vehicleDetails').snapshots(),
+      workspaceController.getFilteredCollection('expenses').snapshots(),
+      workspaceController.getFilteredCollection('dl_services').snapshots(),
+      paymentsQuery.snapshots(),
     ];
 
     return StreamUtils.combineLatest(streams).asBroadcastStream();
@@ -301,20 +288,12 @@ class _AccountsScreenState extends State<AccountsScreen> {
     return SafeArea(
         child: Scaffold(
       backgroundColor: isDark ? Colors.black : Colors.grey.shade200,
-      appBar: AppBar(
-        backgroundColor: isDark ? Colors.black : Colors.white,
-        elevation: 0,
-        title: Text(
-          'Accounts',
-          style: TextStyle(
-              color: textColor, fontSize: 22, fontWeight: FontWeight.bold),
-        ),
-      ),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            const SizedBox(height: 8),
             Expanded(
               child: Obx(() {
                 final workspaceController = Get.find<WorkspaceController>();
@@ -328,8 +307,23 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   stream: _getCombinedTransactionsStream(targetId),
                   builder: (context, snapshot) {
                     if (snapshot.hasError) {
+                      debugPrint('TransactionsStream Error: ${snapshot.error}');
                       return const Center(
-                          child: Text('Error loading transactions'));
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.error_outline_rounded,
+                                color: Colors.blue, size: 28),
+                            SizedBox(height: 8),
+                            Text(
+                              'Failed to load transactions',
+                              style:
+                                  TextStyle(color: Colors.blue, fontSize: 12),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      );
                     }
 
                     if (snapshot.connectionState == ConnectionState.waiting) {
@@ -858,7 +852,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
               width: 4,
               margin: const EdgeInsets.only(left: 0),
               decoration: BoxDecoration(
-                color: Colors.green,
+                color: transaction.isExpense ? Colors.red : Colors.green,
                 borderRadius:
                     const BorderRadius.horizontal(left: Radius.circular(12)),
               ),
@@ -874,7 +868,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       height: 48,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: Colors.green.withOpacity(0.2),
+                        color: transaction.isExpense
+                            ? Colors.red.withOpacity(0.1)
+                            : Colors.green.withOpacity(0.2),
                       ),
                       child: (() {
                         final img = transaction.imageUrl;
@@ -894,7 +890,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                                             'vehicleDetails'
                                         ? 14
                                         : 20,
-                                    color: kPrimaryColor,
+                                    color: transaction.isExpense
+                                        ? Colors.red
+                                        : kPrimaryColor,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
@@ -902,6 +900,17 @@ class _AccountsScreenState extends State<AccountsScreen> {
                             ),
                           );
                         }
+
+                        if (transaction.isExpense) {
+                          return Center(
+                            child: Icon(
+                              _getExpenseIcon(transaction.name),
+                              color: Colors.red,
+                              size: 24,
+                            ),
+                          );
+                        }
+
                         return Center(
                           child: Icon(
                             Icons.school_outlined,
@@ -921,7 +930,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
-                              color: textColor,
+                              color: transaction.isExpense
+                                  ? Colors.red
+                                  : textColor,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -977,5 +988,44 @@ class _AccountsScreenState extends State<AccountsScreen> {
         );
       },
     );
+  }
+
+  IconData _getExpenseIcon(String name) {
+    final n = name.toLowerCase();
+    if (n.contains('fuel') || n.contains('diesel') || n.contains('petrol')) {
+      return Icons.local_gas_station;
+    }
+    if (n.contains('rent')) return Icons.home;
+    if (n.contains('salary') ||
+        n.contains('wage') ||
+        n.contains('commission')) {
+      return Icons.payments;
+    }
+    if (n.contains('electricity') ||
+        n.contains('current') ||
+        n.contains('bill')) {
+      return Icons.electrical_services;
+    }
+    if (n.contains('repair') ||
+        n.contains('maintenance') ||
+        n.contains('build')) {
+      return Icons.build;
+    }
+    if (n.contains('stationery') || n.contains('pen') || n.contains('book')) {
+      return Icons.edit;
+    }
+    if (n.contains('tea') ||
+        n.contains('food') ||
+        n.contains('coffee') ||
+        n.contains('lunch')) {
+      return Icons.restaurant;
+    }
+    if (n.contains('internet') || n.contains('wifi') || n.contains('phone')) {
+      return Icons.wifi;
+    }
+    if (n.contains('tax') || n.contains('license') || n.contains('insurance')) {
+      return Icons.description;
+    }
+    return Icons.money_off; // Default expense icon
   }
 }

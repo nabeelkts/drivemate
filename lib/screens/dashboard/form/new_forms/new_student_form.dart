@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
@@ -60,13 +61,15 @@ class _NewStudentState extends State<NewStudent> {
       body: CommonForm(
         key: _formKey,
         items: const [
-          'M/C Study',
+          'MC Study',
+          'MCWOG Study',
           'LMV Study',
-          'LMV Study + M/C Study',
-          'LMV Study + M/C License',
-          'LMV License + M/C Study',
-          'LMV Study + M/C Without Gear Study',
-          'M/C Without Gear Study',
+          'LMV Study + MC Study',
+          'LMV Study + MCWOG Study',
+          'LMV Study + MC License',
+          'LMV Study + MCWOG License',
+          'LMV License + MC Study',
+          'LMV License + MCWOG Study',
         ],
         index: 3,
         showLicenseField: false,
@@ -175,16 +178,20 @@ class _NewStudentState extends State<NewStudent> {
               'branchName': branchName,
             }));
 
-            // Execute all operations in parallel
-            await Future.wait(operations);
-
-            if (kDebugMode) {
-              print(
-                  'All student registration operations completed successfully');
-            }
+            // Execute operations in parallel WITHOUT awaiting them all to prevent UI hang
+            // Firestore persistence will handle the background synchronization.
+            unawaited(Future.wait(operations).then((_) {
+              if (kDebugMode) {
+                print('All background sync operations initiated successfully');
+              }
+            }).catchError((e) {
+              if (kDebugMode) {
+                print('Background sync error (safe to ignore if offline): $e');
+              }
+            }));
 
             Fluttertoast.showToast(
-              msg: 'New Student Registration Completed',
+              msg: 'Registration initiated...',
               toastLength: Toast.LENGTH_SHORT,
               gravity: ToastGravity.BOTTOM,
             );

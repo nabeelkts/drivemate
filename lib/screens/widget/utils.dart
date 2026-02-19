@@ -15,30 +15,11 @@ pickImage(ImageSource source) async {
 }
 
 Future<String> generateStudentId(String userId) async {
-  final dateLabel = DateFormat('ddMMyyyy').format(DateTime.now());
-  final countersDoc = FirebaseFirestore.instance
-      .collection('users')
-      .doc(userId)
-      .collection('counters')
-      .doc('daily_$dateLabel');
+  // Use a deterministic ID based on local time to allow offline support.
+  // Format: ddMMyyyyHHmmss (total 14 digits)
+  final now = DateTime.now();
+  final dateLabel = DateFormat('ddMMyyyy').format(now);
+  final timeLabel = DateFormat('HHmmss').format(now);
 
-  return FirebaseFirestore.instance.runTransaction<String>((transaction) async {
-    final snapshot = await transaction.get(countersDoc);
-    int nextSeq = 1;
-    if (snapshot.exists) {
-      final current = (snapshot.data()?['seq'] ?? 0) as int;
-      nextSeq = current + 1;
-      transaction.update(countersDoc, {
-        'seq': nextSeq,
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } else {
-      transaction.set(countersDoc, {
-        'seq': nextSeq,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
-    }
-    final padded = nextSeq.toString().padLeft(4, '0');
-    return '$dateLabel$padded';
-  });
+  return '$dateLabel$timeLabel';
 }

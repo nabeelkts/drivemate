@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -196,6 +197,7 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
           onPressed: () => _selectDate(controller),
         ),
       ),
+      textInputAction: TextInputAction.next,
       readOnly: true,
       onTap: () => _selectDate(controller),
     );
@@ -256,11 +258,21 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
           });
 
           try {
-            await updateFirestore(student);
-            showSuccessMessage(context);
+            // Initiate update but don't await full server confirmation to keep UI fast
+            unawaited(updateFirestore(student).then((_) {
+              if (kDebugMode) print('Update completed in background');
+            }).catchError((e) {
+              if (kDebugMode) print('Background update error: $e');
+            }));
+
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Update initiated...')),
+            );
             Navigator.pop(context);
           } catch (error) {
-            showErrorMessage(context, error.toString());
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error: $error')),
+            );
           } finally {
             setState(() {
               isLoading = false;

@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/screens/authentication/widgets/my_button.dart';
 import 'package:mds/screens/dashboard/form/edit_forms/edit_endorsement_details_form.dart';
 import 'package:mds/screens/profile/action_button.dart';
@@ -57,7 +58,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         title: Text('Endorsement Details', style: TextStyle(color: textColor)),
         elevation: 0,
-        iconTheme: IconThemeData(color: textColor),
+        leading: const CustomBackButton(),
         actions: [
           IconButton(
             icon: Icon(Icons.picture_as_pdf, color: subTextColor),
@@ -72,13 +73,22 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                   builder: (context) => EditEndorsementDetailsForm(
                     initialValues: endorsementDetails,
                     items: const [
-                      'M/C',
+                      'MC',
+                      'MCWOG',
                       'LMV',
-                      'LMV + M/C ',
+                      'LMV + MC ',
+                      'LMV + MCWOG',
+                      'ADAPTED VEHICLE',
                       'TRANS',
-                      'TRANS + M/C',
+                      'TRANS + MC',
+                      'TRANS + MCWOG',
                       'EXCAVATOR',
-                      'TRACTOR',
+                      'CRANE',
+                      'FORKLIFT',
+                      'CONSTRUCTION EQUIPMENT',
+                      'TOW TRUCK',
+                      'TRAILER',
+                      'AGRICULTURAL TRACTOR',
                     ],
                   ),
                 ),
@@ -448,6 +458,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                           doc: snapshot.data!
                               as DocumentSnapshot<Map<String, dynamic>>,
                           targetId: targetId,
+                          branchId: _workspaceController.currentBranchId.value,
                           category: 'endorsement',
                         );
                       }

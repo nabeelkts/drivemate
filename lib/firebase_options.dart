@@ -43,6 +43,7 @@ class DefaultFirebaseOptions {
     projectId: 'smds-c1713',
     authDomain: 'smds-c1713.firebaseapp.com',
     storageBucket: 'smds-c1713.appspot.com',
+    databaseURL: 'https://smds-c1713-default-rtdb.firebaseio.com',
     measurementId: 'G-3SNYZSN6RQ',
   );
 
@@ -52,6 +53,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '694652953963',
     projectId: 'smds-c1713',
     storageBucket: 'smds-c1713.appspot.com',
+    databaseURL: 'https://smds-c1713-default-rtdb.firebaseio.com',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -60,6 +62,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '694652953963',
     projectId: 'smds-c1713',
     storageBucket: 'smds-c1713.appspot.com',
+    databaseURL: 'https://smds-c1713-default-rtdb.firebaseio.com',
     iosBundleId: 'com.example.mds',
   );
 
@@ -69,6 +72,7 @@ class DefaultFirebaseOptions {
     messagingSenderId: '694652953963',
     projectId: 'smds-c1713',
     storageBucket: 'smds-c1713.appspot.com',
+    databaseURL: 'https://smds-c1713-default-rtdb.firebaseio.com',
     iosBundleId: 'com.example.mds.RunnerTests',
   );
 }

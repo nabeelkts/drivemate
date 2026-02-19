@@ -3,6 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mds/constants/colors.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/authentication/widgets/my_button.dart';
 import 'package:mds/screens/dashboard/form/edit_forms/edit_vehicle_details_form.dart';
@@ -52,6 +53,7 @@ class RCDetailsPage extends StatelessWidget {
           appBar: AppBar(
             title: const Text('RC Details'),
             elevation: 0,
+            leading: const CustomBackButton(),
           ),
           body: SingleChildScrollView(
             child: Column(

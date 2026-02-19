@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:intl/intl.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/dashboard/form/edit_forms/edit_dl_service_form.dart';
@@ -58,7 +59,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         title: Text('Service Details', style: TextStyle(color: textColor)),
         elevation: 0,
-        iconTheme: IconThemeData(color: textColor),
+        leading: const CustomBackButton(),
         actions: [
           IconButton(
             icon: Icon(Icons.picture_as_pdf, color: subTextColor),

@@ -83,7 +83,8 @@ class DlServicesList extends StatelessWidget {
                 title: const Text('Mark as Completed'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _showDeleteConfirmationDialog(context, doc.id);
+                  await _showDeleteConfirmationDialog(
+                      context, doc.id, doc.data());
                 },
               ),
             ],
@@ -93,14 +94,14 @@ class DlServicesList extends StatelessWidget {
     );
   }
 
-  Future<void> _showDeleteConfirmationDialog(
-      BuildContext context, String documentId) async {
+  Future<void> _showDeleteConfirmationDialog(BuildContext context,
+      String documentId, Map<String, dynamic> serviceData) async {
     showCustomConfirmationDialog(
       context,
       'Confirm Service Completion',
       'Are you sure you want to mark this service as completed?',
       () async {
-        await _deleteData(documentId);
+        await _deleteData(documentId, serviceData);
         if (context.mounted) {
           Navigator.of(context).pop();
           Navigator.pushReplacement(
@@ -114,26 +115,20 @@ class DlServicesList extends StatelessWidget {
     );
   }
 
-  Future<void> _deleteData(String serviceId) async {
+  Future<void> _deleteData(
+      String serviceId, Map<String, dynamic> serviceData) async {
     final WorkspaceController workspaceController =
         Get.find<WorkspaceController>();
     final schoolId = workspaceController.currentSchoolId.value;
     final targetId = schoolId.isNotEmpty ? schoolId : userId;
 
-    if (serviceId.isNotEmpty) {
-      var serviceData = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('dl_services')
-          .doc(serviceId)
-          .get();
-
+    if (serviceId.isNotEmpty && serviceData.isNotEmpty) {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(targetId)
           .collection('deactivated_dl_services')
           .doc(serviceId)
-          .set(serviceData.data() ?? {});
+          .set(serviceData);
 
       await FirebaseFirestore.instance
           .collection('users')

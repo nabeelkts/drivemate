@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:flutter/services.dart';
 import 'package:mds/constants/colors.dart';
 
@@ -39,28 +40,7 @@ class BaseFormWidget extends StatelessWidget {
             (isDark ? Colors.white : Colors.black),
         elevation: 0,
         actions: actions,
-        leading: onBack != null
-            ? Center(
-                child: CircleAvatar(
-                  backgroundColor: kPrimaryColor,
-                  radius: 15,
-                  child: Center(
-                    child: CircleAvatar(
-                      radius: 14,
-                      backgroundColor: kWhite,
-                      child: IconButton(
-                        icon: const Icon(
-                          Icons.arrow_back_ios,
-                          color: kPrimaryColor,
-                          size: 15,
-                        ),
-                        onPressed: onBack,
-                      ),
-                    ),
-                  ),
-                ),
-              )
-            : null,
+        leading: onBack != null ? CustomBackButton(onPressed: onBack) : null,
       ),
       body: ListView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
