@@ -8,6 +8,7 @@ import 'package:mds/constants/colors.dart';
 import 'package:mds/screens/dashboard/form/edit_forms/edit_licence_only_details_form.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/screens/dashboard/list/details/license_only_details_page.dart';
 import 'package:mds/screens/dashboard/list/widgets/search_widget.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
@@ -90,34 +91,7 @@ class _DeactivatedLicenseOnlyListState
             fontWeight: FontWeight.w500,
           ),
         ),
-        leading: Stack(
-          children: [
-            Positioned(
-              left: 12,
-              right: 12,
-              top: 12,
-              bottom: 12,
-              child: CircleAvatar(
-                backgroundColor: kPrimaryColor,
-                radius: 16,
-                child: CircleAvatar(
-                  radius: 15,
-                  backgroundColor: kWhite,
-                  child: IconButton(
-                    icon: const Icon(
-                      Icons.arrow_back_ios,
-                      color: kPrimaryColor,
-                      size: 16,
-                    ),
-                    onPressed: () {
-                      Navigator.pop(context);
-                    },
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+        leading: const CustomBackButton(),
       ),
       body: Column(
         children: [

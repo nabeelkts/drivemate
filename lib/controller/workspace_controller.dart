@@ -37,6 +37,7 @@ class WorkspaceController extends GetxController {
 
   /// Returns the data for the currently active branch
   Map<String, dynamic> get currentBranchData {
+    // If no specific branch is selected, return the company/school data
     if (currentBranchId.value.isEmpty) {
       if (companyData.isNotEmpty) {
         return _normalizeCompanyData(companyData);
@@ -52,8 +53,8 @@ class WorkspaceController extends GetxController {
 
     if (branch.isNotEmpty) return branch;
 
-    // Fallback to main company data if currentBranchId matches targetId
-    if (currentBranchId.value == targetId && companyData.isNotEmpty) {
+    // Fallback to main company data (handles staff and owner main branch)
+    if (companyData.isNotEmpty) {
       return _normalizeCompanyData(companyData);
     }
 
@@ -443,8 +444,13 @@ class WorkspaceController extends GetxController {
       // Set default branch if none selected OR if current is invalid
       final isValid = branches.any((b) => b['id'] == currentBranchId.value);
       if (currentBranchId.value.isEmpty || !isValid) {
-        // Default to main branch (targetId) for Owners
-        currentBranchId.value = targetId;
+        if (userRole.value == 'Owner') {
+          // Owners default to their main school (targetId)
+          currentBranchId.value = targetId;
+        } else {
+          // Staff/Admin: leave empty so currentBranchData falls back to companyData
+          currentBranchId.value = "";
+        }
       }
     } catch (e) {
       print("Error fetching branches: $e");
