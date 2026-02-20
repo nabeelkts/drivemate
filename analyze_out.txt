@@ -1,0 +1,28 @@
+﻿Analyzing mds...                                                
+
+   info - The imported package 'flutter_background_service_android' isn't a dependency of the importing package - lib\features\tracking\services\location_tracking_service.dart:10:8 - depend_on_referenced_packages
+warning - The value of the local variable 'textColor' isn't used - lib\screens\dashboard\test_date_updater_screen.dart:98:11 - unused_local_variable
+   info - The local variable '_updateChart' starts with an underscore - lib\screens\dashboard\widgets\monthly_revenue_card.dart:112:32 - no_leading_underscores_for_local_identifiers
+warning - The value of the field '_isCheckingSubscription' isn't used - lib\screens\navigation_screen.dart:36:8 - unused_field
+
+flutter : 4 issues 
+found. (ran in 14.9s)
+At line:1 char:1
++ flutter analyze 
+--no-pub 2>&1 | 
+Out-File -FilePath 
+"analyze_out.txt"  
+...
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (4 issue   
+ s found. (ran in    
+ 14.9s):String)     
+[], RemoteExcept    
+ion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 

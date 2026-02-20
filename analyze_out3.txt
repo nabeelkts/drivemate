@@ -1,0 +1,27 @@
+﻿Analyzing mds...                                                
+
+warning - The value of the local variable 'textColor' isn't used - lib\screens\dashboard\test_date_updater_screen.dart:98:11 - unused_local_variable
+   info - The local variable '_updateChart' starts with an underscore - lib\screens\dashboard\widgets\monthly_revenue_card.dart:112:32 - no_leading_underscores_for_local_identifiers
+
+flutter : 2 issues 
+found. (ran in 
+151.6s)
+At line:1 char:1
++ flutter analyze 
+--no-pub 2>&1 | 
+Out-File -FilePath 
+"analyze_out3.txt" 
+...
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (2 issue   
+ s found. (ran in    
+ 151.6s):String)     
+[], RemoteExcep    
+tion
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 

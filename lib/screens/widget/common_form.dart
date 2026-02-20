@@ -74,6 +74,7 @@ class CommonFormState extends State<CommonForm> {
   late int _currentIndex;
   String _selectedPaymentMode = 'Cash';
   String? _selectedBloodGroup;
+  List<String> _selectedItems = [];
 
   final StorageService _storageService = StorageService();
   final OCRService _ocrService = OCRService();
@@ -164,19 +165,27 @@ class CommonFormState extends State<CommonForm> {
         text: widget.initialValues?['totalAmount']?.toString() ?? '');
     advanceAmountController = TextEditingController(
         text: widget.initialValues?['advanceAmount']?.toString() ?? '');
-    balanceAmountController = TextEditingController(
-        text: widget.initialValues?['balanceAmount']?.toString() ?? '');
-    covController = TextEditingController(
-        text: widget.initialValues?['cov']?.toString() ??
-            widget.initialValues?['serviceType']?.toString() ??
-            '');
-    otherServiceController = TextEditingController(
-        text: widget.initialValues?['otherService']?.toString() ?? '');
-    if (covController.text.isEmpty || covController.text == 'null') {
+    // Initialize balance calculation
+    _calculateBalance();
+
+    // Initialize selected items for multi-selection
+    final rawCov = widget.initialValues?['cov']?.toString() ??
+        widget.initialValues?['serviceType']?.toString() ??
+        '';
+
+    if (rawCov.isNotEmpty && rawCov != 'Select your cov' && rawCov != 'null') {
+      _selectedItems = rawCov.split(', ').map((e) => e.trim()).toList();
+      covController.text = rawCov;
+    } else {
+      _selectedItems = [];
       covController.text = 'Select your cov';
     }
 
-    final initItem = widget.items.indexOf(widget.initialValues?['cov'] ?? '');
+    otherServiceController.text =
+        widget.initialValues?['otherService']?.toString() ?? '';
+
+    final initItem = widget.items
+        .indexOf(_selectedItems.isNotEmpty ? _selectedItems.first : '');
     final safeInitItem =
         initItem >= 0 ? initItem : (widget.index >= 0 ? widget.index : 0);
     _currentIndex = safeInitItem;
@@ -406,13 +415,17 @@ class CommonFormState extends State<CommonForm> {
         'advanceAmount': advanceAmount,
         'balanceAmount': balanceAmount,
         'paymentMode': _selectedPaymentMode,
-        'cov': covController.text,
-        'serviceType': widget.showServiceType ? covController.text : null,
-        'otherService': widget.showServiceType && covController.text == 'Other'
-            ? otherServiceController.text
-            : null,
+        'cov': _selectedItems.join(', '),
+        'serviceTypes': _selectedItems, // Store as array for better querying
+        'serviceType':
+            widget.showServiceType ? _selectedItems.join(', ') : null,
+        'otherService':
+            widget.showServiceType && _selectedItems.contains('Other')
+                ? otherServiceController.text
+                : null,
         'image': uploadedImageUrl,
-        'createdAt': DateTime.now().millisecondsSinceEpoch,
+        'createdAt': widget.initialValues?['createdAt'] ??
+            DateTime.now().millisecondsSinceEpoch,
       };
 
       if (kDebugMode) {
@@ -633,34 +646,109 @@ class CommonFormState extends State<CommonForm> {
           ),
         ),
         const SizedBox(height: 10),
-        CupertinoTextField(
-          onTap: () {
-            scrollController.dispose();
-            final safeIndex = _currentIndex >= 0 ? _currentIndex : 0;
-            scrollController =
-                FixedExtentScrollController(initialItem: safeIndex);
-            showCupertinoModalPopup(
-              context: context,
-              builder: (context) => CupertinoActionSheet(
-                actions: [buildPicker()],
-                cancelButton: CupertinoActionSheetAction(
-                  child: const Text('Select'),
-                  onPressed: () => Navigator.pop(context),
-                ),
+        InkWell(
+          onTap: () => _showMultiSelectDialog(context),
+          child: AbsorbPointer(
+            child: CupertinoTextField(
+              controller: covController,
+              readOnly: true,
+              enableInteractiveSelection: false,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: textColor,
               ),
-            );
-          },
-          controller: covController,
-          readOnly: true,
-          enableInteractiveSelection: false,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: textColor,
+            ),
           ),
         ),
       ],
+    );
+  }
+
+  void _showMultiSelectDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    List<String> tempSelected = List.from(_selectedItems);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(
+                widget.showServiceType
+                    ? 'Select Service Types'
+                    : 'Select Class of Vehicle',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: widget.items.length,
+                  itemBuilder: (context, index) {
+                    final item = widget.items[index];
+                    final isSelected = tempSelected.contains(item);
+                    return CheckboxListTile(
+                      title: Text(
+                        item,
+                        style: TextStyle(
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                      value: isSelected,
+                      activeColor: const Color(0xFFFF6B2C),
+                      onChanged: (bool? value) {
+                        setDialogState(() {
+                          if (value == true) {
+                            tempSelected.add(item);
+                          } else {
+                            tempSelected.remove(item);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF6B2C),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _selectedItems = tempSelected;
+                      covController.text = _selectedItems.isEmpty
+                          ? 'Select your cov'
+                          : _selectedItems.join(', ');
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text(
+                    'Confirm',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
@@ -669,7 +757,7 @@ class CommonFormState extends State<CommonForm> {
         Theme.of(context).textTheme.bodyLarge?.color ?? Colors.black;
 
     // Ensure specific logic for "Other"
-    bool isOtherSelected = covController.text == 'Other';
+    bool isOtherSelected = _selectedItems.contains('Other');
 
     return buildSectionContainer(
       children: [
@@ -682,31 +770,20 @@ class CommonFormState extends State<CommonForm> {
           ),
         ),
         const SizedBox(height: 10),
-        CupertinoTextField(
-          onTap: () {
-            scrollController.dispose();
-            final safeIndex = _currentIndex >= 0 ? _currentIndex : 0;
-            scrollController =
-                FixedExtentScrollController(initialItem: safeIndex);
-            showCupertinoModalPopup(
-              context: context,
-              builder: (context) => CupertinoActionSheet(
-                actions: [buildPicker()],
-                cancelButton: CupertinoActionSheetAction(
-                  child: const Text('Select'),
-                  onPressed: () => Navigator.pop(context),
-                ),
+        InkWell(
+          onTap: () => _showMultiSelectDialog(context),
+          child: AbsorbPointer(
+            child: CupertinoTextField(
+              controller: covController,
+              readOnly: true,
+              enableInteractiveSelection: false,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: textColor,
               ),
-            );
-          },
-          controller: covController,
-          readOnly: true,
-          enableInteractiveSelection: false,
-          textAlign: TextAlign.center,
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: textColor,
+            ),
           ),
         ),
         if (isOtherSelected) ...[
@@ -1043,13 +1120,28 @@ class CommonFormState extends State<CommonForm> {
                               (widget.initialValues?['image'] as String)
                                   .isNotEmpty)
                           ? ClipOval(
-                              child: Image(
-                                image: CachedNetworkImageProvider(
-                                  widget.initialValues?['image'] as String,
-                                ),
+                              child: CachedNetworkImage(
+                                imageUrl:
+                                    widget.initialValues?['image'] as String,
                                 width: 120,
                                 height: 120,
                                 fit: BoxFit.cover,
+                                placeholder: (context, url) => const Center(
+                                  child: CircularProgressIndicator(),
+                                ),
+                                errorWidget: (context, url, error) => Center(
+                                  child: Text(
+                                    fullNameController.text.isNotEmpty
+                                        ? fullNameController.text[0]
+                                            .toUpperCase()
+                                        : '',
+                                    style: const TextStyle(
+                                      fontSize: 48,
+                                      color: kWhite,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
                               ),
                             )
                           : Center(

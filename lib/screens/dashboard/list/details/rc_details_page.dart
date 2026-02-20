@@ -112,7 +112,19 @@ class RCDetailsPage extends StatelessWidget {
                         MaterialPageRoute(
                           builder: (context) => EditVehicleDetailsForm(
                             initialValues: currentDetails,
-                            items: currentDetails.keys.toList(),
+                            items: const [
+                              'Transfer of Ownership',
+                              'Re-Registration',
+                              'Hypothecation Addition',
+                              'Hypothecation Termination',
+                              'Duplicate RC',
+                              'Fitness Renewal',
+                              'Permit Renewal',
+                              'Tax Payment',
+                              'Registration Renewal',
+                              'Echellan',
+                              'Other'
+                            ],
                           ),
                         ),
                       );

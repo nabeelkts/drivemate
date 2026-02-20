@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/features/tracking/services/background_service.dart';
 import 'package:mds/features/tracking/services/location_tracking_service.dart';
@@ -35,6 +36,11 @@ class _StaffTrackingScreenState extends State<StaffTrackingScreen> {
   }
 
   Future<void> _toggleTracking() async {
+    final storage = GetStorage();
+      print('=== DEBUG userId: ${storage.read('userId')}');
+      print('=== DEBUG schoolId: ${storage.read('schoolId')}');
+      print('=== DEBUG driverName: ${storage.read('driverName')}');
+
     if (_isServiceRunning) {
       await BackgroundService.stop();
       await _trackingService.stopTracking();

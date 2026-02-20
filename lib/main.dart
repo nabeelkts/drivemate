@@ -41,9 +41,14 @@ Future<void> main() async {
     persistenceEnabled: true,
     cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
   );
+
   Get.put<ThemeController>(ThemeController(), permanent: true);
-  runApp(const MyApp());
+
+  // ✅ FIXED: DI must run BEFORE runApp so all services are ready
+  // when the first widget tree builds
   DependencyInjection.init();
+
+  runApp(const MyApp());
 }
 
 class MyApp extends StatelessWidget {
@@ -61,7 +66,6 @@ class MyApp extends StatelessWidget {
       box.write('isDarkMode', isDarkMode);
     }
 
-    // Set initial status bar style
     SystemChrome.setSystemUIOverlayStyle(
       SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -153,7 +157,6 @@ class MyApp extends StatelessWidget {
           theme: lightTheme,
           darkTheme: darkTheme,
           builder: (context, child) {
-            // Update status bar style based on current theme
             final brightness = Theme.of(context).brightness;
             final isDark = brightness == Brightness.dark;
 

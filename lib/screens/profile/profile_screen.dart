@@ -8,28 +8,19 @@ import 'package:mds/constants/colors.dart';
 import 'package:mds/controller/app_controller.dart';
 import 'package:mds/controller/theme_controller.dart';
 import 'package:intl/intl.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:mds/screens/legal/privacy_policy_screen.dart';
-import 'package:mds/screens/legal/terms_of_service_screen.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import 'package:mds/utils/loading_utils.dart';
 import 'package:mds/screens/profile/widgets/profile_header.dart';
 import 'package:mds/screens/profile/widgets/subscription_card.dart';
 import 'package:mds/screens/profile/admin/organization_management_page.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import 'package:mds/screens/profile/edit_user_profile.dart';
-import 'package:mds/screens/profile/edit_company_profile.dart';
-import 'package:mds/screens/profile/home_layout_selector.dart';
 import 'package:mds/screens/profile/dialog_box.dart';
 import 'package:mds/services/subscription_service.dart';
 import 'package:mds/screens/profile/admin/admin_subscription_page.dart';
-import 'package:mds/screens/profile/admin/manage_staff_page.dart';
 import 'package:mds/screens/authentication/google_sign_in.dart';
 import 'package:mds/screens/profile/settings_page.dart';
-import 'package:mds/features/tracking/presentation/screens/owner_map_screen.dart';
-import 'package:mds/features/tracking/presentation/screens/staff_tracking_screen.dart';
+import 'package:mds/screens/profile/about_page.dart'; // ← new
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onSubscriptionRenewed;
@@ -40,7 +31,8 @@ class ProfileScreen extends StatefulWidget {
   State<ProfileScreen> createState() => _ProfileScreenState();
 }
 
-class _ProfileScreenState extends State<ProfileScreen> {
+class _ProfileScreenState extends State<ProfileScreen>
+    with SingleTickerProviderStateMixin {
   final box = GetStorage();
   final auth = LocalAuthentication();
   final appController = Get.put(AppController());
@@ -53,6 +45,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   String _lastLoginTime = '';
   Color get _selectedThemeColor => themeController.themeColor;
   bool _isInitialized = false;
+  late AnimationController _animController;
+  late Animation<double> _fadeAnim;
 
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
@@ -61,6 +55,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    );
+    _fadeAnim =
+        CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _initializeState();
   }
 
@@ -77,9 +77,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         DateFormat('dd/MM/yyyy hh:mm a').format(DateTime.now());
 
     _workspaceWorker = ever(_workspaceController.isLoading, (isLoading) {
-      if (!isLoading) {
-        _workspaceController.refreshAppData();
-      }
+      if (!isLoading) _workspaceController.refreshAppData();
     });
 
     if (!_workspaceController.isLoading.value) {
@@ -87,61 +85,40 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
     _updateLastLoginTime();
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _applyTheme();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _applyTheme());
 
     if (mounted) {
-      setState(() {
-        _isInitialized = true;
-      });
+      setState(() => _isInitialized = true);
+      _animController.forward();
     }
   }
 
   @override
   void dispose() {
     _workspaceWorker?.dispose();
+    _animController.dispose();
     super.dispose();
   }
 
   void _applyTheme() {
     Get.changeThemeMode(isDarkMode ? ThemeMode.dark : ThemeMode.light);
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness:
-            isDarkMode ? Brightness.light : Brightness.dark,
-        statusBarBrightness: isDarkMode ? Brightness.dark : Brightness.light,
-        systemNavigationBarColor: isDarkMode ? Colors.black : Colors.white,
-        systemNavigationBarIconBrightness:
-            isDarkMode ? Brightness.light : Brightness.dark,
-      ),
-    );
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness:
+          isDarkMode ? Brightness.light : Brightness.dark,
+      statusBarBrightness:
+          isDarkMode ? Brightness.dark : Brightness.light,
+      systemNavigationBarColor: isDarkMode ? Colors.black : Colors.white,
+      systemNavigationBarIconBrightness:
+          isDarkMode ? Brightness.light : Brightness.dark,
+    ));
   }
 
   void _updateLastLoginTime() {
     final now = DateTime.now();
     final formattedTime = DateFormat('dd/MM/yyyy hh:mm a').format(now);
     box.write('lastLoginTime', formattedTime);
-    if (mounted) {
-      setState(() {
-        _lastLoginTime = formattedTime;
-      });
-    }
-  }
-
-  Future<void> _checkBiometrics() async {
-    try {
-      canCheckBiometrics = await auth.canCheckBiometrics;
-      if (!canCheckBiometrics) {
-        biometricEnabled = false;
-        box.write('biometricEnabled', false);
-      }
-    } catch (e) {
-      canCheckBiometrics = false;
-      biometricEnabled = false;
-      box.write('biometricEnabled', false);
-    }
+    if (mounted) setState(() => _lastLoginTime = formattedTime);
   }
 
   void toggleTheme() {
@@ -167,36 +144,31 @@ class _ProfileScreenState extends State<ProfileScreen> {
     if (!mounted) return;
 
     if (!canCheckBiometrics) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content:
-              Text('Biometric authentication is not available on this device'),
-          duration: Duration(seconds: 3),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text(
+            'Biometric authentication is not available on this device'),
+        duration: Duration(seconds: 3),
+      ));
       return;
     }
 
     if (!biometricEnabled) {
       try {
-        final List<BiometricType> availableBiometrics =
-            await auth.getAvailableBiometrics();
-
-        if (availableBiometrics.isEmpty) {
+        final available = await auth.getAvailableBiometrics();
+        if (available.isEmpty) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                    'No biometrics enrolled on this device. Please set up fingerprint or face recognition in your device settings.'),
-                duration: Duration(seconds: 4),
-              ),
-            );
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'No biometrics enrolled. Please set up fingerprint or face recognition in device settings.'),
+              duration: Duration(seconds: 4),
+            ));
           }
           return;
         }
 
         bool authenticated = await auth.authenticate(
-          localizedReason: 'Please authenticate to enable biometric login',
+          localizedReason:
+              'Please authenticate to enable biometric login',
           options: const AuthenticationOptions(
             stickyAuth: true,
             biometricOnly: true,
@@ -208,22 +180,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
             biometricEnabled = true;
             box.write('biometricEnabled', true);
           });
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Biometric login enabled'),
-              duration: Duration(seconds: 2),
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Biometric login enabled'),
+            duration: Duration(seconds: 2),
+          ));
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content:
-                  Text('Failed to enable biometric login: ${e.toString()}'),
-              duration: const Duration(seconds: 3),
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text(
+                'Failed to enable biometric login: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+          ));
         }
       }
     } else if (mounted) {
@@ -231,402 +199,212 @@ class _ProfileScreenState extends State<ProfileScreen> {
         biometricEnabled = false;
         box.write('biometricEnabled', false);
       });
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Biometric login disabled'),
-          duration: Duration(seconds: 2),
-        ),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Biometric login disabled'),
+        duration: Duration(seconds: 2),
+      ));
     }
-  }
-
-  void _showColorPicker() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Pick a color'),
-        content: SingleChildScrollView(
-          child: ColorPicker(
-            pickerColor: _selectedThemeColor,
-            onColorChanged: (color) {
-              if (!mounted) return;
-              themeController.setThemeColor(color);
-              setState(() {});
-            },
-            pickerAreaHeightPercent: 0.8,
-            enableAlpha: false,
-            labelTypes: const [],
-            displayThumbColor: true,
-            paletteType: PaletteType.hsvWithHue,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Done'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void showLogoutConfirmationDialog() {
-    showCustomConfirmationDialog(
-      context,
-      'Confirm Logout',
-      'Are you sure you want to logout?',
-      () async {
-        Navigator.pop(context); // Close confirmation dialog
-        final provider =
-            Provider.of<GoogleSignInProvider>(context, listen: false);
-        await provider.signOut(context);
-      },
-    );
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_isInitialized && _currentUser == null) {
       return const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
+          body: Center(child: CircularProgressIndicator()));
     }
 
     if (_currentUser == null) {
       return const Scaffold(
-        body: Center(
-          child: Text('No user logged in'),
-        ),
-      );
+          body: Center(child: Text('No user logged in')));
     }
 
-    final cardColor = isDarkMode ? Colors.grey.shade900 : Colors.grey.shade100;
-    final borderColor =
-        isDarkMode ? Colors.grey.shade600 : Colors.grey.shade400;
-    final textColor = isDarkMode ? Colors.white : Colors.black87;
+    final isDark = isDarkMode;
+    final cardColor =
+        isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final borderColor = isDark
+        ? Colors.white.withOpacity(0.08)
+        : Colors.black.withOpacity(0.06);
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final bgColor =
+        isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7);
+    final subColor = isDark ? Colors.white38 : Colors.black38;
+
     return SafeArea(
       child: Scaffold(
-        backgroundColor: isDarkMode ? Colors.black : Colors.grey.shade200,
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              Obx(() {
-                final subData = _workspaceController.subscriptionData;
-                if (_workspaceController.isAppDataLoading.value &&
-                    subData.isEmpty) {
-                  return const Center(child: LinearProgressIndicator());
-                }
+        backgroundColor: bgColor,
+        body: FadeTransition(
+          opacity: _fadeAnim,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 12),
 
-                final isStaff = _workspaceController.userRole.value == 'Staff';
-                if (isStaff) return const SizedBox.shrink();
+                // ── Subscription warnings ──────────────────────────────
+                Obx(() {
+                  final subData = _workspaceController.subscriptionData;
+                  if (_workspaceController.isAppDataLoading.value &&
+                      subData.isEmpty) {
+                    return const Center(
+                        child: LinearProgressIndicator());
+                  }
 
-                final shouldWarn = subData['shouldWarn'] ?? false;
-                final isInGracePeriod = subData['isInGracePeriod'] ?? false;
-                final isGracePeriodExpired =
-                    subData['isGracePeriodExpired'] ?? false;
-                final daysLeft = subData['daysLeft'] ?? 0;
+                  final isStaff =
+                      _workspaceController.userRole.value == 'Staff';
+                  if (isStaff) return const SizedBox.shrink();
 
-                return Column(
-                  children: [
+                  final shouldWarn = subData['shouldWarn'] ?? false;
+                  final isInGracePeriod =
+                      subData['isInGracePeriod'] ?? false;
+                  final isGracePeriodExpired =
+                      subData['isGracePeriodExpired'] ?? false;
+                  final daysLeft = subData['daysLeft'] ?? 0;
+
+                  return Column(children: [
                     if (shouldWarn)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.amber.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: kOrange, width: 2),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.timer_outlined,
-                                color: kOrange, size: 24),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Subscription Expiring Soon',
-                                    style: TextStyle(
-                                      color: kOrange,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Your subscription will expire in $daysLeft days. Please renew to avoid any interruption.',
-                                    style: const TextStyle(
-                                      color: kOrange,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                      _BannerAlert(
+                        icon: Icons.timer_outlined,
+                        color: kOrange,
+                        title: 'Subscription Expiring Soon',
+                        message:
+                            'Your subscription expires in $daysLeft days. Please renew to avoid interruption.',
                       ),
                     if (isInGracePeriod)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.blue, width: 2),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.info_outline,
-                                color: Colors.blue, size: 24),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Grace Period Active',
-                                    style: TextStyle(
-                                      color: Colors.blue,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Your subscription has expired, but you have ${7 + daysLeft} days left in your grace period.',
-                                    style: TextStyle(
-                                      color: Colors.blue.shade700,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                      _BannerAlert(
+                        icon: Icons.info_outline,
+                        color: Colors.blue,
+                        title: 'Grace Period Active',
+                        message:
+                            'Subscription expired — ${7 + daysLeft} days left in grace period.',
                       ),
                     if (isGracePeriodExpired)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        margin: const EdgeInsets.only(bottom: 16),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: Colors.red, width: 2),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.warning,
-                                color: Colors.red, size: 24),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text(
-                                    'Subscription Expired',
-                                    style: TextStyle(
-                                      color: Colors.red,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Please renew your subscription to access all features',
-                                    style: TextStyle(
-                                      color: Colors.red.shade700,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                      _BannerAlert(
+                        icon: Icons.warning_rounded,
+                        color: Colors.red,
+                        title: 'Subscription Expired',
+                        message:
+                            'Please renew your subscription to access all features.',
                       ),
-                  ],
-                );
-              }),
-              ProfileHeader(
-                currentUser: _currentUser,
-                cardColor: cardColor,
-                textColor: textColor,
-                lastLoginTime: _lastLoginTime,
-              ),
-              const SizedBox(height: 20),
-              Obx(() {
-                final isStaff = _workspaceController.userRole.value == 'Staff';
-                if (isStaff) return const SizedBox.shrink();
-                return SubscriptionCard(
+                  ]);
+                }),
+
+                // ── Profile header ─────────────────────────────────────
+                ProfileHeader(
+                  currentUser: _currentUser,
                   cardColor: cardColor,
                   textColor: textColor,
-                  onSubscribeDialog: _showSubscribeDialog,
-                );
-              }),
-              _buildMyOrganizationTile(
-                context,
-                _workspaceController,
-                cardColor,
-                borderColor,
-                textColor,
-              ),
-              const SizedBox(height: 12),
-              _buildTrackingTile(
-                context,
-                _workspaceController,
-                cardColor,
-                borderColor,
-                textColor,
-              ),
-              const SizedBox(height: 20),
-              _buildSettingTile(
-                cardColor: cardColor,
-                textColor: textColor,
-                icon: Icons.settings,
-                title: 'Settings',
-                subtitle: 'Theme, Notifications, and Account',
-                trailing: Icon(Icons.chevron_right,
-                    color: textColor.withOpacity(0.5)),
-                onTap: () async {
-                  await Navigator.push(
+                  lastLoginTime: _lastLoginTime,
+                ),
+
+                // ✅ FIX: Proper spacing between header and subscription
+                const SizedBox(height: 16),
+
+                // ── Subscription card ──────────────────────────────────
+                Obx(() {
+                  final isStaff =
+                      _workspaceController.userRole.value == 'Staff';
+                  if (isStaff) return const SizedBox.shrink();
+                  return SubscriptionCard(
+                    cardColor: cardColor,
+                    textColor: textColor,
+                    onSubscribeDialog: _showSubscribeDialog,
+                  );
+                }),
+
+                // ✅ FIX: Generous spacing before ORGANIZATION label
+                const SizedBox(height: 24),
+
+                // ── Organization ───────────────────────────────────────
+                _buildMyOrganizationTile(
                     context,
-                    MaterialPageRoute(
-                      builder: (context) => SettingsPage(
-                        toggleTheme: toggleTheme,
-                        isDarkMode: isDarkMode,
-                        notificationsEnabled: notificationsEnabled,
-                        toggleNotifications: toggleNotifications,
-                        biometricEnabled: biometricEnabled,
-                        toggleBiometric: toggleBiometric,
+                    _workspaceController,
+                    cardColor,
+                    borderColor,
+                    textColor,
+                    subColor),
+
+                const SizedBox(height: 20),
+
+                // ── Settings & About ───────────────────────────────────
+                _buildLabel('PREFERENCES', subColor),
+                _SectionCard(
+                  cardColor: cardColor,
+                  borderColor: borderColor,
+                  children: [
+                    _MenuRow(
+                      icon: Icons.settings_outlined,
+                      iconColor: Colors.grey,
+                      label: 'Settings',
+                      subtitle: 'Theme, Notifications, Account',
+                      textColor: textColor,
+                      onTap: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => SettingsPage(
+                              toggleTheme: toggleTheme,
+                              isDarkMode: isDarkMode,
+                              notificationsEnabled: notificationsEnabled,
+                              toggleNotifications: toggleNotifications,
+                              biometricEnabled: biometricEnabled,
+                              toggleBiometric: toggleBiometric,
+                            ),
+                          ),
+                        );
+                        _workspaceController.refreshAppData();
+                      },
+                    ),
+                    _Divider(color: borderColor),
+                    GestureDetector(
+                      onLongPress: _showAdminLoginDialog,
+                      child: _MenuRow(
+                        icon: Icons.info_outline_rounded,
+                        iconColor: Colors.teal,
+                        label: 'About',
+                        subtitle: 'Privacy, Terms & App Version',
+                        textColor: textColor,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const AboutPage()),
+                        ),
                       ),
                     ),
-                  );
-                  _workspaceController.refreshAppData();
-                },
-              ),
-              const SizedBox(height: 24),
-              _buildFooterSingleLine(textColor),
-              const SizedBox(height: 24),
-              const SizedBox(height: 24),
-            ],
+                  ],
+                ),
+
+                const SizedBox(height: 32),
+
+                // ── Footer ─────────────────────────────────────────────
+                Center(
+                  child: Text(
+                    '© ${DateTime.now().year} MDS Management',
+                    style: TextStyle(
+                      color: subColor,
+                      fontSize: 11,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  // Modular UI components have been moved to lib/screens/profile/widgets/
-
-  Widget _buildFooterSingleLine(Color textColor) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        GestureDetector(
-          onLongPress: _showAdminLoginDialog,
-          child: Text('Version ${appController.currentVersion.value}',
-              style:
-                  TextStyle(color: textColor.withOpacity(0.8), fontSize: 12)),
-        ),
-        const SizedBox(width: 12),
-        GestureDetector(
-          onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => const PrivacyPolicyScreen())),
-          child: Text('Privacy Policy',
-              style: TextStyle(
-                  color: textColor.withOpacity(0.9),
-                  fontSize: 12,
-                  decoration: TextDecoration.underline)),
-        ),
-        const SizedBox(width: 12),
-        GestureDetector(
-          onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (context) => const TermsOfServiceScreen())),
-          child: Text('Terms',
-              style: TextStyle(
-                  color: textColor.withOpacity(0.9),
-                  fontSize: 12,
-                  decoration: TextDecoration.underline)),
-        ),
-        const SizedBox(width: 12),
-        GestureDetector(
-          onTap: () {
-            appController.checkForUpdate();
-          },
-          child: Text('App Update',
-              style: TextStyle(
-                  color: textColor.withOpacity(0.9),
-                  fontSize: 12,
-                  decoration: TextDecoration.underline)),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSettingTile({
-    required Color cardColor,
-    required Color textColor,
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required Widget trailing,
-    VoidCallback? onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: textColor.withOpacity(0.05),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(icon, color: kOrange, size: 20),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                        color: textColor,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600),
-                  ),
-                  if (subtitle.isNotEmpty)
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                          color: textColor.withOpacity(0.5),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w400),
-                    ),
-                ],
-              ),
-            ),
-            trailing,
-          ],
+  Widget _buildLabel(String label, Color color) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 10),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 1.2,
         ),
       ),
     );
@@ -638,38 +416,34 @@ class _ProfileScreenState extends State<ProfileScreen> {
     Color cardColor,
     Color borderColor,
     Color textColor,
+    Color subColor,
   ) {
     return Obx(() {
       final isStaff = controller.userRole.value == 'Staff';
       final isConnected = controller.isConnected.value;
       final branchData = controller.currentBranchData;
-      SizedBox(
-        height: 10,
-      );
-      String title = 'Organization';
-      String name =
-          controller.userProfileData['schoolName'] ?? 'My Organization';
-      String subtitle = branchData['branchName'] ?? 'Manage Organization';
+
+      String sectionTitle = 'ORGANIZATION';
+      String name = controller.userProfileData['schoolName'] ??
+          'My Organization';
+      String subtitle =
+          branchData['branchName'] ?? 'Manage Organization';
       IconData icon = Icons.business_center_outlined;
-      VoidCallback onTap = () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const OrganizationManagementPage(),
-          ),
-        );
-      };
+      Color iconColor = kOrange;
+      VoidCallback onTap = () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => const OrganizationManagementPage()),
+          );
 
       if (isStaff) {
+        sectionTitle = 'WORKPLACE';
         if (!isConnected) {
-          // Show Join School option
           name = 'Join School Workspace';
           subtitle = 'Connect with your school owner';
           icon = Icons.add_business_outlined;
-          onTap = () => _showJoinSchoolDialog();
+          onTap = _showJoinSchoolDialog;
         } else {
-          // Show current workplace info but navigate to workplace info page
-          title = 'My Workplace';
           name = branchData['branchName'] ?? 'Connected School';
           subtitle = 'Working at this branch';
         }
@@ -678,155 +452,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              color: textColor.withOpacity(0.5),
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 0.5,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Container(
-            decoration: BoxDecoration(
-              color: cardColor,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: borderColor.withOpacity(0.5)),
-            ),
-            child: InkWell(
-              onTap: onTap,
-              borderRadius: BorderRadius.circular(16),
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: kOrange.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Icon(icon, color: kOrange, size: 24),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            name,
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            subtitle,
-                            style: TextStyle(
-                              color: textColor.withOpacity(0.6),
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Icon(Icons.chevron_right,
-                        color: textColor.withOpacity(0.3)),
-                  ],
-                ),
+          _buildLabel(sectionTitle, subColor),
+          _SectionCard(
+            cardColor: cardColor,
+            borderColor: borderColor,
+            children: [
+              _MenuRow(
+                icon: icon,
+                iconColor: iconColor,
+                label: name,
+                subtitle: subtitle,
+                textColor: textColor,
+                onTap: onTap,
               ),
-            ),
+            ],
           ),
         ],
       );
     });
   }
 
-  Widget _buildTrackingTile(
-    BuildContext context,
-    WorkspaceController controller,
-    Color cardColor,
-    Color borderColor,
-    Color textColor,
-  ) {
-    return Obx(() {
-      final isStaff = controller.userRole.value == 'Staff';
-      final isAdmin = controller.userRole.value == 'Owner' ||
-          controller.userRole.value == 'Admin';
-
-      if (!isStaff && !isAdmin) return const SizedBox.shrink();
-
-      return Container(
-        decoration: BoxDecoration(
-          color: cardColor,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: borderColor.withOpacity(0.5)),
-        ),
-        child: InkWell(
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => isStaff
-                    ? const StaffTrackingScreen()
-                    : const OwnerMapScreen(),
-              ),
-            );
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.blue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(
-                    isStaff ? Icons.my_location : Icons.map_outlined,
-                    color: Colors.blue,
-                    size: 24,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        isStaff ? 'My Tracking Status' : 'Live Fleet Tracking',
-                        style: TextStyle(
-                          color: textColor,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        isStaff
-                            ? 'Manage your location sharing'
-                            : 'Monitor all drivers in real-time',
-                        style: TextStyle(
-                          color: textColor.withOpacity(0.6),
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: textColor.withOpacity(0.3)),
-              ],
-            ),
-          ),
-        ),
-      );
-    });
-  }
+  // ── Dialogs ────────────────────────────────────────────────────────────────
 
   void _showJoinSchoolDialog() {
     final TextEditingController idController = TextEditingController();
@@ -839,8 +485,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return Dialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20)),
             child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -850,6 +496,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: kPrimaryColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.add_business_outlined,
+                        color: kPrimaryColor, size: 28),
+                  ),
+                  const SizedBox(height: 16),
                   Text(
                     'Join School Workspace',
                     style: TextStyle(
@@ -858,13 +514,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   Text(
-                    'Enter the School ID provided by your administrator to link your account.',
+                    'Enter the School ID provided by your administrator.',
                     style: TextStyle(
-                      color: isDark ? Colors.white70 : Colors.black54,
-                      fontSize: 13,
-                    ),
+                        color: isDark
+                            ? Colors.white70
+                            : Colors.black54,
+                        fontSize: 13),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 20),
@@ -872,7 +529,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     controller: idController,
                     enabled: !isLoading,
                     style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black87),
+                        color:
+                            isDark ? Colors.white : Colors.black87),
                     decoration: InputDecoration(
                       hintText: 'Enter School ID',
                       hintStyle: TextStyle(
@@ -880,16 +538,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               ? Colors.white.withOpacity(0.3)
                               : Colors.black.withOpacity(0.3)),
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                          borderRadius: BorderRadius.circular(12)),
                       errorText: errorMessage,
                       errorMaxLines: 2,
                     ),
-                    onChanged: (value) {
+                    onChanged: (_) {
                       if (errorMessage != null) {
-                        setState(() {
-                          errorMessage = null;
-                        });
+                        setState(() => errorMessage = null);
                       }
                     },
                   ),
@@ -898,8 +553,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     children: [
                       Expanded(
                         child: TextButton(
-                          onPressed:
-                              isLoading ? null : () => Navigator.pop(context),
+                          onPressed: isLoading
+                              ? null
+                              : () => Navigator.pop(context),
                           child: const Text('Cancel'),
                         ),
                       ),
@@ -909,42 +565,43 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           onPressed: isLoading
                               ? null
                               : () async {
-                                  final id = idController.text.trim();
+                                  final id =
+                                      idController.text.trim();
                                   if (id.isEmpty) {
-                                    setState(() {
-                                      errorMessage = 'Please enter a School ID';
-                                    });
+                                    setState(() => errorMessage =
+                                        'Please enter a School ID');
                                     return;
                                   }
-
                                   setState(() {
                                     isLoading = true;
                                     errorMessage = null;
                                   });
-
                                   final result =
-                                      await _workspaceController.joinSchool(id);
-
+                                      await _workspaceController
+                                          .joinSchool(id);
                                   if (mounted) {
                                     if (result['success'] == true) {
                                       Navigator.pop(context);
                                       Get.snackbar(
-                                        "Success",
+                                        'Success',
                                         result['message'] ??
                                             'Joined school workspace successfully',
-                                        snackPosition: SnackPosition.BOTTOM,
-                                        backgroundColor:
-                                            Colors.green.withOpacity(0.1),
+                                        snackPosition:
+                                            SnackPosition.BOTTOM,
+                                        backgroundColor: Colors.green
+                                            .withOpacity(0.1),
                                         colorText: isDark
                                             ? Colors.white
                                             : Colors.black87,
-                                        duration: const Duration(seconds: 2),
+                                        duration: const Duration(
+                                            seconds: 2),
                                       );
                                     } else {
                                       setState(() {
                                         isLoading = false;
-                                        errorMessage = result['message'] ??
-                                            'Failed to join school';
+                                        errorMessage =
+                                            result['message'] ??
+                                                'Failed to join school';
                                       });
                                     }
                                   }
@@ -952,8 +609,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           style: ElevatedButton.styleFrom(
                             backgroundColor: kPrimaryColor,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                                borderRadius:
+                                    BorderRadius.circular(12)),
                           ),
                           child: isLoading
                               ? const SizedBox(
@@ -961,12 +618,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   width: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white),
+                                    valueColor:
+                                        AlwaysStoppedAnimation<Color>(
+                                            Colors.white),
                                   ),
                                 )
                               : const Text('Join',
-                                  style: TextStyle(color: Colors.white)),
+                                  style:
+                                      TextStyle(color: Colors.white)),
                         ),
                       ),
                     ],
@@ -981,7 +640,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
   }
 
   void _showSubscribeDialog() {
-    final TextEditingController codeController = TextEditingController();
+    final TextEditingController codeController =
+        TextEditingController();
 
     showDialog(
       context: context,
@@ -989,7 +649,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text('Enter Activation Code'),
         content: TextField(
           controller: codeController,
-          decoration: const InputDecoration(hintText: 'XXXX-XXXX-XXXX-XXXX'),
+          decoration: const InputDecoration(
+              hintText: 'XXXX-XXXX-XXXX-XXXX'),
         ),
         actions: [
           TextButton(
@@ -998,20 +659,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ),
           ElevatedButton(
             onPressed: () async {
-              final code = codeController.text.trim().toUpperCase();
+              final code =
+                  codeController.text.trim().toUpperCase();
               if (code.isEmpty) return;
-
               final res = await SubscriptionService().redeemCode(
                 _workspaceController.currentSchoolId.value,
                 code,
                 redeemerUid: _currentUser!.uid,
               );
-
               if (mounted) {
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(res['message'] ?? 'Status updated')),
-                );
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content:
+                        Text(res['message'] ?? 'Status updated')));
                 _workspaceController.refreshAppData();
               }
             },
@@ -1026,12 +686,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('No user logged in'),
-            backgroundColor: Colors.red,
-          ),
-        );
+            backgroundColor: Colors.red));
       }
       return;
     }
@@ -1044,48 +701,202 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
       if (!doc.exists) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
               content: Text('Admin access not configured'),
-              backgroundColor: Colors.red,
-            ),
-          );
+              backgroundColor: Colors.red));
         }
         return;
       }
 
-      final data = doc.data()!;
-      final adminEmail = data['email'] as String?;
+      final adminEmail = doc.data()!['email'] as String?;
 
       if (user.email == adminEmail) {
         if (mounted) {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const AdminSubscriptionPage(),
-            ),
+                builder: (_) => const AdminSubscriptionPage()),
           );
         }
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Access Denied: Admin privileges required'),
-              backgroundColor: Colors.red,
-              duration: Duration(seconds: 3),
-            ),
-          );
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Access Denied: Admin privileges required'),
+            backgroundColor: Colors.red,
+            duration: Duration(seconds: 3),
+          ));
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             content: Text('Error: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
+            backgroundColor: Colors.red));
       }
     }
+  }
+}
+
+// ── Shared UI Components ──────────────────────────────────────────────────────
+
+class _SectionCard extends StatelessWidget {
+  final List<Widget> children;
+  final Color cardColor;
+  final Color borderColor;
+
+  const _SectionCard({
+    required this.children,
+    required this.cardColor,
+    required this.borderColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: borderColor),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(children: children),
+    );
+  }
+}
+
+class _MenuRow extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String label;
+  final String? subtitle;
+  final Color textColor;
+  final VoidCallback? onTap;
+  final Widget? trailing;
+
+  const _MenuRow({
+    required this.icon,
+    required this.iconColor,
+    required this.label,
+    required this.textColor,
+    this.subtitle,
+    this.onTap,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Icon(icon, color: iconColor, size: 18),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: TextStyle(
+                          color: textColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600)),
+                  if (subtitle != null && subtitle!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitle!,
+                        style: TextStyle(
+                            color: textColor.withOpacity(0.5),
+                            fontSize: 11.5)),
+                  ],
+                ],
+              ),
+            ),
+            trailing ??
+                Icon(Icons.chevron_right_rounded,
+                    color: textColor.withOpacity(0.28), size: 20),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Divider extends StatelessWidget {
+  final Color color;
+  const _Divider({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 64),
+      child: Divider(height: 1, thickness: 0.5, color: color),
+    );
+  }
+}
+
+class _BannerAlert extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String title;
+  final String message;
+
+  const _BannerAlert({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withOpacity(0.35), width: 1),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 3),
+                Text(message,
+                    style: TextStyle(
+                        color: color.withOpacity(0.85), fontSize: 12)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

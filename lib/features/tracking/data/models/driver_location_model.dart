@@ -2,8 +2,6 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:mds/features/tracking/domain/entities/driver_location.dart';
 
 /// Data model for serializing/deserializing driver location to/from Firebase
-///
-/// Handles conversion between domain entity and Firebase JSON format.
 class DriverLocationModel extends DriverLocation {
   const DriverLocationModel({
     required super.driverId,
@@ -14,9 +12,13 @@ class DriverLocationModel extends DriverLocation {
     super.lessonId,
     required super.isOnline,
     required super.updatedAt,
+    super.driverName,
+    super.schoolId,
+    super.branchId,
+    super.totalDistance,
+    super.lessonDistance,
   });
 
-  /// Create from domain entity
   factory DriverLocationModel.fromEntity(DriverLocation entity) {
     return DriverLocationModel(
       driverId: entity.driverId,
@@ -27,19 +29,23 @@ class DriverLocationModel extends DriverLocation {
       lessonId: entity.lessonId,
       isOnline: entity.isOnline,
       updatedAt: entity.updatedAt,
+      driverName: entity.driverName,
+      schoolId: entity.schoolId,
+      branchId: entity.branchId,
+      totalDistance: entity.totalDistance,
+      lessonDistance: entity.lessonDistance,
     );
   }
 
-  /// Create from Firebase DataSnapshot
   factory DriverLocationModel.fromSnapshot(
     String driverId,
     DataSnapshot snapshot,
   ) {
-    final data = snapshot.value as Map<dynamic, dynamic>?;
+    final value = snapshot.value;
+    if (value == null) throw Exception('Snapshot data is null');
 
-    if (data == null) {
-      throw Exception('Snapshot data is null');
-    }
+    final Map<dynamic, dynamic> data =
+        Map<dynamic, dynamic>.from(value as Map);
 
     return DriverLocationModel(
       driverId: driverId,
@@ -53,10 +59,15 @@ class DriverLocationModel extends DriverLocation {
           ? DateTime.fromMillisecondsSinceEpoch(
               (data['updatedAt'] as num).toInt())
           : DateTime.now(),
+      driverName: data['driverName'] as String?,
+      schoolId: data['schoolId'] as String?,
+      branchId: data['branchId'] as String?,
+      totalDistance: (data['totalDistance'] as num?)?.toDouble() ?? 0.0,
+      // ✅ lessonDistance stored separately so it's readable on lesson end
+      lessonDistance: (data['lessonDistance'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
-  /// Convert to JSON map for Firebase
   Map<String, dynamic> toJson() {
     return {
       'lat': latitude,
@@ -66,10 +77,14 @@ class DriverLocationModel extends DriverLocation {
       if (lessonId != null) 'lessonId': lessonId,
       'isOnline': isOnline,
       'updatedAt': ServerValue.timestamp,
+      if (driverName != null) 'driverName': driverName,
+      if (schoolId != null) 'schoolId': schoolId,
+      if (branchId != null) 'branchId': branchId,
+      'totalDistance': totalDistance,
+      'lessonDistance': lessonDistance, // ✅ always write lesson distance
     };
   }
 
-  /// Convert to domain entity
   DriverLocation toEntity() {
     return DriverLocation(
       driverId: driverId,
@@ -80,6 +95,11 @@ class DriverLocationModel extends DriverLocation {
       lessonId: lessonId,
       isOnline: isOnline,
       updatedAt: updatedAt,
+      driverName: driverName,
+      schoolId: schoolId,
+      branchId: branchId,
+      totalDistance: totalDistance,
+      lessonDistance: lessonDistance,
     );
   }
 }

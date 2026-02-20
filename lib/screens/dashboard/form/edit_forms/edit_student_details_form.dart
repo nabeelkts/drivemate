@@ -258,25 +258,31 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
           });
 
           try {
-            // Initiate update but don't await full server confirmation to keep UI fast
-            unawaited(updateFirestore(student).then((_) {
-              if (kDebugMode) print('Update completed in background');
-            }).catchError((e) {
-              if (kDebugMode) print('Background update error: $e');
-            }));
-
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Update initiated...')),
-            );
-            Navigator.pop(context);
+            await updateFirestore(student);
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Student details updated successfully'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+              Navigator.pop(context);
+            }
           } catch (error) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Error: $error')),
-            );
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to update: $error'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            }
           } finally {
-            setState(() {
-              isLoading = false;
-            });
+            if (mounted) {
+              setState(() {
+                isLoading = false;
+              });
+            }
           }
         },
       ),

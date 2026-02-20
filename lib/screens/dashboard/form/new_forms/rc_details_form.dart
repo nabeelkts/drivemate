@@ -69,6 +69,7 @@ class _RCDetailsFormState extends State<RCDetailsForm> {
           'POLLUTION',
           'INSURANCE',
           'Otherstate Conversion',
+          'Echellan',
           'OTHER',
         ],
         index: 0,

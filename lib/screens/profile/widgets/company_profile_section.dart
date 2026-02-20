@@ -3,6 +3,7 @@ import 'package:get/get.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/profile/edit_company_profile.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class CompanyProfileSection extends StatelessWidget {
   final Color cardColor;
@@ -136,23 +137,15 @@ class CompanyProfileSection extends StatelessWidget {
         child: controller.companyData['companyLogo'] != null
             ? ClipRRect(
                 borderRadius: BorderRadius.circular(25),
-                child: Image.network(
-                  controller.companyData['companyLogo'],
+                child: CachedNetworkImage(
+                  imageUrl: controller.companyData['companyLogo'],
                   width: 50,
                   height: 50,
                   fit: BoxFit.cover,
-                  loadingBuilder: (context, child, loadingProgress) {
-                    if (loadingProgress == null) return child;
-                    return Center(
-                      child: CircularProgressIndicator(
-                        value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                                loadingProgress.expectedTotalBytes!
-                            : null,
-                      ),
-                    );
-                  },
-                  errorBuilder: (context, error, stackTrace) {
+                  placeholder: (context, url) => const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                  errorWidget: (context, url, error) {
                     return const Icon(Icons.business, color: kOrange, size: 24);
                   },
                 ),

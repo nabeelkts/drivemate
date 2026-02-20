@@ -54,7 +54,7 @@ class BackgroundService {
       await GetStorage.init();
       print('BackgroundService: GetStorage initialized');
 
-      // Get current user ID from storage
+      // Get current user info from storage
       final storage = GetStorage();
       String? userId = storage.read('userId') as String?;
       print('BackgroundService: userId from storage: $userId');
@@ -74,17 +74,29 @@ class BackgroundService {
         return;
       }
 
-      // Initialize TrackingRepository for this isolate
-      final database = FirebaseDatabase.instance;
-      // Manually instantiate repository
-      final trackingRepo = FirebaseTrackingRepository(database);
-      // We don't need Get.put in background isolate anymore as we inject manually
-      // Get.put<TrackingRepository>(trackingRepo);
+      // Read driver metadata from storage (written by WorkspaceController)
+      final driverName = storage.read('driverName') as String?;
+      final schoolId = storage.read('schoolId') as String?;
+      final branchId = storage.read('branchId') as String?;
+      print(
+          'DIAGNOSTIC: BackgroundService storage read - userId=$userId, driverName=$driverName, schoolId=$schoolId, branchId=$branchId');
 
-      // Initialize tracking service with dependencies
+      // Initialize TrackingRepository for this isolate with explicit URL
+      // This ensures background isolate always connects to the correct database
+      const databaseUrl = 'https://smds-c1713-default-rtdb.firebaseio.com';
+      final database = FirebaseDatabase.instanceFor(
+        app: Firebase.app(),
+        databaseURL: databaseUrl,
+      );
+      final trackingRepo = FirebaseTrackingRepository(database);
+
+      // Initialize tracking service with dependencies and metadata
       final trackingService = LocationTrackingService(
         repository: trackingRepo,
         serviceInstance: service,
+        driverName: driverName,
+        schoolId: schoolId,
+        branchId: branchId,
       );
 
       // Manually initialize the service since we aren't using Get.put

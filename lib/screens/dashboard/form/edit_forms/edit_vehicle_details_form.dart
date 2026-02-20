@@ -37,7 +37,7 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
   late final TextEditingController totalAmountController;
   late final TextEditingController advanceAmountController;
   late final TextEditingController balanceAmountController;
-  late String selectedService;
+  List<String> selectedServices = [];
   late final TextEditingController otherServiceController;
 
   @override
@@ -71,39 +71,24 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
         TextEditingController(text: v['balanceAmount']?.toString() ?? '');
 
     final savedService = v['cov']?.toString() ?? 'Transfer of Ownership';
-    final allItems = [
-      ...widget.items,
-      'Tax',
-      'Insurance',
-      'Fresh Permit',
-      'Permit Renewal',
-      'Registration Renewal',
-      'Other'
-    ];
 
-    // Check if saved service is in the standard list (excluding 'Other' from check initially)
-    if (allItems.contains(savedService) && savedService != 'Other') {
-      selectedService = savedService;
-      otherServiceController = TextEditingController();
+    // Parse comma-separated services into list
+    if (savedService.isNotEmpty && savedService != 'null') {
+      selectedServices = savedService.split(', ').map((e) => e.trim()).toList();
     } else {
-      selectedService = 'Other';
-      otherServiceController = TextEditingController(text: savedService);
+      selectedServices = ['Transfer of Ownership'];
+    }
+
+    if (selectedServices.contains('Other')) {
+      final otherVal = v['otherService']?.toString() ?? '';
+      otherServiceController = TextEditingController(text: otherVal);
+    } else {
+      otherServiceController = TextEditingController();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    // Merge passed items with new items, ensuring uniqueness
-    final displayItems = {
-      ...widget.items,
-      'Tax',
-      'Insurance',
-      'Fresh Permit',
-      'Permit Renewal',
-      'Registration Renewal',
-      'Other'
-    }.toList();
-
     return BaseFormWidget(
       title: 'Edit Vehicle Details',
       onBack: () => Navigator.pop(context),
@@ -120,9 +105,11 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
                 final schoolId = workspaceController.currentSchoolId.value;
                 final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
 
-                final serviceType = selectedService == 'Other'
-                    ? otherServiceController.text
-                    : selectedService;
+                // Final service type logic
+                final serviceTypes = selectedServices.isNotEmpty
+                    ? selectedServices
+                    : ['Transfer of Ownership'];
+                final covString = serviceTypes.join(', ');
 
                 final data = {
                   'fullName': fullNameController.text,
@@ -136,7 +123,11 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
                   'vehicleModel': vehicleModelController.text,
                   'chassisNumber': chassisNumberController.text,
                   'engineNumber': engineNumberController.text,
-                  'cov': serviceType,
+                  'cov': covString,
+                  'serviceTypes': serviceTypes, // Array of services
+                  'otherService': serviceTypes.contains('Other')
+                      ? otherServiceController.text
+                      : null,
                   'totalAmount': totalAmountController.text,
                   'advanceAmount': advanceAmountController.text,
                   'balanceAmount': balanceAmountController.text,
@@ -214,27 +205,27 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
                     controller: engineNumberController,
                     placeholder: 'Enter Engine Number',
                   ),
-                  DropdownButtonFormField<String>(
-                    value: selectedService,
-                    decoration: const InputDecoration(
-                      labelText: 'Service Type',
-                      border: OutlineInputBorder(),
+                  InkWell(
+                    onTap: () => _showServiceSelectionDialog(context),
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                        labelText: 'Service Types',
+                        border: OutlineInputBorder(),
+                        suffixIcon: Icon(Icons.arrow_drop_down),
+                      ),
+                      child: Text(
+                        selectedServices.isEmpty
+                            ? 'Select Services'
+                            : selectedServices.join(', '),
+                        style: TextStyle(
+                          color: selectedServices.isEmpty
+                              ? Colors.grey.shade600
+                              : null,
+                        ),
+                      ),
                     ),
-                    items: displayItems.map((String value) {
-                      return DropdownMenuItem<String>(
-                        value: value,
-                        child: Text(value),
-                      );
-                    }).toList(),
-                    onChanged: (String? newValue) {
-                      if (newValue != null) {
-                        setState(() {
-                          selectedService = newValue;
-                        });
-                      }
-                    },
                   ),
-                  if (selectedService == 'Other')
+                  if (selectedServices.contains('Other'))
                     FormTextField(
                       label: 'Specify Service',
                       controller: otherServiceController,
@@ -244,8 +235,9 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
                     ),
                 ],
               ),
-              if (selectedService == 'Transfer of Ownership' ||
-                  selectedService == 'Address Change')
+              if (selectedServices.contains('Transfer of Ownership') ||
+                  selectedServices.contains('Change of Address') ||
+                  selectedServices.contains('Address Change'))
                 FormSection(
                   title: 'Address',
                   children: [
@@ -324,6 +316,114 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
           ),
         ),
       ],
+    );
+  }
+
+  void _showServiceSelectionDialog(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    final List<String> availableServices = [
+      'Transfer of Ownership',
+      'Change of Address',
+      'Hypothecation Termination',
+      'Hypothecation Addition',
+      'TO + HP Cancellation',
+      'NOC',
+      'FITNESS',
+      'Fresh Permit',
+      'Permit Renewal',
+      'Registration Renewal',
+      'RC CANCELLATION',
+      'DUPLICATE RC',
+      'CONVERSION',
+      'ALTERATION',
+      'WELFARE',
+      'TAX',
+      'GREENTAX',
+      'CHECKPOST TAX',
+      'POLLUTION',
+      'INSURANCE',
+      'Otherstate Conversion',
+      'Echellan',
+      'OTHER',
+    ];
+
+    List<String> tempSelected = List.from(selectedServices);
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: Text(
+                'Select Service Types',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              content: SizedBox(
+                width: double.maxFinite,
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: availableServices.length,
+                  itemBuilder: (context, index) {
+                    final service = availableServices[index];
+                    final isSelected = tempSelected.contains(service);
+                    return CheckboxListTile(
+                      title: Text(
+                        service,
+                        style: TextStyle(
+                          color: isDark ? Colors.white70 : Colors.black87,
+                        ),
+                      ),
+                      value: isSelected,
+                      activeColor: const Color(0xFFFF6B2C),
+                      onChanged: (bool? value) {
+                        setDialogState(() {
+                          if (value == true) {
+                            tempSelected.add(service);
+                          } else {
+                            tempSelected.remove(service);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    'Cancel',
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFFFF6B2C),
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      selectedServices = tempSelected;
+                    });
+                    Navigator.pop(context);
+                  },
+                  child: const Text(
+                    'Confirm',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 }

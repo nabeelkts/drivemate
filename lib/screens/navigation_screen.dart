@@ -14,6 +14,7 @@ import 'package:mds/services/app_lifecycle_service.dart';
 import 'package:mds/services/subscription_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/features/tracking/presentation/screens/owner_map_screen.dart';
 
 class BottomNavScreen extends StatefulWidget {
   const BottomNavScreen({super.key});
@@ -32,7 +33,8 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
   // Subscription state
   final SubscriptionService _subscriptionService = SubscriptionService();
   bool _isSubscriptionExpired = false;
-  bool _isCheckingSubscription = true;
+
+  bool get _isOwner => _workspaceController.userRole.value == 'Owner';
 
   @override
   void initState() {
@@ -41,7 +43,6 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
     box.listenKey('homeLayout', (value) {
       if (mounted) {
         setState(() {
-          // Re-initialize the dashboard screen in the list
           _screens[0] = _getCurrentDashboard();
         });
       }
@@ -51,27 +52,37 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
     // Check biometric authentication when app first loads
     _checkBiometricOnStart();
 
-    // Initialize screens once
-    _screens = [
-      _getCurrentDashboard(),
-      const StatsScreen(),
-      const AccountsScreen(),
-      ProfileScreen(onSubscriptionRenewed: _checkSubscription),
-    ];
+    _screens = _buildScreens();
+  }
+
+  List<Widget> _buildScreens() {
+    if (_isOwner) {
+      return [
+        _getCurrentDashboard(),
+        const StatsScreen(),
+        const OwnerMapScreen(), // Map tab — owners only
+        const AccountsScreen(),
+        ProfileScreen(onSubscriptionRenewed: _checkSubscription),
+      ];
+    } else {
+      return [
+        _getCurrentDashboard(),
+        const StatsScreen(),
+        const AccountsScreen(),
+        ProfileScreen(onSubscriptionRenewed: _checkSubscription),
+      ];
+    }
   }
 
   Future<void> _checkSubscription() async {
     final schoolId = _workspaceController.currentSchoolId.value;
     final user = FirebaseAuth.instance.currentUser;
 
-    // If no school ID is set and no user is logged in, we can't check subscription
     if (schoolId.isEmpty && user == null) {
-      setState(() => _isCheckingSubscription = false);
       return;
     }
 
     try {
-      // Wait for WorkspaceController to finish loading its initial data
       int retryCount = 0;
       while (_workspaceController.isLoading.value && retryCount < 30) {
         await Future.delayed(const Duration(milliseconds: 100));
@@ -79,12 +90,9 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
       }
 
       final schoolId = _workspaceController.currentSchoolId.value;
-      // Use schoolId for subscription check if available, otherwise fallback to user.uid
       final targetId = schoolId.isNotEmpty ? schoolId : (user?.uid ?? '');
 
       if (targetId.isEmpty) {
-        // If still no ID, cannot check subscription
-        setState(() => _isCheckingSubscription = false);
         return;
       }
 
@@ -92,40 +100,36 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
       final isGracePeriodExpired = result['isGracePeriodExpired'] ?? false;
 
       if (mounted) {
+        final profileIndex = _isOwner ? 4 : 3;
         setState(() {
           _isSubscriptionExpired = isGracePeriodExpired;
-          _isCheckingSubscription = false;
 
-          // If grace period expired, force navigate to Profile tab
-          if (isGracePeriodExpired && _currentIndex != 3) {
-            _currentIndex = 3;
+          if (isGracePeriodExpired && _currentIndex != profileIndex) {
+            _currentIndex = profileIndex;
           }
         });
       }
     } catch (e) {
       print('Error checking subscription: $e');
-      if (mounted) {
-        setState(() => _isCheckingSubscription = false);
-      }
     }
   }
 
   Future<void> _checkBiometricOnStart() async {
-    // Wait a bit for the UI to render
     await Future.delayed(const Duration(milliseconds: 500));
 
     try {
       final lifecycleService = Get.find<AppLifecycleService>();
       await lifecycleService.checkBiometricOnAppStart();
     } catch (e) {
-      // Service might not be initialized yet, ignore
       print('Error checking biometric on start: $e');
     }
   }
 
   void _onItemTapped(int index) {
+    final profileIndex = _isOwner ? 4 : 3;
+
     // Block navigation to other tabs if staff is not connected
-    if (!_workspaceController.isConnected.value && index != 3) {
+    if (!_workspaceController.isConnected.value && index != profileIndex) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
@@ -140,7 +144,7 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
     }
 
     // Block navigation to other tabs if subscription is expired
-    if (_isSubscriptionExpired && index != 3) {
+    if (_isSubscriptionExpired && index != profileIndex) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
@@ -153,7 +157,7 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
             label: 'Renew',
             textColor: Colors.white,
             onPressed: () {
-              setState(() => _currentIndex = 3);
+              setState(() => _currentIndex = profileIndex);
             },
           ),
         ),
@@ -190,7 +194,7 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
             ),
             Obx(() {
               if (!_workspaceController.isConnected.value &&
-                  _currentIndex != 3) {
+                  _currentIndex != (_isOwner ? 4 : 3)) {
                 return Container(
                   color: theme.scaffoldBackgroundColor.withOpacity(0.95),
                   child: Center(
@@ -214,7 +218,8 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
                           ),
                           const SizedBox(height: 32),
                           ElevatedButton(
-                            onPressed: () => setState(() => _currentIndex = 3),
+                            onPressed: () => setState(
+                                () => _currentIndex = _isOwner ? 4 : 3),
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 32, vertical: 12),
@@ -253,47 +258,83 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
           ],
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        backgroundColor:
-            theme.brightness == Brightness.dark ? Colors.black : Colors.white,
-        currentIndex: _currentIndex,
-        onTap: _onItemTapped,
-        type: BottomNavigationBarType.fixed,
-        showSelectedLabels: true,
-        showUnselectedLabels: true,
-        selectedItemColor: theme.colorScheme.primary,
-        unselectedItemColor: Colors.grey.shade500,
-        elevation: 0.0,
-        items: [
-          buildNavBarItem(0, IconlyLight.home, 'Home'),
-          buildNavBarItem(1, IconlyLight.chart, 'Statistics'),
-          buildNavBarItem(2, IconlyLight.swap, 'Accounts'),
-          buildNavBarItem(3, IconlyLight.profile, 'Profile'),
-        ],
-      ),
+      bottomNavigationBar:
+          _isOwner ? _buildOwnerNavBar(theme) : _buildStaffNavBar(theme),
     );
   }
 
-  BottomNavigationBarItem buildNavBarItem(
-      int index, IconData icon, String label) {
+  /// 5-tab nav bar for owners: Home | Stats | Map | Accounts | Profile
+  Widget _buildOwnerNavBar(ThemeData theme) {
+    return BottomNavigationBar(
+      backgroundColor:
+          theme.brightness == Brightness.dark ? Colors.black : Colors.white,
+      currentIndex: _currentIndex,
+      onTap: _onItemTapped,
+      type: BottomNavigationBarType.fixed,
+      showSelectedLabels: true,
+      showUnselectedLabels: true,
+      selectedItemColor: theme.colorScheme.primary,
+      unselectedItemColor: Colors.grey.shade500,
+      elevation: 0.0,
+      items: [
+        _buildNavBarItem(0, IconlyLight.home, 'Home'),
+        _buildNavBarItem(1, IconlyLight.chart, 'Statistics'),
+        _buildNavBarItem(2, Icons.map_outlined, 'Map', useIconData: true),
+        _buildNavBarItem(3, IconlyLight.swap, 'Accounts'),
+        _buildNavBarItem(4, IconlyLight.profile, 'Profile'),
+      ],
+    );
+  }
+
+  /// 4-tab nav bar for staff: Home | Stats | Accounts | Profile
+  Widget _buildStaffNavBar(ThemeData theme) {
+    return BottomNavigationBar(
+      backgroundColor:
+          theme.brightness == Brightness.dark ? Colors.black : Colors.white,
+      currentIndex: _currentIndex,
+      onTap: _onItemTapped,
+      type: BottomNavigationBarType.fixed,
+      showSelectedLabels: true,
+      showUnselectedLabels: true,
+      selectedItemColor: theme.colorScheme.primary,
+      unselectedItemColor: Colors.grey.shade500,
+      elevation: 0.0,
+      items: [
+        _buildNavBarItem(0, IconlyLight.home, 'Home'),
+        _buildNavBarItem(1, IconlyLight.chart, 'Statistics'),
+        _buildNavBarItem(2, IconlyLight.swap, 'Accounts'),
+        _buildNavBarItem(3, IconlyLight.profile, 'Profile'),
+      ],
+    );
+  }
+
+  BottomNavigationBarItem _buildNavBarItem(
+    int index,
+    dynamic icon,
+    String label, {
+    bool useIconData = false,
+  }) {
     final theme = Theme.of(context);
+    final profileIndex = _isOwner ? 4 : 3;
     final isStaffUnconnected =
-        !_workspaceController.isConnected.value && index != 3;
+        !_workspaceController.isConnected.value && index != profileIndex;
     final isDisabled =
-        (_isSubscriptionExpired || isStaffUnconnected) && index != 3;
+        (_isSubscriptionExpired || isStaffUnconnected) && index != profileIndex;
+
+    final iconWidget = Opacity(
+      opacity: isDisabled ? 0.3 : 1.0,
+      child: Icon(
+        icon as IconData,
+        color: _currentIndex == index
+            ? theme.colorScheme.primary
+            : (isDisabled ? Colors.grey.shade400 : Colors.grey.shade700),
+        size: 32,
+      ),
+    );
 
     return BottomNavigationBarItem(
       label: label,
-      icon: Opacity(
-        opacity: isDisabled ? 0.3 : 1.0,
-        child: Icon(
-          icon,
-          color: _currentIndex == index
-              ? theme.colorScheme.primary
-              : (isDisabled ? Colors.grey.shade400 : Colors.grey.shade700),
-          size: 35,
-        ),
-      ),
+      icon: iconWidget,
     );
   }
 }

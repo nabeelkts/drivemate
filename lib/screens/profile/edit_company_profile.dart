@@ -11,6 +11,7 @@ import 'package:mds/constants/colors.dart';
 import 'package:mds/services/storage_service.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class EditCompanyProfile extends StatefulWidget {
   final Map<String, dynamic>? initialData;
@@ -27,27 +28,34 @@ class _EditCompanyProfileState extends State<EditCompanyProfile> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   late TextEditingController _phoneController;
+  late TextEditingController _emailController;
   late TextEditingController _addressController;
   XFile? _pickedLogo;
   String? _logoUrl;
   bool _isLoading = false;
+  final WorkspaceController _workspaceController =
+      Get.find<WorkspaceController>();
 
   @override
   void initState() {
     super.initState();
-    _nameController =
-        TextEditingController(text: widget.initialData?['companyName'] ?? '');
-    _phoneController =
-        TextEditingController(text: widget.initialData?['companyPhone'] ?? '');
+    final data = widget.initialData;
+    _nameController = TextEditingController(
+        text: data?['companyName'] ?? data?['branchName'] ?? '');
+    _phoneController = TextEditingController(
+        text: data?['companyPhone'] ?? data?['contactPhone'] ?? '');
+    _emailController = TextEditingController(
+        text: data?['companyEmail'] ?? data?['contactEmail'] ?? '');
     _addressController = TextEditingController(
-        text: widget.initialData?['companyAddress'] ?? '');
-    _logoUrl = widget.initialData?['companyLogo'];
+        text: data?['companyAddress'] ?? data?['location'] ?? '');
+    _logoUrl = data?['companyLogo'] ?? data?['logoUrl'];
   }
 
   @override
   void dispose() {
     _nameController.dispose();
     _phoneController.dispose();
+    _emailController.dispose();
     _addressController.dispose();
     super.dispose();
   }
@@ -73,6 +81,10 @@ class _EditCompanyProfileState extends State<EditCompanyProfile> {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
+      final isBranch = widget.initialData != null &&
+          widget.initialData!['id'] != null &&
+          widget.initialData!['id'] != _workspaceController.targetId;
+
       String? uploadedLogoUrl = _logoUrl;
       if (_pickedLogo != null) {
         final storageService = StorageService();
@@ -80,31 +92,60 @@ class _EditCompanyProfileState extends State<EditCompanyProfile> {
             await storageService.uploadCompanyLogo(user.uid, _pickedLogo!);
       }
 
-      final data = {
-        'companyName': _nameController.text.trim(),
-        'companyPhone': _phoneController.text.trim(),
-        'companyAddress': _addressController.text.trim(),
-        'companyLogo': uploadedLogoUrl,
-        'hasCompanyProfile': true,
-      };
+      if (isBranch) {
+        // Update branch subcollection
+        final result = await _workspaceController.updateBranchProfile(
+          widget.initialData!['id'],
+          {
+            'branchName': _nameController.text.trim(),
+            'contactPhone': _phoneController.text.trim(),
+            'contactEmail': _emailController.text.trim(),
+            'location': _addressController.text.trim(),
+            'logoUrl': uploadedLogoUrl,
+          },
+          logoFile: _pickedLogo,
+        );
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .set(data, SetOptions(merge: true));
+        if (!result['success']) {
+          throw Exception(result['message']);
+        }
+      } else {
+        // Update main school document
+        final data = {
+          'companyName': _nameController.text.trim(),
+          'companyPhone': _phoneController.text.trim(),
+          'companyEmail': _emailController.text.trim(),
+          'companyAddress': _addressController.text.trim(),
+          'companyLogo': uploadedLogoUrl,
+          'hasCompanyProfile': true,
+        };
+
+        if (widget.initialData != null && widget.initialData!['id'] != null) {
+          // If we have an ID, use it (could be the owner's UID or schoolId)
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(widget.initialData!['id'])
+              .set(data, SetOptions(merge: true));
+        } else {
+          // Fallback to current user UID
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(user.uid)
+              .set(data, SetOptions(merge: true));
+        }
+      }
 
       if (mounted) {
-        if (widget.isRegistration) {
-          // Await workspace initialization before going home
-          final workspaceController = Get.find<WorkspaceController>();
-          await workspaceController.initializeWorkspace();
+        // Refresh workspace data to reflect changes immediately
+        await _workspaceController.refreshAppData();
 
+        if (widget.isRegistration) {
           if (mounted) {
             Navigator.pushNamedAndRemoveUntil(
                 context, '/home', (route) => false);
           }
         } else {
-          Fluttertoast.showToast(msg: 'Company profile updated successfully');
+          Fluttertoast.showToast(msg: 'Profile updated successfully');
           Navigator.pop(context, true);
         }
       }
@@ -159,6 +200,15 @@ class _EditCompanyProfileState extends State<EditCompanyProfile> {
                         : (v.length < 10 ? 'Enter valid phone' : null),
                   ),
                   FormTextField(
+                    label: 'Contact Email',
+                    controller: _emailController,
+                    placeholder: 'Enter email address',
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (v) => (v == null || v.isEmpty)
+                        ? 'Enter email'
+                        : (!v.contains('@') ? 'Enter valid email' : null),
+                  ),
+                  FormTextField(
                     label: 'Address',
                     controller: _addressController,
                     placeholder: 'Enter full address',
@@ -200,7 +250,7 @@ class _EditCompanyProfileState extends State<EditCompanyProfile> {
                             fit: BoxFit.cover)
                         : (_logoUrl != null && _logoUrl!.isNotEmpty
                             ? DecorationImage(
-                                image: NetworkImage(_logoUrl!),
+                                image: CachedNetworkImageProvider(_logoUrl!),
                                 fit: BoxFit.cover)
                             : null),
                   ),

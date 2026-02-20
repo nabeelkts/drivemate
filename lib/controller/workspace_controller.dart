@@ -5,6 +5,7 @@ import 'dart:async';
 import 'package:mds/services/subscription_service.dart';
 import 'package:mds/services/storage_service.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:mds/features/tracking/services/location_tracking_service.dart';
 
 class WorkspaceController extends GetxController {
   final _firestore = FirebaseFirestore.instance;
@@ -12,21 +13,18 @@ class WorkspaceController extends GetxController {
   final _storage = GetStorage();
 
   final RxString currentSchoolId = "".obs;
-  final RxString userRole = "Owner".obs; // Default to Owner
-  final RxBool isLoading = false.obs; // Changed initial value to false
-  final RxBool isConnected =
-      true.obs; // Owners are always "connected" to themselves
-  final RxBool isOrganizationMode =
-      false.obs; // Toggle between Branch vs Org context
+  final RxString userRole = "Owner".obs;
+  final RxBool isLoading = false.obs;
+  final RxBool isConnected = true.obs;
+  final RxBool isOrganizationMode = false.obs;
 
   // App Data
-  final RxMap<String, dynamic> userProfileData =
-      <String, dynamic>{}.obs; // Personal profile
-  final RxMap<String, dynamic> companyData =
-      <String, dynamic>{}.obs; // Workspace/School context
+  final RxMap<String, dynamic> userProfileData = <String, dynamic>{}.obs;
+  final RxMap<String, dynamic> companyData = <String, dynamic>{}.obs;
   final RxMap<String, dynamic> subscriptionData = <String, dynamic>{}.obs;
   final RxBool isAppDataLoading = false.obs;
   bool _isInitializing = false;
+  bool _trackingStarted = false; // Prevent duplicate tracking starts
   final SubscriptionService _subscriptionService = SubscriptionService();
   StreamSubscription? _userDocSubscription;
 
@@ -37,7 +35,6 @@ class WorkspaceController extends GetxController {
 
   /// Returns the data for the currently active branch
   Map<String, dynamic> get currentBranchData {
-    // If no specific branch is selected, return the company/school data
     if (currentBranchId.value.isEmpty) {
       if (companyData.isNotEmpty) {
         return _normalizeCompanyData(companyData);
@@ -45,7 +42,6 @@ class WorkspaceController extends GetxController {
       return {};
     }
 
-    // Try to find in owned branches
     final branch = ownedBranches.firstWhere(
       (b) => b['id'] == currentBranchId.value,
       orElse: () => {},
@@ -53,7 +49,6 @@ class WorkspaceController extends GetxController {
 
     if (branch.isNotEmpty) return branch;
 
-    // Fallback to main company data (handles staff and owner main branch)
     if (companyData.isNotEmpty) {
       return _normalizeCompanyData(companyData);
     }
@@ -72,22 +67,17 @@ class WorkspaceController extends GetxController {
     };
   }
 
-  /// Returns the ID that should be used for Firestore operations.
-  /// Prioritizes currentSchoolId, falls back to the logged in user's UID.
+  /// Returns the ID used for Firestore operations.
   String get targetId {
     if (currentSchoolId.value.isNotEmpty) return currentSchoolId.value;
     return _auth.currentUser?.uid ?? "";
   }
 
-  /// Helper to get a filtered Query for any top-level collection of a user/school
+  /// Helper to get a filtered Query for any top-level collection
   Query<Map<String, dynamic>> getFilteredCollection(String collectionName) {
     Query<Map<String, dynamic>> query =
         _firestore.collection('users').doc(targetId).collection(collectionName);
 
-    // Apply branch filter only if:
-    // 1. Not in organization mode
-    // 2. A branch ID is selected
-    // 3. The selected branch is NOT the primary/main branch (to support legacy data visibility)
     if (!isOrganizationMode.value &&
         currentBranchId.value.isNotEmpty &&
         currentBranchId.value != targetId) {
@@ -100,21 +90,21 @@ class WorkspaceController extends GetxController {
   @override
   void onInit() {
     super.onInit();
-    _loadMode(); // Load persisted mode
+    _loadMode();
     initializeWorkspace();
 
-    // Listen to auth changes
     _auth.authStateChanges().listen((user) {
       if (user != null) {
+        _trackingStarted = false; // Reset on re-login
         initializeWorkspace();
         _listenToUserDoc(user.uid);
       } else {
         currentSchoolId.value = "";
+        _trackingStarted = false;
         _userDocSubscription?.cancel();
       }
     });
 
-    // Handle mode persistence
     ever(isOrganizationMode, (bool val) {
       _storage.write('isOrganizationMode', val);
     });
@@ -134,7 +124,7 @@ class WorkspaceController extends GetxController {
         "DEBUG: WorkspaceController: initializeWorkspace called. user: ${_auth.currentUser?.uid}, isInitializing: $_isInitializing");
     if (_isInitializing) return;
 
-    // Hard fail-safe: Force loading to false after 10 seconds no matter what
+    // Hard fail-safe
     Future.delayed(const Duration(seconds: 10), () {
       if (isLoading.value || isAppDataLoading.value) {
         print(
@@ -152,7 +142,7 @@ class WorkspaceController extends GetxController {
       return;
     }
 
-    // Persist userId for background tracking service
+    // Persist userId immediately for background tracking service
     _storage.write('userId', user.uid);
 
     try {
@@ -183,7 +173,6 @@ class WorkspaceController extends GetxController {
 
         if (schoolId == null || schoolId.isEmpty) {
           if (role == 'Owner') {
-            // Initialize with own UID if no schoolId exists for Owner
             schoolId = user.uid;
             await _firestore.collection('users').doc(user.uid).update({
               'schoolId': schoolId,
@@ -193,20 +182,29 @@ class WorkspaceController extends GetxController {
         currentSchoolId.value = schoolId ?? "";
         currentBranchId.value = data?['branchId'] ?? "";
 
-        // Determine connection status
         if (role == 'Owner') {
           isConnected.value = true;
-          // For owners, the default branch is their own UID if no branches exist,
-          // but we'll load the actual branches subcollection in _fetchAllAppData
         } else {
-          // Staff is connected if their schoolId is NOT their own UID and not empty
           isConnected.value =
               schoolId != null && schoolId.isNotEmpty && schoolId != user.uid;
+        }
+
+        // Persist for background service
+        if (schoolId != null && schoolId.isNotEmpty) {
+          _storage.write('schoolId', schoolId);
+        }
+        final branchId = data?['branchId'] as String?;
+        if (branchId != null && branchId.isNotEmpty) {
+          _storage.write('branchId', branchId);
+        }
+        final driverName = data?['name'] as String?;
+        if (driverName != null && driverName.isNotEmpty) {
+          _storage.write('driverName', driverName);
         }
       }
 
       await _fetchAllAppData();
-      // Load branches if Owner, Admin, or Staff
+
       if (userRole.value == 'Owner' ||
           userRole.value == 'Admin' ||
           userRole.value == 'Staff') {
@@ -217,6 +215,30 @@ class WorkspaceController extends GetxController {
     } finally {
       isLoading.value = false;
       _isInitializing = false;
+
+      // -------------------------------------------------------
+      // START FOREGROUND TRACKING FOR STAFF
+      // Only staff members share their location.
+      // This runs in the foreground isolate so the background
+      // service is only needed when the app is fully closed.
+      // -------------------------------------------------------
+      if (userRole.value == 'Staff' && !_trackingStarted) {
+        final uid = _auth.currentUser?.uid;
+        if (uid != null) {
+          try {
+            final trackingService = Get.find<LocationTrackingService>();
+            _trackingStarted = true;
+            await trackingService.observeLessonStatus(uid);
+            print('DEBUG: Foreground tracking started for uid=$uid '
+                'schoolId=${_storage.read('schoolId')} '
+                'branchId=${_storage.read('branchId')} '
+                'driverName=${_storage.read('driverName')}');
+          } catch (e) {
+            print('DEBUG: Could not start foreground tracking: $e');
+            _trackingStarted = false;
+          }
+        }
+      }
     }
   }
 
@@ -230,16 +252,9 @@ class WorkspaceController extends GetxController {
       print(
           "DEBUG: WorkspaceController: Fetching app data for targetId: $targetIdValue");
 
-      // Parallelize fetching staff profile, target workspace, and subscription
       final results = await Future.wait([
-        _firestore
-            .collection('users')
-            .doc(user.uid)
-            .get(), // Always the logged-in user
-        _firestore
-            .collection('users')
-            .doc(targetIdValue)
-            .get(), // Workspace context (owner or self)
+        _firestore.collection('users').doc(user.uid).get(),
+        _firestore.collection('users').doc(targetIdValue).get(),
         _subscriptionService.checkSubscription(targetIdValue),
       ]).timeout(const Duration(seconds: 15));
       print("DEBUG: WorkspaceController: All app data fetched successfully.");
@@ -251,7 +266,6 @@ class WorkspaceController extends GetxController {
       if (personalDoc.exists) {
         userProfileData.value = personalDoc.data() ?? {};
 
-        // Self-healing: Sync missing fields from FirebaseAuth
         final data = personalDoc.data();
         if (data != null) {
           final userDataToUpdate = <String, dynamic>{};
@@ -277,6 +291,18 @@ class WorkspaceController extends GetxController {
       }
 
       subscriptionData.value = subResult;
+
+      // Persist driver metadata for background tracking service
+      final driverName = userProfileData['name'] as String?;
+      final persistedSchoolId = currentSchoolId.value.isNotEmpty
+          ? currentSchoolId.value
+          : _auth.currentUser?.uid;
+      if (driverName != null && driverName.isNotEmpty) {
+        _storage.write('driverName', driverName);
+      }
+      if (persistedSchoolId != null && persistedSchoolId.isNotEmpty) {
+        _storage.write('schoolId', persistedSchoolId);
+      }
     } catch (e) {
       print("Error fetching app data: $e");
     } finally {
@@ -289,22 +315,14 @@ class WorkspaceController extends GetxController {
   }
 
   /// Validates and joins a school workspace
-  /// Returns a map with 'success' (bool) and 'message' (String)
   Future<Map<String, dynamic>> joinSchool(String newSchoolId) async {
     final user = _auth.currentUser;
     if (user == null) {
-      return {
-        'success': false,
-        'message': 'No user logged in',
-      };
+      return {'success': false, 'message': 'No user logged in'};
     }
 
-    // Validate input
     if (newSchoolId.trim().isEmpty) {
-      return {
-        'success': false,
-        'message': 'School ID cannot be empty',
-      };
+      return {'success': false, 'message': 'School ID cannot be empty'};
     }
 
     try {
@@ -314,14 +332,12 @@ class WorkspaceController extends GetxController {
       String finalSchoolId = rawId;
       String? finalBranchId;
 
-      // Check for composite ID (OwnerID:BranchID)
       if (rawId.contains(':')) {
         final parts = rawId.split(':');
         finalSchoolId = parts[0].trim();
         finalBranchId = parts[1].trim();
       }
 
-      // Validate that the school ID exists in the database
       final schoolDoc = await _firestore
           .collection('users')
           .doc(finalSchoolId)
@@ -337,16 +353,10 @@ class WorkspaceController extends GetxController {
 
       final schoolData = schoolDoc.data();
       if (schoolData == null) {
-        return {
-          'success': false,
-          'message': 'School data is incomplete.',
-        };
+        return {'success': false, 'message': 'School data is incomplete.'};
       }
 
-      // Update user's schoolId and branchId
-      final updates = <String, dynamic>{
-        'schoolId': finalSchoolId,
-      };
+      final updates = <String, dynamic>{'schoolId': finalSchoolId};
       if (finalBranchId != null) {
         updates['branchId'] = finalBranchId;
       }
@@ -362,19 +372,17 @@ class WorkspaceController extends GetxController {
         isConnected.value = true;
       }
 
-      // Refresh app data to load the new school's information
+      // Reset tracking so it restarts with new schoolId
+      _trackingStarted = false;
+
       await _fetchAllAppData();
 
-      return {
-        'success': true,
-        'message': 'Successfully joined school workspace',
-      };
+      return {'success': true, 'message': 'Successfully joined school workspace'};
     } catch (e) {
       print("Error joining school: $e");
       return {
         'success': false,
-        'message':
-            'Failed to join school. Please check your connection and try again.',
+        'message': 'Failed to join school. Please check your connection.',
       };
     } finally {
       isLoading.value = false;
@@ -391,7 +399,6 @@ class WorkspaceController extends GetxController {
 
     try {
       isLoading.value = true;
-      // Revert to personal workspace (own UID)
       final personalId = user.uid;
       await _firestore.collection('users').doc(user.uid).update({
         'schoolId': personalId,
@@ -417,7 +424,7 @@ class WorkspaceController extends GetxController {
     try {
       final snapshot = await _firestore
           .collection('users')
-          .doc(targetId) // Use targetId instead of user.uid
+          .doc(targetId)
           .collection('branches')
           .get();
 
@@ -427,12 +434,8 @@ class WorkspaceController extends GetxController {
         return data;
       }).toList();
 
-      // Always prepend the "Main Branch" (Owner's personal workspace context)
-      // but ONLY for owners. Staff focus should be on their assigned branch.
       if (userRole.value == 'Owner') {
-        // Deduplicate: remove if exists in subcollection to ensure Main is at index 0
         branches.removeWhere((b) => b['id'] == targetId);
-
         final mainBranch = _normalizeCompanyData(companyData);
         mainBranch['id'] = targetId;
         mainBranch['isMain'] = true;
@@ -441,14 +444,11 @@ class WorkspaceController extends GetxController {
 
       ownedBranches.assignAll(branches);
 
-      // Set default branch if none selected OR if current is invalid
       final isValid = branches.any((b) => b['id'] == currentBranchId.value);
       if (currentBranchId.value.isEmpty || !isValid) {
         if (userRole.value == 'Owner') {
-          // Owners default to their main school (targetId)
           currentBranchId.value = targetId;
         } else {
-          // Staff/Admin: leave empty so currentBranchData falls back to companyData
           currentBranchId.value = "";
         }
       }
@@ -554,7 +554,7 @@ class WorkspaceController extends GetxController {
 
   void switchBranch(String branchId) {
     currentBranchId.value = branchId;
-    isOrganizationMode.value = false; // Switching branch exits Org mode
+    isOrganizationMode.value = false;
   }
 
   void toggleViewMode() {
@@ -586,7 +586,6 @@ class WorkspaceController extends GetxController {
       String requestId, String staffUid) async {
     try {
       isLoading.value = true;
-      // Get the request data
       final requestDoc = await _firestore
           .collection('users')
           .doc(targetId)
@@ -594,16 +593,15 @@ class WorkspaceController extends GetxController {
           .doc(requestId)
           .get();
 
-      if (!requestDoc.exists)
+      if (!requestDoc.exists) {
         return {'success': false, 'message': 'Request not found'};
+      }
 
-      // Update staff user document
       await _firestore.collection('users').doc(staffUid).update({
         'schoolId': targetId,
         'role': 'Staff',
       });
 
-      // Mark request as approved
       await _firestore
           .collection('users')
           .doc(targetId)
@@ -690,6 +688,7 @@ class WorkspaceController extends GetxController {
 
         if (needsRefresh) {
           print("DEBUG: User doc changed, refreshing workspace...");
+          _trackingStarted = false; // Allow tracking to restart with new data
           initializeWorkspace();
         }
       }

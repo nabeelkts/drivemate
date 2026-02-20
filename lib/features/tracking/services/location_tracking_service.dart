@@ -3,24 +3,33 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:mds/features/tracking/data/repositories/tracking_repository.dart';
 import 'package:mds/features/tracking/domain/entities/driver_location.dart';
-
 import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:flutter_background_service_android/flutter_background_service_android.dart';
 
 /// Service for tracking driver location in real-time
 ///
-/// Observes Firestore for active lessons and automatically starts/stops tracking.
-/// Runs independently of UI state - works in background isolate.
+/// Writes GPS path to Firestore under lesson_paths/{lessonId}/points
+/// so the owner map can replay the full route even after reconnecting.
 class LocationTrackingService extends GetxService {
   late final TrackingRepository _repository;
   final ServiceInstance? _serviceInstance;
 
+  final String? _driverName;
+  final String? _schoolId;
+  final String? _branchId;
+
   LocationTrackingService({
     TrackingRepository? repository,
     ServiceInstance? serviceInstance,
-  }) : _serviceInstance = serviceInstance {
+    String? driverName,
+    String? schoolId,
+    String? branchId,
+  })  : _serviceInstance = serviceInstance,
+        _driverName = driverName ?? GetStorage().read('driverName'),
+        _schoolId = schoolId ?? GetStorage().read('schoolId'),
+        _branchId = branchId ?? GetStorage().read('branchId') {
     _repository = repository ?? Get.find<TrackingRepository>();
   }
 
@@ -30,53 +39,42 @@ class LocationTrackingService extends GetxService {
   String? _currentDriverId;
   String? _currentLessonId;
   bool _isTracking = false;
+  Timer? _heartbeatTimer;
 
-  // Distance tracking
-  double _totalDistance = 0.0; // in meters
+  double _totalDistance = 0.0;
+  double _lessonDistance = 0.0;
   Position? _lastPosition;
 
-  /// Initialize service
+  // Path persistence — throttle Firestore writes
+  // Write a path point every _pathWriteIntervalMeters OR _pathWriteIntervalSeconds
+  static const double _pathWriteIntervalMeters = 20.0; // every 20m
+  static const int _pathWriteIntervalSeconds = 15;    // or every 15s
+  double _distanceSinceLastPathWrite = 0.0;
+  DateTime? _lastPathWriteTime;
+
   @override
   void onInit() {
     super.onInit();
     checkLocationPermission();
   }
 
-  /// Check and request location permissions
   Future<bool> checkLocationPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      return false;
-    }
-
+    if (!serviceEnabled) return false;
     LocationPermission permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        return false;
-      }
+      if (permission == LocationPermission.denied) return false;
     }
-
-    if (permission == LocationPermission.deniedForever) {
-      return false;
-    }
-
+    if (permission == LocationPermission.deniedForever) return false;
     return true;
   }
 
-  /// Observe lesson status from Firestore
-  ///
-  /// This runs independently - no WorkspaceController needed
   Future<void> observeLessonStatus(String driverId) async {
     _currentDriverId = driverId;
-
-    // Start tracking immediately (Uber-style, always on when app is open/service started)
     await startTracking(driverId, null);
-
-    // Cancel existing subscription
     await _lessonStreamSubscription?.cancel();
 
-    // Query for active lessons assigned to this driver
     final query = FirebaseFirestore.instance
         .collectionGroup('students')
         .where('assignedDriver', isEqualTo: driverId)
@@ -84,31 +82,141 @@ class LocationTrackingService extends GetxService {
 
     _lessonStreamSubscription = query.snapshots().listen((snapshot) async {
       if (snapshot.docs.isNotEmpty) {
-        // Active lesson found - update lessonId
         final lessonId = snapshot.docs.first.id;
         if (_currentLessonId != lessonId) {
           _currentLessonId = lessonId;
+          _lessonDistance = 0.0;
+          _lastPosition = null;
+          _distanceSinceLastPathWrite = 0.0;
+          _lastPathWriteTime = null;
           print('Lesson started: $lessonId');
+
+          // Create lesson path document with metadata
+          await _initLessonPath(lessonId, driverId);
         }
       } else {
-        // No active lessons - clear lessonId but keep tracking
         if (_currentLessonId != null) {
+          final completedLessonId = _currentLessonId!;
+          final distanceKm = _lessonDistance / 1000;
+          print('Lesson ended: $completedLessonId — ${distanceKm.toStringAsFixed(2)} km');
+          await _saveLessonDistance(completedLessonId, _lessonDistance);
+          await _finalizeLessonPath(completedLessonId, _lessonDistance);
           _currentLessonId = null;
-          print('Lesson ended');
+          _lessonDistance = 0.0;
         }
       }
+    }, onError: (e) {
+      print('Lesson status observer error: $e');
     });
   }
 
-  /// Start location tracking
+  /// Create the lesson_paths document when lesson starts
+  Future<void> _initLessonPath(String lessonId, String driverId) async {
+    try {
+      final schoolId = _schoolId ?? GetStorage().read('schoolId') ?? '';
+      await FirebaseFirestore.instance
+          .collection('lesson_paths')
+          .doc(lessonId)
+          .set({
+        'lessonId': lessonId,
+        'driverId': driverId,
+        'driverName': _driverName ?? GetStorage().read('driverName'),
+        'schoolId': schoolId,
+        'startedAt': FieldValue.serverTimestamp(),
+        'finalDistanceKm': 0.0,
+        'isComplete': false,
+      });
+    } catch (e) {
+      print('Error initializing lesson path: $e');
+    }
+  }
+
+  /// Mark path as complete and write final distance
+  Future<void> _finalizeLessonPath(String lessonId, double distanceMeters) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('lesson_paths')
+          .doc(lessonId)
+          .update({
+        'finalDistanceKm': distanceMeters / 1000,
+        'completedAt': FieldValue.serverTimestamp(),
+        'isComplete': true,
+      });
+    } catch (e) {
+      print('Error finalizing lesson path: $e');
+    }
+  }
+
+  /// Write a single GPS point to Firestore (throttled)
+  Future<void> _writePathPoint(Position position) async {
+    if (_currentLessonId == null) return;
+
+    final now = DateTime.now();
+    final secondsSinceLast = _lastPathWriteTime == null
+        ? _pathWriteIntervalSeconds + 1
+        : now.difference(_lastPathWriteTime!).inSeconds;
+
+    final shouldWrite =
+        _distanceSinceLastPathWrite >= _pathWriteIntervalMeters ||
+        secondsSinceLast >= _pathWriteIntervalSeconds;
+
+    if (!shouldWrite) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('lesson_paths')
+          .doc(_currentLessonId)
+          .collection('points')
+          .add({
+        'lat': position.latitude,
+        'lng': position.longitude,
+        'speed': position.speed,
+        'heading': position.heading,
+        'distanceFromStart': _lessonDistance,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      _distanceSinceLastPathWrite = 0.0;
+      _lastPathWriteTime = now;
+    } catch (e) {
+      print('Error writing path point: $e');
+    }
+  }
+
+  /// Save lesson distance to the student's Firestore doc
+  Future<void> _saveLessonDistance(
+      String lessonId, double distanceMeters) async {
+    try {
+      final schoolId = _schoolId ?? GetStorage().read('schoolId');
+      final driverId = _currentDriverId;
+      if (schoolId == null || driverId == null) return;
+
+      final query = await FirebaseFirestore.instance
+          .collectionGroup('students')
+          .where('assignedDriver', isEqualTo: driverId)
+          .get();
+
+      for (final doc in query.docs) {
+        if (doc.id == lessonId ||
+            doc.data()['currentLessonId'] == lessonId) {
+          await doc.reference.update({
+            'lessonDistanceKm': distanceMeters / 1000,
+            'lessonCompletedAt': FieldValue.serverTimestamp(),
+          });
+          print(
+              'Saved ${(distanceMeters / 1000).toStringAsFixed(2)} km to Firestore');
+          break;
+        }
+      }
+    } catch (e) {
+      print('Error saving lesson distance: $e');
+    }
+  }
+
   Future<void> startTracking(String driverId, String? lessonId) async {
     _currentDriverId = driverId;
-
     if (_isTracking) {
-      // If already tracking, just update the lessonId if provided (or if it changed)
-      if (lessonId != _currentLessonId) {
-        _currentLessonId = lessonId;
-      }
+      if (lessonId != _currentLessonId) _currentLessonId = lessonId;
       return;
     }
 
@@ -118,52 +226,73 @@ class LocationTrackingService extends GetxService {
       return;
     }
 
-    // Initialize tracking in repository
-    await _repository.startTracking(driverId, lessonId);
+    final effectiveDriverName = _driverName ?? GetStorage().read('driverName');
+    final effectiveSchoolId = _schoolId ?? GetStorage().read('schoolId');
+    final effectiveBranchId = _branchId ?? GetStorage().read('branchId');
 
-    // Reset distance tracking
-    _totalDistance = 0.0;
-    _lastPosition = null;
+    print('DIAGNOSTIC: startTracking driverId=$driverId '
+        'driverName=$effectiveDriverName schoolId=$effectiveSchoolId '
+        'branchId=$effectiveBranchId');
 
-    // Configure location settings
-    const locationSettings = LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: 10, // Update every 10 meters
+    await _repository.startTracking(
+      driverId,
+      lessonId,
+      driverName: effectiveDriverName,
+      schoolId: effectiveSchoolId,
+      branchId: effectiveBranchId,
     );
 
-    // Start streaming location
+    _totalDistance = 0.0;
+    _lessonDistance = 0.0;
+    _lastPosition = null;
+    _distanceSinceLastPathWrite = 0.0;
+    _lastPathWriteTime = null;
+
+    const locationSettings = LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: 5,
+    );
+
     try {
+      Geolocator.getCurrentPosition(
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.high),
+      ).then((position) {
+        _lastPosition = position;
+        _updateLocation(position);
+      }).catchError((e) => print('Initial position error: $e'));
+
       _positionStreamSubscription =
           Geolocator.getPositionStream(locationSettings: locationSettings)
               .listen(
         (Position position) {
-          print('Location update: ${position.latitude}, ${position.longitude}');
           _calculateDistance(position);
           _updateLocation(position);
+          _writePathPoint(position); // ✅ persist to Firestore
         },
-        onError: (error) {
-          print('Location stream error: $error');
-          // Optional: Attempt to restart stream or notify user via local notification if possible
-        },
+        onError: (e) => print('Location stream error: $e'),
       );
 
       _isTracking = true;
       _currentLessonId = lessonId;
-      print('Started tracking for driver $driverId, lesson $lessonId');
+      print('Started tracking for driver $driverId');
+
+      _heartbeatTimer?.cancel();
+      _heartbeatTimer =
+          Timer.periodic(const Duration(seconds: 30), (_) => _sendHeartbeat());
     } catch (e) {
       print('Error starting location stream: $e');
       _isTracking = false;
     }
   }
 
-  /// Update location to Firebase
   void _updateLocation(Position position) {
-    if (_currentDriverId == null) {
-      print('Cannot update location: driverId is null');
-      return;
-    }
+    if (_currentDriverId == null) return;
 
-    // print('Updating location for $_currentDriverId to Firebase');
+    final effectiveDriverName = _driverName ?? GetStorage().read('driverName');
+    final effectiveSchoolId = _schoolId ?? GetStorage().read('schoolId');
+    final effectiveBranchId = _branchId ?? GetStorage().read('branchId');
+
     final location = DriverLocation(
       driverId: _currentDriverId!,
       latitude: position.latitude,
@@ -173,45 +302,74 @@ class LocationTrackingService extends GetxService {
       lessonId: _currentLessonId,
       isOnline: true,
       updatedAt: DateTime.now(),
+      driverName: effectiveDriverName,
+      schoolId: effectiveSchoolId,
+      branchId: effectiveBranchId,
+      totalDistance: _totalDistance,
+      lessonDistance: _lessonDistance,
     );
 
-    _repository.updateLocation(location).then((_) {
-      // Success - maybe too verbose to print every time
-    }).catchError((e) {
+    _repository.updateLocation(location).catchError((e) {
       print('Error updating location: $e');
     });
 
-    // Update background service notification if available
     if (_serviceInstance is AndroidServiceInstance) {
       (_serviceInstance as AndroidServiceInstance)
           .setForegroundNotificationInfo(
-        title: 'Drivemate: Active Lesson',
+        title: 'Drivemate: Active',
         content:
-            'Speed: ${(location.speed * 3.6).toStringAsFixed(1)} km/h | Dist: ${(_totalDistance / 1000).toStringAsFixed(2)} km',
+            'Speed: ${(location.speed * 3.6).toStringAsFixed(1)} km/h | '
+            'Trip: ${(_lessonDistance / 1000).toStringAsFixed(2)} km',
       );
     }
   }
 
-  /// Calculate distance between positions
+  void _sendHeartbeat() {
+    if (_currentDriverId == null || !_isTracking) return;
+    if (_lastPosition != null) {
+      _updateLocation(_lastPosition!);
+    } else {
+      _repository.startTracking(
+        _currentDriverId!,
+        _currentLessonId,
+        driverName: _driverName ?? GetStorage().read('driverName'),
+        schoolId: _schoolId ?? GetStorage().read('schoolId'),
+        branchId: _branchId ?? GetStorage().read('branchId'),
+      );
+    }
+  }
+
   void _calculateDistance(Position currentPosition) {
     if (_lastPosition != null) {
-      double distance = Geolocator.distanceBetween(
+      final distance = Geolocator.distanceBetween(
         _lastPosition!.latitude,
         _lastPosition!.longitude,
         currentPosition.latitude,
         currentPosition.longitude,
       );
-      _totalDistance += distance;
+      if (distance > 2.0) {
+        _totalDistance += distance;
+        if (_currentLessonId != null) {
+          _lessonDistance += distance;
+          _distanceSinceLastPathWrite += distance;
+        }
+      }
     }
     _lastPosition = currentPosition;
   }
 
-  /// Stop tracking
   Future<void> stopTracking() async {
     if (!_isTracking) return;
 
+    if (_currentLessonId != null && _lessonDistance > 0) {
+      await _saveLessonDistance(_currentLessonId!, _lessonDistance);
+      await _finalizeLessonPath(_currentLessonId!, _lessonDistance);
+    }
+
     await _positionStreamSubscription?.cancel();
     _positionStreamSubscription = null;
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
 
     if (_currentDriverId != null) {
       await _repository.stopTracking(_currentDriverId!);
@@ -219,10 +377,10 @@ class LocationTrackingService extends GetxService {
 
     _isTracking = false;
     _currentLessonId = null;
+    _lessonDistance = 0.0;
     print('Stopped tracking for driver $_currentDriverId');
   }
 
-  /// Clean up
   @override
   void onClose() {
     _positionStreamSubscription?.cancel();
@@ -230,15 +388,9 @@ class LocationTrackingService extends GetxService {
     super.onClose();
   }
 
-  /// Check if currently tracking
   bool get isTracking => _isTracking;
-
-  /// Get current driver ID
   String? get currentDriverId => _currentDriverId;
-
-  /// Get current lesson ID
   String? get currentLessonId => _currentLessonId;
-
-  /// Get total distance covered in current session (in meters)
   double get totalDistance => _totalDistance;
+  double get lessonDistance => _lessonDistance;
 }
