@@ -1,0 +1,10 @@
+﻿Analyzing mds...                                                
+
+warning - A value of type 'void' can't be returned by the 'onError' handler because it must be assignable to 'FutureOr<Null>' - lib\features\tracking\services\location_tracking_service.dart:263:28 - invalid_return_type_for_catch_error
+warning - The value of the local variable 'cardColor' isn't used - lib\screens\dashboard\list\details\students_details_page.dart:151:11 - unused_local_variable
+warning - The value of the local variable 'cardColor' isn't used - lib\screens\dashboard\list\details\students_details_page.dart:671:11 - unused_local_variable
+warning - The value of the local variable 'textColor' isn't used - lib\screens\dashboard\test_date_updater_screen.dart:98:11 - unused_local_variable
+   info - The local variable '_updateChart' starts with an underscore - lib\screens\dashboard\widgets\monthly_revenue_card.dart:112:32 - no_leading_underscores_for_local_identifiers
+warning - A value for optional parameter 'trailing' isn't ever given - lib\screens\profile\about_page.dart:227:10 - unused_element_parameter
+warning - A value for optional parameter 'trailing' isn't ever given - lib\screens\profile\profile_screen.dart:789:10 - unused_element_parameter
+

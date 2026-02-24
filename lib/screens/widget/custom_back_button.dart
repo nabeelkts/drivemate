@@ -22,7 +22,7 @@ class CustomBackButton extends StatelessWidget {
           width: 32,
           height: 32,
           decoration: BoxDecoration(
-            color: backgroundColor ?? kWhite,
+            color: backgroundColor ?? Theme.of(context).colorScheme.surface,
             shape: BoxShape.circle,
             border: Border.all(
               color: kPrimaryColor,
@@ -32,7 +32,7 @@ class CustomBackButton extends StatelessWidget {
           child: Center(
             child: Padding(
               padding: const EdgeInsets.only(
-                  left: 6.0), // Adjust for visual centering of the iOS icon
+                  left: 6.0),
               child: Icon(
                 Icons.arrow_back_ios,
                 color: iconColor ?? kPrimaryColor,

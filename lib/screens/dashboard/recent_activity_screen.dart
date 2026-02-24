@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 
 class RecentActivityScreen extends StatelessWidget {
   const RecentActivityScreen({super.key});
@@ -19,6 +20,7 @@ class RecentActivityScreen extends StatelessWidget {
           title: Text('Recent Activity', style: TextStyle(color: textColor)),
           backgroundColor: theme.scaffoldBackgroundColor,
           iconTheme: IconThemeData(color: textColor),
+          leading: const CustomBackButton(),
         ),
         body: Center(
           child: Text(

@@ -51,5 +51,9 @@
 	<string>This app needs access to location for real-time fleet tracking and driver monitoring services.</string>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+	  <string>mailto</string>
+	</array>
 </dict>
 </plist>

@@ -5,7 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:mds/screens/widget/base_form_widget.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/services/storage_service.dart';
@@ -62,7 +62,8 @@ class _EditCompanyProfileState extends State<EditCompanyProfile> {
 
   Future<void> _pickLogo() async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
+    final image =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
     if (image != null) {
       setState(() {
         _pickedLogo = image;
@@ -162,132 +163,342 @@ class _EditCompanyProfileState extends State<EditCompanyProfile> {
 
   @override
   Widget build(BuildContext context) {
-    return BaseFormWidget(
-      title: 'Company Profile',
-      onBack: () => Navigator.pop(context),
-      actions: [
-        IconButton(
-          onPressed: _isLoading ? null : _saveProfile,
-          icon: const Icon(Icons.check, color: kWhite),
-          tooltip: 'Submit',
-        ),
-      ],
-      floatingActionButton: null,
-      children: [
-        Form(
-          key: _formKey,
-          child: Column(
-            children: [
-              const SizedBox(height: 20),
-              _buildLogoPicker(),
-              const SizedBox(height: 20),
-              FormSection(
-                title: 'Business Information',
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final textColor = theme.textTheme.bodyLarge?.color ??
+        (isDark ? Colors.white : Colors.black);
+    final cardColor = theme.cardColor;
+
+    return Scaffold(
+      backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        title: const Text('Company Profile'),
+        elevation: 0,
+        leading: const CustomBackButton(),
+        actions: [
+          IconButton(
+            onPressed: _isLoading ? null : _saveProfile,
+            icon: const Icon(Icons.check),
+            tooltip: 'Save',
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          SingleChildScrollView(
+            padding: const EdgeInsets.all(16),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  FormTextField(
-                    label: 'Driving School Name',
-                    controller: _nameController,
-                    placeholder: 'Enter school name',
-                    validator: (v) => v!.isEmpty ? 'Enter name' : null,
+                  // Logo Section
+                  _buildLogoSection(isDark, cardColor),
+                  const SizedBox(height: 24),
+
+                  // Business Information Section
+                  _buildSectionCard(
+                    title: 'Business Information',
+                    isDark: isDark,
+                    cardColor: cardColor,
+                    children: [
+                      _buildTextField(
+                        label: 'Driving School Name',
+                        controller: _nameController,
+                        hint: 'Enter school name',
+                        icon: Icons.business,
+                        textColor: textColor,
+                        validator: (v) =>
+                            v!.isEmpty ? 'Enter school name' : null,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        label: 'Phone Number',
+                        controller: _phoneController,
+                        hint: 'Enter phone number',
+                        icon: Icons.phone,
+                        keyboardType: TextInputType.phone,
+                        textColor: textColor,
+                        validator: (v) => (v == null || v.isEmpty)
+                            ? 'Enter phone number'
+                            : (v.length < 10 ? 'Enter valid phone' : null),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        label: 'Email Address',
+                        controller: _emailController,
+                        hint: 'Enter email address',
+                        icon: Icons.email,
+                        keyboardType: TextInputType.emailAddress,
+                        textColor: textColor,
+                        validator: (v) => (v == null || v.isEmpty)
+                            ? 'Enter email'
+                            : (!v.contains('@') ? 'Enter valid email' : null),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildTextField(
+                        label: 'Full Address',
+                        controller: _addressController,
+                        hint: 'Enter complete address',
+                        icon: Icons.location_on,
+                        maxLines: 3,
+                        textColor: textColor,
+                        validator: (v) => v!.isEmpty ? 'Enter address' : null,
+                      ),
+                    ],
                   ),
-                  FormTextField(
-                    label: 'Phone Number',
-                    controller: _phoneController,
-                    placeholder: 'Enter phone number',
-                    keyboardType: TextInputType.phone,
-                    validator: (v) => (v == null || v.isEmpty)
-                        ? 'Enter phone'
-                        : (v.length < 10 ? 'Enter valid phone' : null),
-                  ),
-                  FormTextField(
-                    label: 'Contact Email',
-                    controller: _emailController,
-                    placeholder: 'Enter email address',
-                    keyboardType: TextInputType.emailAddress,
-                    validator: (v) => (v == null || v.isEmpty)
-                        ? 'Enter email'
-                        : (!v.contains('@') ? 'Enter valid email' : null),
-                  ),
-                  FormTextField(
-                    label: 'Address',
-                    controller: _addressController,
-                    placeholder: 'Enter full address',
-                    maxLines: 3,
-                    validator: (v) => v!.isEmpty ? 'Enter address' : null,
-                  ),
+                  const SizedBox(height: 32),
                 ],
               ),
-              const SizedBox(height: 100), // Extra space for FAB
-            ],
+            ),
           ),
+          if (_isLoading)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSectionCard({
+    required String title,
+    required bool isDark,
+    required Color cardColor,
+    required List<Widget> children,
+  }) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.05),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: isDark ? Colors.white : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 20),
+          ...children,
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required String label,
+    required TextEditingController controller,
+    required String hint,
+    required IconData icon,
+    required Color textColor,
+    TextInputType keyboardType = TextInputType.text,
+    int maxLines = 1,
+    String? Function(String?)? validator,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: textColor.withOpacity(0.7),
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          style: TextStyle(
+            fontSize: 16,
+            color: textColor,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: TextStyle(
+              color: textColor.withOpacity(0.4),
+              fontSize: 15,
+            ),
+            prefixIcon: Icon(icon, color: kPrimaryColor, size: 22),
+            filled: true,
+            fillColor: Colors.transparent,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: textColor.withOpacity(0.15),
+              ),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                color: textColor.withOpacity(0.15),
+              ),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: kPrimaryColor,
+                width: 1.5,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(
+                color: Colors.red,
+                width: 1,
+              ),
+            ),
+            contentPadding: const EdgeInsets.symmetric(
+              horizontal: 16,
+              vertical: 16,
+            ),
+          ),
+          validator: validator,
         ),
       ],
     );
   }
 
-  Widget _buildLogoPicker() {
-    final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
-
-    return Center(
-      child: GestureDetector(
-        onTap: _pickLogo,
-        child: Column(
-          children: [
-            Stack(
+  Widget _buildLogoSection(bool isDark, Color cardColor) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? Colors.white.withOpacity(0.1)
+              : Colors.black.withOpacity(0.05),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          GestureDetector(
+            onTap: _pickLogo,
+            child: Stack(
               children: [
                 Container(
                   width: 120,
                   height: 120,
                   decoration: BoxDecoration(
-                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+                    color: isDark ? Colors.grey.shade800 : Colors.grey.shade100,
                     shape: BoxShape.circle,
                     border: Border.all(
-                        color: kPrimaryColor.withOpacity(0.5), width: 2),
+                      color: kPrimaryColor.withOpacity(0.3),
+                      width: 3,
+                    ),
                     image: _pickedLogo != null
                         ? DecorationImage(
                             image: FileImage(File(_pickedLogo!.path)),
-                            fit: BoxFit.cover)
+                            fit: BoxFit.cover,
+                          )
                         : (_logoUrl != null && _logoUrl!.isNotEmpty
                             ? DecorationImage(
                                 image: CachedNetworkImageProvider(_logoUrl!),
-                                fit: BoxFit.cover)
+                                fit: BoxFit.cover,
+                              )
                             : null),
                   ),
                   child: (_pickedLogo == null &&
                           (_logoUrl == null || _logoUrl!.isEmpty))
-                      ? Icon(Icons.business,
-                          size: 60,
-                          color: isDark ? Colors.white54 : Colors.black26)
+                      ? Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.add_a_photo,
+                              size: 40,
+                              color: isDark ? Colors.white54 : Colors.black38,
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              'Add Logo',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isDark ? Colors.white54 : Colors.black38,
+                              ),
+                            ),
+                          ],
+                        )
                       : null,
                 ),
                 Positioned(
                   bottom: 0,
                   right: 0,
                   child: Container(
-                    padding: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: kPrimaryColor,
                       shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 2),
+                      border: Border.all(color: Colors.white, width: 3),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: const Icon(Icons.camera_alt,
-                        color: Colors.white, size: 20),
+                    child: const Icon(
+                      Icons.camera_alt,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Company Logo',
-              style: TextStyle(
-                color: theme.textTheme.bodyMedium?.color?.withOpacity(0.7),
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'Company Logo',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : Colors.black87,
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Tap to upload or change logo',
+            style: TextStyle(
+              fontSize: 12,
+              color: isDark ? Colors.white54 : Colors.black54,
+            ),
+          ),
+        ],
       ),
     );
   }

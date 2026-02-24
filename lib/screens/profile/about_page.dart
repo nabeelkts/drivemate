@@ -4,6 +4,7 @@ import 'package:mds/constants/colors.dart';
 import 'package:mds/controller/app_controller.dart';
 import 'package:mds/screens/legal/privacy_policy_screen.dart';
 import 'package:mds/screens/legal/terms_of_service_screen.dart';
+import 'package:mds/screens/profile/contact_us_screen.dart';
 import 'package:mds/screens/widget/custom_back_button.dart';
 
 class AboutPage extends StatelessWidget {
@@ -28,7 +29,8 @@ class AboutPage extends StatelessWidget {
         backgroundColor: bgColor,
         elevation: 0,
         leading: const CustomBackButton(),
-        title: Text('About', style: TextStyle(color: textColor, fontWeight: FontWeight.w700)),
+        title: Text('About',
+            style: TextStyle(color: textColor, fontWeight: FontWeight.w700)),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -84,8 +86,7 @@ class AboutPage extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     'Made with care for driving schools',
-                    style: TextStyle(
-                        color: subColor, fontSize: 12),
+                    style: TextStyle(color: subColor, fontSize: 12),
                   ),
                   const SizedBox(height: 28),
                 ],
@@ -114,8 +115,10 @@ class AboutPage extends StatelessWidget {
                   iconColor: Colors.blue,
                   label: 'Privacy Policy',
                   textColor: textColor,
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen())),
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const PrivacyPolicyScreen())),
                 ),
                 _Divider(color: borderColor),
                 _MenuRow(
@@ -123,8 +126,10 @@ class AboutPage extends StatelessWidget {
                   iconColor: Colors.indigo,
                   label: 'Terms of Service',
                   textColor: textColor,
-                  onTap: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const TermsOfServiceScreen())),
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const TermsOfServiceScreen())),
                 ),
                 _Divider(color: borderColor),
                 _MenuRow(
@@ -133,6 +138,18 @@ class AboutPage extends StatelessWidget {
                   label: 'Check for Updates',
                   textColor: textColor,
                   onTap: () => appController.checkForUpdate(),
+                ),
+                _Divider(color: borderColor),
+                _MenuRow(
+                  icon: Icons.contact_support_outlined,
+                  iconColor: Colors.orange,
+                  label: 'Contact Us',
+                  subtitle: 'Complaints & Suggestions',
+                  textColor: textColor,
+                  onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ContactUsScreen())),
                 ),
               ],
             ),

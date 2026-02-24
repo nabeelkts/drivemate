@@ -169,10 +169,12 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
   }
 
   Widget _getCurrentDashboard() {
-    final String homeLayout = box.read('homeLayout') ?? 'layout1';
-    return homeLayout == 'layout2'
-        ? const DashboardLayout2()
-        : const Dashboard();
+    // Temporarily disabled layout selector at user's request. Only Vertical Layout shown.
+    // final String homeLayout = box.read('homeLayout') ?? 'layout1';
+    // return homeLayout == 'layout2'
+    //     ? const DashboardLayout2() // Vertical Layout
+    //     : const Dashboard();       // Classic/Grid Layout
+    return const DashboardLayout2();
   }
 
   @override

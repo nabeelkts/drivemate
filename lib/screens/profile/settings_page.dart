@@ -7,6 +7,7 @@ import 'package:mds/controller/theme_controller.dart';
 import 'package:mds/screens/profile/home_layout_selector.dart';
 import 'package:mds/screens/profile/dialog_box.dart';
 import 'package:mds/screens/authentication/google_sign_in.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:provider/provider.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -44,14 +45,11 @@ class SettingsPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: isDark ? Colors.black : Colors.white,
         elevation: 0,
+        leading: const CustomBackButton(),
         title: Text(
           'Settings',
           style: TextStyle(
               color: textColor, fontSize: 22, fontWeight: FontWeight.bold),
-        ),
-        leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: textColor),
-          onPressed: () => Navigator.pop(context),
         ),
       ),
       body: SingleChildScrollView(
@@ -75,7 +73,7 @@ class SettingsPage extends StatelessWidget {
                       value: isDarkMode,
                       onChanged: (v) => toggleTheme(),
                       activeColor: themeController.themeColor)),
-              _buildSettingTile(
+              /* _buildSettingTile(
                   textColor: textColor,
                   icon: Icons.dashboard_customize,
                   title: 'Home layout',
@@ -89,7 +87,7 @@ class SettingsPage extends StatelessWidget {
                         builder: (context) => const HomeLayoutSelector(),
                       ),
                     );
-                  }),
+                  }), */
               _buildSettingTile(
                   textColor: textColor,
                   icon: Icons.notifications,

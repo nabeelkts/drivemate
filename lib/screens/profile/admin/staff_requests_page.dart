@@ -4,6 +4,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:intl/intl.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 
 class StaffRequestsPage extends StatelessWidget {
   const StaffRequestsPage({super.key});
@@ -21,6 +22,7 @@ class StaffRequestsPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: isDark ? Colors.black : Colors.white,
         elevation: 0,
+        leading: const CustomBackButton(),
         title: Text(
           'Staff Join Requests',
           style: TextStyle(

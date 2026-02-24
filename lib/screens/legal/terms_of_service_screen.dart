@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 
 class TermsOfServiceScreen extends StatelessWidget {
   const TermsOfServiceScreen({super.key});
@@ -9,6 +10,7 @@ class TermsOfServiceScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Terms of Service'),
         elevation: 0,
+        leading: const CustomBackButton(),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

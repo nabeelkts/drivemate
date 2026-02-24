@@ -59,8 +59,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     );
-    _fadeAnim =
-        CurvedAnimation(parent: _animController, curve: Curves.easeOut);
+    _fadeAnim = CurvedAnimation(parent: _animController, curve: Curves.easeOut);
     _initializeState();
   }
 
@@ -104,10 +103,8 @@ class _ProfileScreenState extends State<ProfileScreen>
     Get.changeThemeMode(isDarkMode ? ThemeMode.dark : ThemeMode.light);
     SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness:
-          isDarkMode ? Brightness.light : Brightness.dark,
-      statusBarBrightness:
-          isDarkMode ? Brightness.dark : Brightness.light,
+      statusBarIconBrightness: isDarkMode ? Brightness.light : Brightness.dark,
+      statusBarBrightness: isDarkMode ? Brightness.dark : Brightness.light,
       systemNavigationBarColor: isDarkMode ? Colors.black : Colors.white,
       systemNavigationBarIconBrightness:
           isDarkMode ? Brightness.light : Brightness.dark,
@@ -145,8 +142,8 @@ class _ProfileScreenState extends State<ProfileScreen>
 
     if (!canCheckBiometrics) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text(
-            'Biometric authentication is not available on this device'),
+        content:
+            Text('Biometric authentication is not available on this device'),
         duration: Duration(seconds: 3),
       ));
       return;
@@ -167,8 +164,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         }
 
         bool authenticated = await auth.authenticate(
-          localizedReason:
-              'Please authenticate to enable biometric login',
+          localizedReason: 'Please authenticate to enable biometric login',
           options: const AuthenticationOptions(
             stickyAuth: true,
             biometricOnly: true,
@@ -188,8 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text(
-                'Failed to enable biometric login: ${e.toString()}'),
+            content: Text('Failed to enable biometric login: ${e.toString()}'),
             duration: const Duration(seconds: 3),
           ));
         }
@@ -209,24 +204,20 @@ class _ProfileScreenState extends State<ProfileScreen>
   @override
   Widget build(BuildContext context) {
     if (!_isInitialized && _currentUser == null) {
-      return const Scaffold(
-          body: Center(child: CircularProgressIndicator()));
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     if (_currentUser == null) {
-      return const Scaffold(
-          body: Center(child: Text('No user logged in')));
+      return const Scaffold(body: Center(child: Text('No user logged in')));
     }
 
     final isDark = isDarkMode;
-    final cardColor =
-        isDark ? const Color(0xFF1C1C1E) : Colors.white;
+    final cardColor = isDark ? const Color(0xFF1C1C1E) : Colors.white;
     final borderColor = isDark
         ? Colors.white.withOpacity(0.08)
         : Colors.black.withOpacity(0.06);
     final textColor = isDark ? Colors.white : Colors.black87;
-    final bgColor =
-        isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7);
+    final bgColor = isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7);
     final subColor = isDark ? Colors.white38 : Colors.black38;
 
     return SafeArea(
@@ -246,8 +237,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   final subData = _workspaceController.subscriptionData;
                   if (_workspaceController.isAppDataLoading.value &&
                       subData.isEmpty) {
-                    return const Center(
-                        child: LinearProgressIndicator());
+                    return const Center(child: LinearProgressIndicator());
                   }
 
                   final isStaff =
@@ -255,8 +245,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   if (isStaff) return const SizedBox.shrink();
 
                   final shouldWarn = subData['shouldWarn'] ?? false;
-                  final isInGracePeriod =
-                      subData['isInGracePeriod'] ?? false;
+                  final isInGracePeriod = subData['isInGracePeriod'] ?? false;
                   final isGracePeriodExpired =
                       subData['isGracePeriodExpired'] ?? false;
                   final daysLeft = subData['daysLeft'] ?? 0;
@@ -316,13 +305,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                 const SizedBox(height: 24),
 
                 // ── Organization ───────────────────────────────────────
-                _buildMyOrganizationTile(
-                    context,
-                    _workspaceController,
-                    cardColor,
-                    borderColor,
-                    textColor,
-                    subColor),
+                _buildMyOrganizationTile(context, _workspaceController,
+                    cardColor, borderColor, textColor, subColor),
 
                 const SizedBox(height: 20),
 
@@ -366,8 +350,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                         textColor: textColor,
                         onTap: () => Navigator.push(
                           context,
-                          MaterialPageRoute(
-                              builder: (_) => const AboutPage()),
+                          MaterialPageRoute(builder: (_) => const AboutPage()),
                         ),
                       ),
                     ),
@@ -424,10 +407,9 @@ class _ProfileScreenState extends State<ProfileScreen>
       final branchData = controller.currentBranchData;
 
       String sectionTitle = 'ORGANIZATION';
-      String name = controller.userProfileData['schoolName'] ??
-          'My Organization';
-      String subtitle =
-          branchData['branchName'] ?? 'Manage Organization';
+      String name =
+          controller.userProfileData['schoolName'] ?? 'My Organization';
+      String subtitle = branchData['branchName'] ?? 'Manage Organization';
       IconData icon = Icons.business_center_outlined;
       Color iconColor = kOrange;
       VoidCallback onTap = () => Navigator.push(
@@ -444,8 +426,26 @@ class _ProfileScreenState extends State<ProfileScreen>
           icon = Icons.add_business_outlined;
           onTap = _showJoinSchoolDialog;
         } else {
-          name = branchData['branchName'] ?? 'Connected School';
-          subtitle = 'Working at this branch';
+          name = branchData['branchName'] ??
+              controller.companyData['companyName'] ??
+              'Connected School';
+          final location = branchData['location'] ??
+              branchData['companyAddress'] ??
+              controller.companyData['companyAddress'];
+          final phone = branchData['contactPhone'] ??
+              branchData['companyPhone'] ??
+              controller.companyData['companyPhone'];
+
+          // Build detailed subtitle with available info
+          if (location != null && phone != null) {
+            subtitle = '$location\n📞 $phone';
+          } else if (location != null) {
+            subtitle = location;
+          } else if (phone != null) {
+            subtitle = '📞 $phone';
+          } else {
+            subtitle = 'Working at this branch';
+          }
         }
       }
 
@@ -485,8 +485,8 @@ class _ProfileScreenState extends State<ProfileScreen>
       builder: (context) => StatefulBuilder(
         builder: (context, setState) {
           return Dialog(
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Container(
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
@@ -518,9 +518,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   Text(
                     'Enter the School ID provided by your administrator.',
                     style: TextStyle(
-                        color: isDark
-                            ? Colors.white70
-                            : Colors.black54,
+                        color: isDark ? Colors.white70 : Colors.black54,
                         fontSize: 13),
                     textAlign: TextAlign.center,
                   ),
@@ -529,8 +527,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     controller: idController,
                     enabled: !isLoading,
                     style: TextStyle(
-                        color:
-                            isDark ? Colors.white : Colors.black87),
+                        color: isDark ? Colors.white : Colors.black87),
                     decoration: InputDecoration(
                       hintText: 'Enter School ID',
                       hintStyle: TextStyle(
@@ -553,9 +550,8 @@ class _ProfileScreenState extends State<ProfileScreen>
                     children: [
                       Expanded(
                         child: TextButton(
-                          onPressed: isLoading
-                              ? null
-                              : () => Navigator.pop(context),
+                          onPressed:
+                              isLoading ? null : () => Navigator.pop(context),
                           child: const Text('Cancel'),
                         ),
                       ),
@@ -565,8 +561,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           onPressed: isLoading
                               ? null
                               : () async {
-                                  final id =
-                                      idController.text.trim();
+                                  final id = idController.text.trim();
                                   if (id.isEmpty) {
                                     setState(() => errorMessage =
                                         'Please enter a School ID');
@@ -577,8 +572,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                     errorMessage = null;
                                   });
                                   final result =
-                                      await _workspaceController
-                                          .joinSchool(id);
+                                      await _workspaceController.joinSchool(id);
                                   if (mounted) {
                                     if (result['success'] == true) {
                                       Navigator.pop(context);
@@ -586,22 +580,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                                         'Success',
                                         result['message'] ??
                                             'Joined school workspace successfully',
-                                        snackPosition:
-                                            SnackPosition.BOTTOM,
-                                        backgroundColor: Colors.green
-                                            .withOpacity(0.1),
+                                        snackPosition: SnackPosition.BOTTOM,
+                                        backgroundColor:
+                                            Colors.green.withOpacity(0.1),
                                         colorText: isDark
                                             ? Colors.white
                                             : Colors.black87,
-                                        duration: const Duration(
-                                            seconds: 2),
+                                        duration: const Duration(seconds: 2),
                                       );
                                     } else {
                                       setState(() {
                                         isLoading = false;
-                                        errorMessage =
-                                            result['message'] ??
-                                                'Failed to join school';
+                                        errorMessage = result['message'] ??
+                                            'Failed to join school';
                                       });
                                     }
                                   }
@@ -609,8 +600,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                           style: ElevatedButton.styleFrom(
                             backgroundColor: kPrimaryColor,
                             shape: RoundedRectangleBorder(
-                                borderRadius:
-                                    BorderRadius.circular(12)),
+                                borderRadius: BorderRadius.circular(12)),
                           ),
                           child: isLoading
                               ? const SizedBox(
@@ -618,14 +608,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                                   width: 20,
                                   child: CircularProgressIndicator(
                                     strokeWidth: 2,
-                                    valueColor:
-                                        AlwaysStoppedAnimation<Color>(
-                                            Colors.white),
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                        Colors.white),
                                   ),
                                 )
                               : const Text('Join',
-                                  style:
-                                      TextStyle(color: Colors.white)),
+                                  style: TextStyle(color: Colors.white)),
                         ),
                       ),
                     ],
@@ -640,8 +628,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   }
 
   void _showSubscribeDialog() {
-    final TextEditingController codeController =
-        TextEditingController();
+    final TextEditingController codeController = TextEditingController();
 
     showDialog(
       context: context,
@@ -649,8 +636,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         title: const Text('Enter Activation Code'),
         content: TextField(
           controller: codeController,
-          decoration: const InputDecoration(
-              hintText: 'XXXX-XXXX-XXXX-XXXX'),
+          decoration: const InputDecoration(hintText: 'XXXX-XXXX-XXXX-XXXX'),
         ),
         actions: [
           TextButton(
@@ -659,8 +645,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
           ElevatedButton(
             onPressed: () async {
-              final code =
-                  codeController.text.trim().toUpperCase();
+              final code = codeController.text.trim().toUpperCase();
               if (code.isEmpty) return;
               final res = await SubscriptionService().redeemCode(
                 _workspaceController.currentSchoolId.value,
@@ -670,8 +655,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               if (mounted) {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content:
-                        Text(res['message'] ?? 'Status updated')));
+                    content: Text(res['message'] ?? 'Status updated')));
                 _workspaceController.refreshAppData();
               }
             },
@@ -687,8 +671,7 @@ class _ProfileScreenState extends State<ProfileScreen>
     if (user == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('No user logged in'),
-            backgroundColor: Colors.red));
+            content: Text('No user logged in'), backgroundColor: Colors.red));
       }
       return;
     }
@@ -714,8 +697,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         if (mounted) {
           Navigator.push(
             context,
-            MaterialPageRoute(
-                builder: (_) => const AdminSubscriptionPage()),
+            MaterialPageRoute(builder: (_) => const AdminSubscriptionPage()),
           );
         }
       } else {
@@ -795,8 +777,7 @@ class _MenuRow extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(16),
       child: Padding(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         child: Row(
           children: [
             Container(
@@ -822,8 +803,7 @@ class _MenuRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(subtitle!,
                         style: TextStyle(
-                            color: textColor.withOpacity(0.5),
-                            fontSize: 11.5)),
+                            color: textColor.withOpacity(0.5), fontSize: 11.5)),
                   ],
                 ],
               ),

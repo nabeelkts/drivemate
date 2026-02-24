@@ -9,6 +9,7 @@ import 'package:mds/screens/profile/admin/branches_page.dart';
 import 'package:mds/screens/profile/admin/manage_staff_page.dart';
 import 'package:mds/screens/profile/admin/staff_requests_page.dart';
 import 'package:mds/screens/profile/edit_company_profile.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 
 class OrganizationManagementPage extends StatelessWidget {
   const OrganizationManagementPage({super.key});
@@ -26,6 +27,7 @@ class OrganizationManagementPage extends StatelessWidget {
             ? 'Organization Management'
             : 'My Workplace')),
         elevation: 0,
+        leading: const CustomBackButton(),
       ),
       body: Obx(() {
         if (controller.isLoading.value) {
@@ -36,7 +38,11 @@ class OrganizationManagementPage extends StatelessWidget {
         final branchId = controller.currentBranchId.value;
         final isOwner = controller.userRole.value == 'Owner';
 
-        if (branchId.isEmpty) {
+        // Check if user is connected (for staff) or has branch data (for owners)
+        final isConnected = controller.isConnected.value;
+        final hasBranchData = branchData.isNotEmpty;
+
+        if (!isConnected && !hasBranchData) {
           return _buildNotConnectedState(context, controller, textColor);
         }
 

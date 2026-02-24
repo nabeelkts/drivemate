@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -102,7 +103,7 @@ class _TodaySchedulePageState extends State<TodaySchedulePage>
   Future<void> _exportPdf() async {
     final isLL = _tabController.index == 0;
     final data = isLL ? learners : driving;
-    final typeLabel = isLL ? 'LL' : 'DL';
+    final typeLabel = isLL ? 'LL TEST' : 'DL TEST';
 
     if (data.isEmpty) {
       Get.snackbar(
@@ -229,22 +230,29 @@ class _TodaySchedulePageState extends State<TodaySchedulePage>
           child: Text('No tests for ${displayFormat.format(selectedDate)}'));
     }
     return ListView.builder(
-      itemCount: data.length,
-      itemBuilder: (context, index) {
-        final s = data[index];
-        final balance = s['balanceAmount']?.toString() ?? '';
-        final colType = s['_collection']?.toString() ?? 'STUDENTS';
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          child: ListTile(
-            title: Text(s['fullName'] ?? ''),
-            subtitle: Text(
-                '${colType.toUpperCase()} • COV: ${s['cov'] ?? ''} • Mobile: ${s['mobileNumber'] ?? ''}'),
-            trailing: Text(balance.isNotEmpty ? '₹ $balance' : ''),
-          ),
-        );
-      },
+  itemCount: data.length,
+  itemBuilder: (context, index) {
+    final s = data[index];
+    final balance = s['balanceAmount']?.toString() ?? '';
+    final colType = s['_collection']?.toString() ?? 'STUDENTS';
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: ListTile(
+        isThreeLine: true,
+        title: Text(s['fullName'] ?? ''),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(colType.toUpperCase()),
+            Text('COV: ${s['cov'] ?? ''}'),
+            Text('Mobile: ${s['mobileNumber'] ?? ''}'),
+          ],
+        ),
+        trailing: Text(balance.isNotEmpty ? '₹ $balance' : ''),
+      ),
     );
+  },
+);
   }
 
   @override
@@ -252,7 +260,8 @@ class _TodaySchedulePageState extends State<TodaySchedulePage>
     final dateLabel = displayFormat.format(selectedDate);
     return Scaffold(
       appBar: AppBar(
-        title: Text('Today\'s Schedule ($dateLabel)'),
+        title: Text('Schedule for ($dateLabel)'),
+        leading: const CustomBackButton(),
         actions: [
           IconButton(
               onPressed: _pickDate, icon: const Icon(Icons.calendar_today)),
@@ -262,8 +271,8 @@ class _TodaySchedulePageState extends State<TodaySchedulePage>
         bottom: TabBar(
           controller: _tabController,
           tabs: [
-            Tab(text: 'LL (${learners.length})'),
-            Tab(text: 'DL (${driving.length})'),
+            Tab(text: 'LL TEST (${learners.length})'),
+            Tab(text: 'DL TEST (${driving.length})'),
           ],
         ),
       ),

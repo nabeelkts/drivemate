@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 
 class PrivacyPolicyScreen extends StatelessWidget {
   const PrivacyPolicyScreen({super.key});
@@ -9,6 +10,7 @@ class PrivacyPolicyScreen extends StatelessWidget {
       appBar: AppBar(
         title: const Text('Privacy Policy'),
         elevation: 0,
+        leading: const CustomBackButton(),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

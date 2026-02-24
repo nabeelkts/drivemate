@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/dashboard/list/details/dl_service_details_page.dart';
 import 'package:mds/screens/widget/common_form.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/screens/widget/utils.dart';
 
 class NewDlServiceForm extends StatefulWidget {
@@ -33,6 +34,7 @@ class _NewDlServiceFormState extends State<NewDlServiceForm> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('New DL Service'),
+        leading: const CustomBackButton(),
         actions: [
           IconButton(
             icon: const Icon(Icons.camera_alt_outlined),
@@ -135,6 +137,8 @@ class _NewDlServiceFormState extends State<NewDlServiceForm> {
               'details': 'Name: $fullName\nService: $serviceType',
             });
 
+            final branchId = _workspaceController.currentBranchId.value;
+
             await usersCollection
                 .doc(targetId)
                 .collection('recentActivity')
@@ -142,6 +146,7 @@ class _NewDlServiceFormState extends State<NewDlServiceForm> {
               'title': 'New DL Service',
               'details': '$fullName\n$serviceType',
               'timestamp': FieldValue.serverTimestamp(),
+              'branchId': branchId.isNotEmpty ? branchId : targetId,
             });
 
             Fluttertoast.showToast(

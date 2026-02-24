@@ -52,7 +52,8 @@ class _EditUserProfileState extends State<EditUserProfile> {
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final image = await picker.pickImage(source: ImageSource.gallery);
+    final image =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
     if (image != null) {
       setState(() {
         _pickedImage = image;

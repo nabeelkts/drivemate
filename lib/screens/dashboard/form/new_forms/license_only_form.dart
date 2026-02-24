@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/dashboard/list/details/license_only_details_page.dart';
 import 'package:mds/screens/widget/common_form.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/screens/widget/utils.dart';
 
 class LicenseOnly extends StatefulWidget {
@@ -33,6 +34,7 @@ class _LicenseOnlyState extends State<LicenseOnly> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('New License Only'),
+        leading: const CustomBackButton(),
         actions: [
           IconButton(
             icon: const Icon(Icons.camera_alt_outlined),
@@ -120,6 +122,8 @@ class _LicenseOnlyState extends State<LicenseOnly> {
               'details': 'Name: $fullName\nType: $cov',
             });
 
+            final branchId = _workspaceController.currentBranchId.value;
+
             await usersCollection
                 .doc(targetId)
                 .collection('recentActivity')
@@ -127,6 +131,7 @@ class _LicenseOnlyState extends State<LicenseOnly> {
               'title': 'New License Registration',
               'details': '$fullName\n$cov',
               'timestamp': FieldValue.serverTimestamp(),
+              'branchId': branchId.isNotEmpty ? branchId : targetId,
             });
 
             Fluttertoast.showToast(

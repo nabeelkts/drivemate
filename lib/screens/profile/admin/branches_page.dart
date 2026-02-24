@@ -7,6 +7,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:intl/intl.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 
 class BranchesPage extends StatelessWidget {
   const BranchesPage({super.key});
@@ -18,6 +19,7 @@ class BranchesPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('My Branches'),
+        leading: const CustomBackButton(),
         actions: [
           IconButton(
             onPressed: () => _showBranchForm(context),
@@ -258,8 +260,8 @@ class BranchesPage extends StatelessWidget {
           builder: (context, setModalState) {
             Future<void> pickLogo() async {
               final ImagePicker picker = ImagePicker();
-              final XFile? image =
-                  await picker.pickImage(source: ImageSource.gallery);
+              final XFile? image = await picker.pickImage(
+                  source: ImageSource.gallery, imageQuality: 50);
               if (image != null) {
                 setModalState(() => selectedLogo = image);
               }

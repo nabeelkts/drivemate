@@ -32,7 +32,7 @@ class EndorsementDetailsPage extends StatefulWidget {
 class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
   late Map<String, dynamic> endorsementDetails;
   final List<String> _selectedTransactionIds = [];
-  static const Color kAccentRed = Color(0xFFD32F2F);
+  static const Color kAccentRed = Color.fromRGBO(241, 135, 71, 1);
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
 

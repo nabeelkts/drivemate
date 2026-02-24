@@ -7,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/dashboard/list/details/endorsement_details_page.dart';
 import 'package:mds/screens/widget/common_form.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/screens/widget/utils.dart';
 
 class EndorsementDL extends StatefulWidget {
@@ -33,6 +34,7 @@ class _EndorsementDLState extends State<EndorsementDL> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Endorsement to DL'),
+        leading: const CustomBackButton(),
         actions: [
           IconButton(
             icon: const Icon(Icons.camera_alt_outlined),
@@ -131,6 +133,8 @@ class _EndorsementDLState extends State<EndorsementDL> {
               'details': 'Name: $fullName\nType: $cov',
             });
 
+            final branchId = _workspaceController.currentBranchId.value;
+
             await usersCollection
                 .doc(targetId)
                 .collection('recentActivity')
@@ -138,6 +142,7 @@ class _EndorsementDLState extends State<EndorsementDL> {
               'title': 'New Endorsement Registration',
               'details': '$fullName\n$cov',
               'timestamp': FieldValue.serverTimestamp(),
+              'branchId': branchId.isNotEmpty ? branchId : targetId,
             });
 
             Fluttertoast.showToast(

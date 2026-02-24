@@ -25,7 +25,7 @@ class _ManageCarouselPageState extends State<ManageCarouselPage> {
     try {
       final XFile? image = await _picker.pickImage(
         source: ImageSource.gallery,
-        imageQuality: 80,
+        imageQuality: 50,
       );
 
       if (image == null) return;

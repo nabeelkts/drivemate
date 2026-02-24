@@ -33,7 +33,7 @@ class DlServiceDetailsPage extends StatefulWidget {
 class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
   late Map<String, dynamic> serviceDetails;
   final List<String> _selectedTransactionIds = [];
-  static const Color kAccentRed = Color(0xFFD32F2F);
+  static const Color kAccentRed = Color.fromRGBO(241, 135, 71, 1);
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
 

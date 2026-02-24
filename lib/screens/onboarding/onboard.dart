@@ -144,7 +144,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   );
                 },
                 child: Container(
-                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 146),
+                  width: double.infinity,
+                  margin: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFFBF7),
                     borderRadius: BorderRadius.circular(15),
@@ -157,6 +159,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       fontSize: 16,
                       color: Color(0xFFF46B45),
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),

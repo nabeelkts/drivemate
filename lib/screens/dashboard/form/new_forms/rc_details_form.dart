@@ -7,6 +7,7 @@ import 'package:mds/screens/dashboard/list/details/rc_details_page.dart';
 import 'package:mds/screens/widget/common_form.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 
 class RCDetailsForm extends StatefulWidget {
   const RCDetailsForm({super.key});
@@ -32,6 +33,7 @@ class _RCDetailsFormState extends State<RCDetailsForm> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('RC Details'),
+        leading: const CustomBackButton(),
         actions: [
           IconButton(
             icon: const Icon(Icons.camera_alt_outlined),
@@ -100,6 +102,8 @@ class _RCDetailsFormState extends State<RCDetailsForm> {
             });
 
             // Add to user's recent activity subcollection
+            final branchId = _workspaceController.currentBranchId.value;
+
             await usersCollection
                 .doc(targetId)
                 .collection('recentActivity')
@@ -109,6 +113,7 @@ class _RCDetailsFormState extends State<RCDetailsForm> {
               'details':
                   'Vehicle Number: ${vehicleData['vehicleNumber']}\nService: ${vehicleData['cov']}',
               'timestamp': FieldValue.serverTimestamp(),
+              'branchId': branchId.isNotEmpty ? branchId : targetId,
             });
 
             Fluttertoast.showToast(

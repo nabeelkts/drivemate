@@ -634,14 +634,23 @@ class DashboardLayout2 extends StatelessWidget {
     final now = DateTime.now();
 
     // Helper to get filtered stream
+    // Note: We fetch all data and filter client-side to handle legacy records without branchId
     Stream<QuerySnapshot<Map<String, dynamic>>> getFilteredStream(
         String collection) {
       Query<Map<String, dynamic>> query =
           fs.collection('users').doc(targetId).collection(collection);
-      if (!isOrg && branchId.isNotEmpty) {
-        query = query.where('branchId', isEqualTo: branchId);
-      }
+      // No server-side filtering - we'll filter client-side to include legacy data
       return query.snapshots();
+    }
+
+    // Helper to check if a document belongs to the current branch
+    bool belongsToBranch(Map<String, dynamic> data) {
+      if (isOrg || branchId.isEmpty) return true;
+      final docBranchId = data['branchId'];
+      // Include if branchId matches OR if no branchId (legacy data)
+      return docBranchId == branchId ||
+          docBranchId == null ||
+          docBranchId == '';
     }
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
@@ -676,6 +685,10 @@ class DashboardLayout2 extends StatelessWidget {
                         if (snapshot == null) continue;
                         for (var doc in snapshot.docs) {
                           final data = doc.data();
+
+                          // Skip records that don't belong to current branch
+                          if (!belongsToBranch(data)) continue;
+
                           double advance = double.tryParse(
                                   data['advanceAmount']?.toString() ?? '0') ??
                               0;
@@ -819,23 +832,39 @@ class DashboardLayout2 extends StatelessWidget {
     final isOrg = controller.isOrganizationMode.value;
     final branchId = controller.currentBranchId.value;
 
+    // When not in org mode and branchId is set, we need to filter by branch
+    // But we also need to include records without branchId (legacy data)
     Query<Map<String, dynamic>> query = FirebaseFirestore.instance
         .collection('users')
         .doc(targetId)
         .collection('recentActivity')
         .orderBy('timestamp', descending: true)
-        .limit(5); // Increased limit slightly for dashboard
-
-    if (!isOrg && branchId.isNotEmpty) {
-      query = query.where('branchId', isEqualTo: branchId);
-    }
+        .limit(20); // Increased limit to allow for client-side filtering
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: query.snapshots(),
       builder: (context, snapshot) {
         List<Map<String, dynamic>> activities = [];
         if (snapshot.hasData && snapshot.data!.docs.isNotEmpty) {
-          activities = snapshot.data!.docs.map((doc) => doc.data()).toList();
+          final allActivities =
+              snapshot.data!.docs.map((doc) => doc.data()).toList();
+
+          if (isOrg || branchId.isEmpty) {
+            // In org mode or no branch selected, show all activities
+            activities = allActivities.take(5).toList();
+          } else {
+            // In branch mode, filter by branchId or include records without branchId
+            activities = allActivities
+                .where((activity) {
+                  final activityBranchId = activity['branchId'];
+                  // Include if branchId matches OR if no branchId (legacy data)
+                  return activityBranchId == branchId ||
+                      activityBranchId == null ||
+                      activityBranchId == '';
+                })
+                .take(5)
+                .toList();
+          }
         }
         return _buildActivityCard(
             context, controller, isDark, textColor, activities);

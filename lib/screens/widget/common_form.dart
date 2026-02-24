@@ -203,7 +203,8 @@ class CommonFormState extends State<CommonForm> {
 
   Future<void> _getImageFromGallery() async {
     final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
+    final XFile? image =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
     if (image != null) {
       setState(() {
         _pickedFile = image;
@@ -213,7 +214,8 @@ class CommonFormState extends State<CommonForm> {
 
   Future<void> _getImageFromCamera() async {
     final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.camera);
+    final XFile? image =
+        await picker.pickImage(source: ImageSource.camera, imageQuality: 50);
     if (image != null) {
       setState(() {
         _pickedFile = image;
@@ -232,16 +234,16 @@ class CommonFormState extends State<CommonForm> {
           TextButton(
             child: const Text('Gallery'),
             onPressed: () async {
-              final XFile? img =
-                  await picker.pickImage(source: ImageSource.gallery);
+              final XFile? img = await picker.pickImage(
+                  source: ImageSource.gallery, imageQuality: 50);
               if (context.mounted) Navigator.pop(context, img);
             },
           ),
           TextButton(
             child: const Text('Camera'),
             onPressed: () async {
-              final XFile? img =
-                  await picker.pickImage(source: ImageSource.camera);
+              final XFile? img = await picker.pickImage(
+                  source: ImageSource.camera, imageQuality: 50);
               if (context.mounted) Navigator.pop(context, img);
             },
           ),
@@ -356,26 +358,44 @@ class CommonFormState extends State<CommonForm> {
     try {
       // Upload image first if picked
       String uploadedImageUrl = '';
-      try {
-        uploadedImageUrl = await uploadImage();
-      } catch (uploadError) {
-        if (kDebugMode) {
-          print('Image upload failed (likely offline): $uploadError');
-        }
-        // If offline, use existing image or empty string.
-        // Firestore persistence will sync the text data, but Storage usually fails offline.
-        uploadedImageUrl = widget.initialValues?['image'] ?? '';
+      if (_pickedFile != null) {
+        try {
+          uploadedImageUrl = await uploadImage();
+        } catch (uploadError) {
+          final errorString = uploadError.toString().toLowerCase();
+          final isOfflineError = errorString.contains('network') ||
+              errorString.contains('socket') ||
+              errorString.contains('connection') ||
+              errorString.contains('unreachable') ||
+              errorString.contains('offline');
 
-        // Notify user about image upload delay if mounted
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                  'Image upload skipped (offline). The student details will be saved.'),
-              duration: Duration(seconds: 3),
-            ),
-          );
+          if (kDebugMode) {
+            print('Image upload failed: $uploadError');
+            print('Is offline error: $isOfflineError');
+          }
+
+          if (isOfflineError) {
+            // If offline, use existing image or empty string.
+            uploadedImageUrl = widget.initialValues?['image'] ?? '';
+
+            // Notify user about image upload delay if mounted
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'Image upload skipped (offline). The student details will be saved.'),
+                  duration: Duration(seconds: 3),
+                ),
+              );
+            }
+          } else {
+            // For non-offline errors, rethrow to show error to user
+            throw uploadError;
+          }
         }
+      } else {
+        // No new image picked, use existing image
+        uploadedImageUrl = widget.initialValues?['image'] ?? '';
       }
 
       setState(() {

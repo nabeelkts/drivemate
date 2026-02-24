@@ -27,10 +27,10 @@ class StorageService {
 
       // Wait for completion and get URL with timeout
       final TaskSnapshot snapshot =
-          await uploadTask.timeout(const Duration(seconds: 10));
+          await uploadTask.timeout(const Duration(seconds: 30));
       return await snapshot.ref
           .getDownloadURL()
-          .timeout(const Duration(seconds: 5));
+          .timeout(const Duration(seconds: 10));
     } catch (e) {
       throw Exception('Failed to upload image to Firebase Storage: $e');
     }

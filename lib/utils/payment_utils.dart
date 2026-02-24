@@ -17,7 +17,15 @@ class PaymentUtils {
         double.tryParse((data['balanceAmount'] ?? 0).toString()) ?? 0;
 
     final amountController = TextEditingController();
-    String installmentType = 'second';
+    String selectedMode = 'Cash';
+    final modes = [
+      'Cash',
+      'GPay',
+      'PhonePe',
+      'Paytm',
+      'Bank Transfer',
+      'Other'
+    ];
 
     await showDialog(
       context: context,
@@ -33,25 +41,22 @@ class PaymentUtils {
                     style: const TextStyle(fontWeight: FontWeight.w600)),
                 Text('Balance due: Rs. $balance'),
                 const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: installmentType,
-                  decoration:
-                      const InputDecoration(labelText: 'Installment type'),
-                  items: const [
-                    DropdownMenuItem(
-                        value: 'second', child: Text('Second Installment')),
-                    DropdownMenuItem(
-                        value: 'third', child: Text('Third Installment')),
-                  ],
-                  onChanged: (v) =>
-                      setDialogState(() => installmentType = v ?? 'second'),
-                ),
-                const SizedBox(height: 12),
                 TextField(
                   controller: amountController,
                   keyboardType:
                       const TextInputType.numberWithOptions(decimal: true),
                   decoration: const InputDecoration(labelText: 'Amount (Rs.)'),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedMode,
+                  decoration: const InputDecoration(labelText: 'Payment Mode'),
+                  items: modes
+                      .map((mode) =>
+                          DropdownMenuItem(value: mode, child: Text(mode)))
+                      .toList(),
+                  onChanged: (v) =>
+                      setDialogState(() => selectedMode = v ?? 'Cash'),
                 ),
               ],
             ),
@@ -82,13 +87,74 @@ class PaymentUtils {
                         (balance - amount).clamp(0.0, double.infinity),
                   };
 
-                  if (installmentType == 'second') {
-                    updateData['secondInstallment'] = amount;
-                    updateData['secondInstallmentTime'] = dateStr;
-                  } else {
-                    updateData['thirdInstallment'] = amount;
-                    updateData['thirdInstallmentTime'] = dateStr;
+                  // Determine which installment number to use (supports unlimited installments)
+                  // Get all existing installment fields dynamically
+                  final existingInstallments = <int, double>{};
+
+                  // Check for numbered installments (installment1, installment2, etc.)
+                  for (int i = 1; i <= 20; i++) {
+                    final key = 'installment$i';
+                    final value =
+                        double.tryParse(data[key]?.toString() ?? '0') ?? 0;
+                    if (value > 0) {
+                      existingInstallments[i] = value;
+                    }
                   }
+
+                  // Also check legacy secondInstallment and thirdInstallment fields
+                  final secondInstallment = double.tryParse(
+                          data['secondInstallment']?.toString() ?? '0') ??
+                      0;
+                  final thirdInstallment = double.tryParse(
+                          data['thirdInstallment']?.toString() ?? '0') ??
+                      0;
+
+                  // Map legacy fields to numbered installments
+                  if (secondInstallment > 0 &&
+                      !existingInstallments.containsKey(2)) {
+                    existingInstallments[2] = secondInstallment;
+                  }
+                  if (thirdInstallment > 0 &&
+                      !existingInstallments.containsKey(3)) {
+                    existingInstallments[3] = thirdInstallment;
+                  }
+
+                  // Find the next available installment number
+                  int nextInstallmentNumber = 1;
+                  while (
+                      existingInstallments.containsKey(nextInstallmentNumber) &&
+                          existingInstallments[nextInstallmentNumber]! > 0) {
+                    nextInstallmentNumber++;
+                  }
+
+                  // If we've reached the limit, use the last one
+                  if (nextInstallmentNumber > 20) {
+                    nextInstallmentNumber = 20;
+                  }
+
+                  // Get current value for this installment (if any)
+                  final currentValue =
+                      existingInstallments[nextInstallmentNumber] ?? 0;
+                  final newValue = currentValue + amount;
+
+                  // Update the appropriate field
+                  if (nextInstallmentNumber == 2) {
+                    // Use legacy field for backward compatibility
+                    updateData['secondInstallment'] = newValue;
+                    updateData['secondInstallmentTime'] = dateStr;
+                  } else if (nextInstallmentNumber == 3) {
+                    // Use legacy field for backward compatibility
+                    updateData['thirdInstallment'] = newValue;
+                    updateData['thirdInstallmentTime'] = dateStr;
+                  } else {
+                    // Use numbered installment field
+                    updateData['installment$nextInstallmentNumber'] = newValue;
+                    updateData['installment${nextInstallmentNumber}Time'] =
+                        dateStr;
+                  }
+
+                  final installmentType = nextInstallmentNumber.toString();
+                  final description = 'Installment $nextInstallmentNumber';
 
                   // Add timestamp to trigger real-time updates
                   updateData['lastPaymentUpdate'] =
@@ -100,11 +166,9 @@ class PaymentUtils {
                   final paymentRef = doc.reference.collection('payments').doc();
                   batch.set(paymentRef, {
                     'amount': amount,
-                    'mode': 'Cash',
+                    'mode': selectedMode,
                     'date': Timestamp.now(),
-                    'description': installmentType == 'second'
-                        ? 'Second Installment'
-                        : 'Third Installment',
+                    'description': description,
                     'createdAt': FieldValue.serverTimestamp(),
                     'targetId': targetId,
                     'recordId': doc.id,
@@ -120,13 +184,12 @@ class PaymentUtils {
                       .collection('recentActivity')
                       .doc();
                   batch.set(activityRef, {
-                    'title': installmentType == 'second'
-                        ? 'Second Installment Received'
-                        : 'Third Installment Received',
+                    'title': '$description Received',
                     'details': '$name\nRs. ${amount.toStringAsFixed(0)}',
                     'timestamp': FieldValue.serverTimestamp(),
                     'type': category,
                     'recordId': doc.id,
+                    'branchId': branchId ?? targetId,
                   });
 
                   await batch.commit();
@@ -352,6 +415,7 @@ class PaymentUtils {
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'deletion',
         'recordId': studentDoc.id,
+        'branchId': targetId,
       });
 
       await batch.commit();

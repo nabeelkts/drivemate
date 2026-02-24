@@ -32,11 +32,18 @@ class AuthService {
         return false;
       }
 
+      // Check what biometrics are available
+      final availableBiometrics = await _auth.getAvailableBiometrics();
+      print('Available biometrics: $availableBiometrics');
+
+      // Use biometricOnly: false to allow device credentials as fallback
+      // This helps on devices where fingerprint/face might not work properly
       return await _auth.authenticate(
         localizedReason: 'Please authenticate to login',
         options: const AuthenticationOptions(
           stickyAuth: true,
-          biometricOnly: true,
+          biometricOnly: false, // Changed to false to allow device credentials
+          useErrorDialogs: true,
         ),
       );
     } on PlatformException catch (e) {
@@ -54,4 +61,4 @@ class AuthService {
   }
 
   bool get isAuthenticated => _lifecycleService.isAuthenticated;
-} 
+}

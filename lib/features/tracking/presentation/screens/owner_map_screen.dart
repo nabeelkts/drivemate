@@ -182,8 +182,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
   /// Loads all historical points from Firestore, then subscribes
   /// to new points in real-time so the trail stays up-to-date
   /// even if the owner just opened the map mid-lesson.
-  Future<void> _loadAndSubscribePath(
-      String driverId, String lessonId) async {
+  Future<void> _loadAndSubscribePath(String driverId, String lessonId) async {
     // Cancel any existing subscription for this driver
     await _pathSubscriptions[driverId]?.cancel();
     _historicalTrails[driverId] = [];
@@ -242,7 +241,8 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
         }
       });
 
-      print('Loaded ${historical.length} historical points for lesson $lessonId');
+      print(
+          'Loaded ${historical.length} historical points for lesson $lessonId');
     } catch (e) {
       print('Error loading lesson path: $e');
     }
@@ -276,8 +276,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
       _updateMarkerPosition(
         id,
         LatLng(
-          anim.start.latitude +
-              (anim.end.latitude - anim.start.latitude) * e,
+          anim.start.latitude + (anim.end.latitude - anim.start.latitude) * e,
           anim.start.longitude +
               (anim.end.longitude - anim.start.longitude) * e,
         ),
@@ -290,8 +289,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
     if (_followingDriverId != null &&
         _markers.containsKey(_followingDriverId)) {
       _mapController?.animateCamera(
-        CameraUpdate.newLatLng(
-            _markers[_followingDriverId]!.position),
+        CameraUpdate.newLatLng(_markers[_followingDriverId]!.position),
       );
     }
 
@@ -323,16 +321,15 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
       } else {
         // Avoid duplicating the junction point
         final lastHist = historical.last;
-        final liveUnique = live
-            .where((p) => _calcDistance(lastHist, p) > 2.0)
-            .toList();
+        final liveUnique =
+            live.where((p) => _calcDistance(lastHist, p) > 1.0).toList();
         allPoints = [...historical, ...liveUnique];
       }
 
+      // Build polylines even with just 2 points (minimum needed for a line)
       if (allPoints.length < 2) continue;
 
-      final segSize =
-          (allPoints.length / _trailSegments).ceil().clamp(1, 9999);
+      final segSize = (allPoints.length / _trailSegments).ceil().clamp(1, 9999);
 
       for (int s = 0; s < _trailSegments; s++) {
         final start = s * segSize;
@@ -389,8 +386,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
   void _startListening() {
     _locationSubscription = _repository
         .getOnlineDriversForSchool(_workspaceController.targetId)
-        .listen(_updateMarkers,
-            onError: (e) => print('Map stream error: $e'));
+        .listen(_updateMarkers, onError: (e) => print('Map stream error: $e'));
   }
 
   void _updateMarkers(List<DriverLocation> locations) {
@@ -422,8 +418,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
         // ── Detect lesson change — load Firestore path ─────────────────
         final previousLessonId = _knownLessonIds[loc.driverId];
         final currentLessonId = loc.lessonId;
-        if (currentLessonId != null &&
-            currentLessonId != previousLessonId) {
+        if (currentLessonId != null && currentLessonId != previousLessonId) {
           _knownLessonIds[loc.driverId] = currentLessonId;
           // Load outside setState (async)
           Future.microtask(
@@ -437,7 +432,8 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
         // ── Update live trail ─────────────────────────────────────────
         _liveTrails.putIfAbsent(loc.driverId, () => []);
         final live = _liveTrails[loc.driverId]!;
-        if (live.isEmpty || _calcDistance(live.last.position, pos) > 1.0) {
+        // Reduced threshold from 1.0 to 0.5 meters for more accurate tracking
+        if (live.isEmpty || _calcDistance(live.last.position, pos) > 0.5) {
           live.add(_TrailPoint(position: pos, timestamp: DateTime.now()));
           if (live.length > _maxLiveTrailPoints) live.removeAt(0);
         }
@@ -446,8 +442,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
             loc.driverName ?? 'Driver ${loc.driverId.substring(0, 6)}';
 
         if (_markers.containsKey(loc.driverId)) {
-          final dist =
-              _calcDistance(_markers[loc.driverId]!.position, pos);
+          final dist = _calcDistance(_markers[loc.driverId]!.position, pos);
           if (dist > 0.5) {
             _animations[loc.driverId] = _MarkerAnimation(
               start: _markers[loc.driverId]!.position,
@@ -458,8 +453,8 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
               duration: const Duration(milliseconds: 1200),
             );
           } else {
-            _markers[loc.driverId] = _markers[loc.driverId]!
-                .copyWith(rotationParam: loc.heading);
+            _markers[loc.driverId] =
+                _markers[loc.driverId]!.copyWith(rotationParam: loc.heading);
           }
         } else {
           _markers[loc.driverId] = Marker(
@@ -490,8 +485,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
 
   void _onDriverTap(String driverId) {
     setState(() {
-      _followingDriverId =
-          _followingDriverId == driverId ? null : driverId;
+      _followingDriverId = _followingDriverId == driverId ? null : driverId;
     });
     if (_followingDriverId != null && _markers.containsKey(driverId)) {
       _mapController?.animateCamera(
@@ -516,8 +510,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
     }
     _mapController!.animateCamera(CameraUpdate.newLatLngBounds(
       LatLngBounds(
-          southwest: LatLng(minLat, minLng),
-          northeast: LatLng(maxLat, maxLng)),
+          southwest: LatLng(minLat, minLng), northeast: LatLng(maxLat, maxLng)),
       80,
     ));
   }
@@ -536,7 +529,8 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
     final c = sa * sa +
         math.cos(a.latitude * math.pi / 180) *
             math.cos(b.latitude * math.pi / 180) *
-            sb * sb;
+            sb *
+            sb;
     return R * 2 * math.atan2(math.sqrt(c), math.sqrt(1 - c));
   }
 
@@ -564,11 +558,9 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
       });
     }
 
-    final bgColor =
-        isDark ? const Color(0xFF0e1626) : Colors.grey.shade100;
-    final cardColor = isDark
-        ? const Color(0xFF1a1a2e).withOpacity(0.95)
-        : Colors.white;
+    final bgColor = isDark ? const Color(0xFF0e1626) : Colors.grey.shade100;
+    final cardColor =
+        isDark ? const Color(0xFF1a1a2e).withOpacity(0.95) : Colors.white;
     final borderColor = isDark
         ? Colors.white.withOpacity(0.08)
         : Colors.black.withOpacity(0.07);
@@ -577,8 +569,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
     final pillBg = isDark
         ? const Color(0xFF1a1a2e).withOpacity(0.92)
         : Colors.white.withOpacity(0.95);
-    final accentColor =
-        isDark ? const Color(0xFF00D4AA) : kPrimaryColor;
+    final accentColor = isDark ? const Color(0xFF00D4AA) : kPrimaryColor;
 
     return Scaffold(
       backgroundColor: bgColor,
@@ -662,7 +653,6 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
                     ],
                   ),
                 ),
-
                 if (_followingDriverId != null) ...[
                   const SizedBox(width: 8),
                   _GlassPill(
@@ -686,7 +676,6 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
                     ),
                   ),
                 ],
-
                 const Spacer(),
                 _CircleButton(
                   icon: Icons.fit_screen_rounded,
@@ -712,23 +701,20 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
                 height: 104,
                 child: ListView.builder(
                   scrollDirection: Axis.horizontal,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16),
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
                   itemCount: _driverData.length,
                   itemBuilder: (context, i) {
                     final id = _driverData.keys.elementAt(i);
                     final driver = _driverData.values.elementAt(i);
                     final isFollowing = _followingDriverId == id;
-                    final name =
-                        driver.driverName ?? 'Driver ${i + 1}';
+                    final name = driver.driverName ?? 'Driver ${i + 1}';
                     final speedKmh = driver.speed * 3.6;
                     final distKm = (driver.lessonDistance > 0
                             ? driver.lessonDistance
                             : driver.totalDistance) /
                         1000;
-                    final pathCount =
-                        (_historicalTrails[id]?.length ?? 0) +
-                            (_liveTrails[id]?.length ?? 0);
+                    final pathCount = (_historicalTrails[id]?.length ?? 0) +
+                        (_liveTrails[id]?.length ?? 0);
 
                     return GestureDetector(
                       onTap: () => _onDriverTap(id),
@@ -743,27 +729,23 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
                               : cardColor,
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: isFollowing
-                                ? accentColor
-                                : borderColor,
+                            color: isFollowing ? accentColor : borderColor,
                             width: isFollowing ? 1.5 : 1,
                           ),
                           boxShadow: [
                             BoxShadow(
                               color: isFollowing
                                   ? accentColor.withOpacity(0.15)
-                                  : Colors.black.withOpacity(
-                                      isDark ? 0.4 : 0.12),
+                                  : Colors.black
+                                      .withOpacity(isDark ? 0.4 : 0.12),
                               blurRadius: 16,
                               offset: const Offset(0, 4),
                             ),
                           ],
                         ),
                         child: Column(
-                          crossAxisAlignment:
-                              CrossAxisAlignment.start,
-                          mainAxisAlignment:
-                              MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Row(
                               children: [
@@ -789,8 +771,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
                                 ),
                                 if (isFollowing)
                                   Icon(Icons.near_me_rounded,
-                                      size: 13,
-                                      color: accentColor),
+                                      size: 13, color: accentColor),
                               ],
                             ),
                             const SizedBox(height: 8),
@@ -798,15 +779,13 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
                               children: [
                                 _StatChip(
                                   icon: Icons.speed_rounded,
-                                  value:
-                                      '${speedKmh.toStringAsFixed(0)} km/h',
+                                  value: '${speedKmh.toStringAsFixed(0)} km/h',
                                   color: subTextColor,
                                 ),
                                 const SizedBox(width: 8),
                                 _StatChip(
                                   icon: Icons.route_rounded,
-                                  value:
-                                      '${distKm.toStringAsFixed(2)} km',
+                                  value: '${distKm.toStringAsFixed(2)} km',
                                   color: subTextColor,
                                 ),
                               ],
@@ -816,15 +795,11 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
                               Row(
                                 children: [
                                   Container(
-                                    padding:
-                                        const EdgeInsets.symmetric(
-                                            horizontal: 7,
-                                            vertical: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 7, vertical: 3),
                                     decoration: BoxDecoration(
-                                      color: Colors.green
-                                          .withOpacity(0.12),
-                                      borderRadius:
-                                          BorderRadius.circular(6),
+                                      color: Colors.green.withOpacity(0.12),
+                                      borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
                                       '📚 In Lesson',
@@ -840,8 +815,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
                                     Text(
                                       '$pathCount pts',
                                       style: TextStyle(
-                                          fontSize: 9,
-                                          color: subTextColor),
+                                          fontSize: 9, color: subTextColor),
                                     ),
                                 ],
                               ),
@@ -859,8 +833,8 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
           if (_markers.isEmpty)
             Center(
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 32, vertical: 28),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
                 margin: const EdgeInsets.symmetric(horizontal: 48),
                 decoration: BoxDecoration(
                   color: cardColor,
@@ -868,8 +842,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
                   border: Border.all(color: borderColor),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black
-                          .withOpacity(isDark ? 0.5 : 0.1),
+                      color: Colors.black.withOpacity(isDark ? 0.5 : 0.1),
                       blurRadius: 30,
                     )
                   ],
@@ -900,9 +873,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
                       'Staff will appear here when\nthey start a lesson',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          fontSize: 13,
-                          color: subTextColor,
-                          height: 1.5),
+                          fontSize: 13, color: subTextColor, height: 1.5),
                     ),
                   ],
                 ),
@@ -923,8 +894,7 @@ class _GlassPill extends StatelessWidget {
       {required this.child, required this.bg, required this.border});
   @override
   Widget build(BuildContext context) => Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
           color: bg,
           borderRadius: BorderRadius.circular(24),
@@ -986,9 +956,7 @@ class _StatChip extends StatelessWidget {
           const SizedBox(width: 3),
           Text(value,
               style: TextStyle(
-                  fontSize: 11,
-                  color: color,
-                  fontWeight: FontWeight.w500)),
+                  fontSize: 11, color: color, fontWeight: FontWeight.w500)),
         ],
       );
 }

@@ -33,7 +33,12 @@ class WorkspaceController extends GetxController {
       <Map<String, dynamic>>[].obs;
   final RxString currentBranchId = "".obs;
 
+  // Staff branch data - fetched from school's branches collection
+  final RxMap<String, dynamic> staffBranchData = <String, dynamic>{}.obs;
+
   /// Returns the data for the currently active branch
+  /// For owners: looks in ownedBranches
+  /// For staff: returns staffBranchData or companyData with branch info
   Map<String, dynamic> get currentBranchData {
     if (currentBranchId.value.isEmpty) {
       if (companyData.isNotEmpty) {
@@ -42,6 +47,7 @@ class WorkspaceController extends GetxController {
       return {};
     }
 
+    // For owners/admins: look in ownedBranches
     final branch = ownedBranches.firstWhere(
       (b) => b['id'] == currentBranchId.value,
       orElse: () => {},
@@ -49,11 +55,70 @@ class WorkspaceController extends GetxController {
 
     if (branch.isNotEmpty) return branch;
 
+    // For staff: if we have fetched branch data, use it
+    if (staffBranchData.isNotEmpty) {
+      return staffBranchData;
+    }
+
+    // For staff: if branch not in ownedBranches, use companyData with branchId
+    // This happens when staff is connected to a branch they don't own
     if (companyData.isNotEmpty) {
-      return _normalizeCompanyData(companyData);
+      final normalized = _normalizeCompanyData(companyData);
+      // Add branchId to the data so staff knows which branch they're assigned to
+      normalized['id'] = currentBranchId.value;
+      return normalized;
     }
 
     return {};
+  }
+
+  /// Fetches branch data for staff from the school's branches collection
+  Future<void> fetchStaffBranchData() async {
+    if (userRole.value != 'Staff' || currentBranchId.value.isEmpty) {
+      return;
+    }
+
+    try {
+      final schoolId = currentSchoolId.value;
+      if (schoolId.isEmpty) return;
+
+      final branchDoc = await _firestore
+          .collection('users')
+          .doc(schoolId)
+          .collection('branches')
+          .doc(currentBranchId.value)
+          .get();
+
+      if (branchDoc.exists) {
+        final data = branchDoc.data() ?? {};
+        // Normalize field names to match expected format
+        staffBranchData.value = {
+          'id': branchDoc.id,
+          'branchName':
+              data['branchName'] ?? data['companyName'] ?? 'Main Branch',
+          'logoUrl': data['logoUrl'] ?? data['companyLogo'],
+          'location':
+              data['location'] ?? data['companyAddress'] ?? data['address'],
+          'contactPhone':
+              data['contactPhone'] ?? data['companyPhone'] ?? data['phone'],
+          'contactEmail':
+              data['contactEmail'] ?? data['companyEmail'] ?? data['email'],
+        };
+        print('DEBUG: Fetched staff branch data: ${staffBranchData.value}');
+      } else {
+        // If branch doc not found, try to get from companyData
+        staffBranchData.value = {
+          'id': currentBranchId.value,
+          'branchName': companyData['companyName'] ?? 'Main Branch',
+          'logoUrl': companyData['companyLogo'],
+          'location': companyData['companyAddress'],
+          'contactPhone': companyData['companyPhone'],
+          'contactEmail': companyData['companyEmail'],
+        };
+      }
+    } catch (e) {
+      print('Error fetching staff branch data: $e');
+    }
   }
 
   Map<String, dynamic> _normalizeCompanyData(Map<String, dynamic> data) {
@@ -209,6 +274,11 @@ class WorkspaceController extends GetxController {
           userRole.value == 'Admin' ||
           userRole.value == 'Staff') {
         await _fetchBranches();
+      }
+
+      // For staff: fetch the specific branch data they're assigned to
+      if (userRole.value == 'Staff' && isConnected.value) {
+        await fetchStaffBranchData();
       }
     } catch (e) {
       print("Error initializing workspace: $e");
@@ -377,7 +447,10 @@ class WorkspaceController extends GetxController {
 
       await _fetchAllAppData();
 
-      return {'success': true, 'message': 'Successfully joined school workspace'};
+      return {
+        'success': true,
+        'message': 'Successfully joined school workspace'
+      };
     } catch (e) {
       print("Error joining school: $e");
       return {

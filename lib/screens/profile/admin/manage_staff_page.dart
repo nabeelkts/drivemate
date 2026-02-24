@@ -4,6 +4,7 @@ import 'package:get/get.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/profile/dialog_box.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 
 class ManageStaffPage extends StatefulWidget {
   const ManageStaffPage({super.key});
@@ -27,6 +28,7 @@ class _ManageStaffPageState extends State<ManageStaffPage> {
       appBar: AppBar(
         title: const Text('Manage Staff'),
         elevation: 0,
+        leading: const CustomBackButton(),
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _firestore

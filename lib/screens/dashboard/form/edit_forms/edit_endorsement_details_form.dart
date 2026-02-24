@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
@@ -15,6 +14,7 @@ import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/widget/base_form_widget.dart';
+import 'package:mds/services/storage_service.dart';
 
 // ignore: must_be_immutable
 class EditEndorsementDetailsForm extends StatefulWidget {
@@ -145,8 +145,8 @@ class _EditEndorsementDetailsFormState
   }
 
   Future<void> _getImageFromGallery() async {
-    final pickedFile =
-        await ImagePicker().pickImage(source: ImageSource.gallery);
+    final pickedFile = await ImagePicker()
+        .pickImage(source: ImageSource.gallery, imageQuality: 50);
     if (pickedFile != null) {
       setState(() {
         _image = File(pickedFile.path);
@@ -155,8 +155,8 @@ class _EditEndorsementDetailsFormState
   }
 
   Future<void> _getImageFromCamera() async {
-    final pickedFile =
-        await ImagePicker().pickImage(source: ImageSource.camera);
+    final pickedFile = await ImagePicker()
+        .pickImage(source: ImageSource.camera, imageQuality: 50);
     if (pickedFile != null) {
       setState(() {
         _image = File(pickedFile.path);
@@ -197,7 +197,33 @@ class _EditEndorsementDetailsFormState
     String imageUrl = widget.initialValues['image'] ?? '';
 
     if (_image != null) {
-      imageUrl = await uploadImage();
+      try {
+        imageUrl = await uploadImage();
+      } catch (uploadError) {
+        final errorString = uploadError.toString().toLowerCase();
+        final isOfflineError = errorString.contains('network') ||
+            errorString.contains('socket') ||
+            errorString.contains('connection') ||
+            errorString.contains('unreachable') ||
+            errorString.contains('offline');
+
+        if (isOfflineError) {
+          // If offline, keep existing image
+          imageUrl = widget.initialValues['image'] ?? '';
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'Image upload skipped (offline). Changes will be saved.'),
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        } else {
+          // For non-offline errors, rethrow
+          throw uploadError;
+        }
+      }
     }
 
     final now = DateTime.now();
@@ -242,21 +268,16 @@ class _EditEndorsementDetailsFormState
     if (_image == null) return '';
 
     try {
-      final storageRef = FirebaseStorage.instance.ref();
-      final imageRef = storageRef
-          .child('images/${DateTime.now().millisecondsSinceEpoch}.jpg');
-
-      final metadata = SettableMetadata(
-        contentType: 'image/jpeg',
-      );
-
-      await imageRef.putFile(_image!, metadata);
-      return await imageRef.getDownloadURL();
+      final storageService = StorageService();
+      // Convert File to XFile for StorageService
+      final xFile = XFile(_image!.path);
+      return await storageService.uploadStudentImage(xFile);
     } catch (e) {
       if (kDebugMode) {
         print('Error uploading image: $e');
       }
-      return '';
+      // Rethrow to let caller handle the error properly
+      throw Exception('Failed to upload image: $e');
     }
   }
 

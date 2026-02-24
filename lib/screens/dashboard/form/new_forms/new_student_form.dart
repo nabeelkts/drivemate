@@ -8,6 +8,7 @@ import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
 import 'package:mds/screens/widget/common_form.dart';
+import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/screens/widget/utils.dart';
 
 class NewStudent extends StatefulWidget {
@@ -45,6 +46,7 @@ class _NewStudentState extends State<NewStudent> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('New Student'),
+        leading: const CustomBackButton(),
         actions: [
           IconButton(
             icon: const Icon(Icons.camera_alt_outlined),
