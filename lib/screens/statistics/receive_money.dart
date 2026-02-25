@@ -54,7 +54,16 @@ class _ReceiveMoneyPageState extends State<ReceiveMoneyPage> {
             .doc(targetId)
             .collection(col)
             .get();
-        allDocs.addAll(snapshot.docs);
+
+        // Filter out records where balanceAmount is 0 or less
+        final docs = snapshot.docs.where((doc) {
+          final balance =
+              double.tryParse(doc.data()['balanceAmount']?.toString() ?? '0') ??
+                  0.0;
+          return balance > 0;
+        }).toList();
+
+        allDocs.addAll(docs);
       }
 
       // Sort alphabetically

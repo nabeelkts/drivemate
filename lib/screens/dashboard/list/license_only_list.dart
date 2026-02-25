@@ -82,7 +82,7 @@ class LicenseOnlyList extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.check_circle_outline,
                     color: kPrimaryColor),
-                title: const Text('Mark as Course Completed'),
+                title: const Text('Course Completed'),
                 onTap: () async {
                   Navigator.pop(context);
                   _showDeleteConfirmationDialog(context, doc.id, doc.data());

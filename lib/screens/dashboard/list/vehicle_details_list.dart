@@ -42,7 +42,7 @@ class VehicleDetailsList extends StatelessWidget {
         final data = doc.data();
         final isDark = Theme.of(context).brightness == Brightness.dark;
         return ListItemCard(
-          title: data['fullName'] ?? 'N/A',
+          title: data['vehicleNumber'] ?? 'N/A',
           subTitle:
               'COV: ${data['cov'] ?? 'N/A'}\nMobile: ${data['mobileNumber'] ?? 'N/A'}',
           imageUrl: data['image'],
@@ -81,7 +81,7 @@ class VehicleDetailsList extends StatelessWidget {
               ListTile(
                 leading: const Icon(Icons.check_circle_outline,
                     color: kPrimaryColor),
-                title: const Text('Mark as Services Completed'),
+                title: const Text('Services Completed'),
                 onTap: () async {
                   Navigator.pop(context);
                   _showDeleteConfirmationDialog(context, doc.id, doc.data());

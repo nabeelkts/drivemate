@@ -471,6 +471,12 @@ class PdfService {
                             if (tx['note'] != null &&
                                 tx['note'].toString().trim().isNotEmpty) {
                               desc += '\nNote: ${tx['note']}';
+                            } else if (tx['description'] != null &&
+                                tx['description']
+                                    .toString()
+                                    .trim()
+                                    .isNotEmpty) {
+                              desc += '\n${tx['description']}';
                             }
                             return desc;
                           })(), style: const pw.TextStyle(fontSize: 10))),

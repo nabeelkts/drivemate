@@ -204,16 +204,20 @@ class _StudentListState extends State<StudentList> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const NewStudent()),
-          );
-        },
-        backgroundColor: kPrimaryColor,
-        child: const Icon(Icons.add, color: Colors.white),
-      ),
+      floatingActionButton: FloatingActionButton.extended(
+  onPressed: () {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const NewStudent()),
+    );
+  },
+  backgroundColor: kPrimaryColor,
+  icon: const Icon(Icons.add, color: Colors.white),
+  label: const Text(
+    'New Student',
+    style: TextStyle(color: Colors.white),
+  ),
+),
     );
   }
 
@@ -233,7 +237,7 @@ class _StudentListState extends State<StudentList> {
               ListTile(
                 leading: const Icon(Icons.check_circle_outline,
                     color: kPrimaryColor),
-                title: const Text('Mark as Course Completed'),
+                title: const Text('Course Completed'),
                 onTap: () async {
                   Navigator.pop(context);
                   await _showDeleteConfirmationDialog(doc.id, doc.data());

@@ -406,7 +406,7 @@ class CommonFormState extends State<CommonForm> {
             }
           } else {
             // For non-offline errors, rethrow to show error to user
-            throw uploadError;
+            rethrow;
           }
         }
       } else {

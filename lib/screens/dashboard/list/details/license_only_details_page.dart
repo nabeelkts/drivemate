@@ -382,6 +382,11 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
     final textColor = isDark ? Colors.white : Colors.black;
     final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     final cardColor = Theme.of(context).cardColor;
+    final baseDocRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('licenseonly')
+        .doc(licenseDetails['studentId'].toString());
 
     double total =
         double.tryParse(licenseDetails['totalAmount']?.toString() ?? '0') ?? 0;
@@ -426,6 +431,22 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                       onPressed: _generateSelectedReceipts,
                       tooltip: 'Generate Receipt for Selected',
                     ),
+                  IconButton(
+                    icon: const Icon(Icons.post_add, color: Colors.blue),
+                    onPressed: () {
+                      if (snapshot.hasData) {
+                        PaymentUtils.showAddExtraFeeDialog(
+                          context: context,
+                          doc: snapshot.data!
+                              as DocumentSnapshot<Map<String, dynamic>>,
+                          targetId: targetId,
+                          branchId: _workspaceController.currentBranchId.value,
+                          category: 'licenseonly',
+                        );
+                      }
+                    },
+                    tooltip: 'Add Extra Fee',
+                  ),
                   IconButton(
                     icon: const Icon(Icons.add_circle, color: Colors.green),
                     onPressed: () {
@@ -495,9 +516,23 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
           const SizedBox(height: 16),
           const Divider(),
           const SizedBox(height: 8),
-          Text('Transaction History',
-              style: TextStyle(
-                  color: textColor, fontWeight: FontWeight.bold, fontSize: 14)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Transaction History',
+                  style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14)),
+              if (_selectedTransactionIds.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.receipt_long, color: kAccentRed),
+                  onPressed: _generateSelectedReceipts,
+                  tooltip: 'Generate Receipt for Selected',
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
           const SizedBox(height: 8),
           StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
@@ -559,16 +594,27 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                               fontWeight: FontWeight.bold,
                               fontSize: 14)),
                       subtitle: Text(
-                        '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}${data['note'] != null && data['note'].toString().isNotEmpty ? '\nNote: ${data['note']}' : ''}',
+                        '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}${data['note'] != null && data['note'].toString().trim().isNotEmpty ? '\nNote: ${data['note']}' : (data['description'] != null && data['description'].toString().trim().isNotEmpty ? '\n${data['description']}' : '')}',
                         style: TextStyle(color: subTextColor, fontSize: 11),
                       ),
                       secondary: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.receipt, size: 20),
-                            onPressed: () => _generateSingleReceipt(data),
-                            tooltip: 'Receipt',
+                            icon: const Icon(Icons.edit_outlined,
+                                size: 20, color: Colors.blue),
+                            onPressed: () => PaymentUtils.showEditPaymentDialog(
+                              context: context,
+                              docRef: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(targetId)
+                                  .collection('licenseonly')
+                                  .doc(licenseDetails['studentId'].toString()),
+                              paymentDoc: doc,
+                              targetId: targetId,
+                              category: 'licenseonly',
+                            ),
+                            tooltip: 'Edit Payment',
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete_outline,
@@ -604,6 +650,148 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
               );
             },
           ),
+          // ── Additional Fees (inline) ─────────────────────────────────────────
+          StreamBuilder<QuerySnapshot>(
+            stream: baseDocRef
+                .collection('extra_fees')
+                .orderBy('date', descending: true)
+                .snapshots(),
+            builder: (context, feesSnapshot) {
+              if (!feesSnapshot.hasData || feesSnapshot.data!.docs.isEmpty) {
+                return const SizedBox.shrink();
+              }
+              final feeDocs = feesSnapshot.data!.docs;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Divider(),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Additional Fees',
+                          style: TextStyle(
+                              color: textColor,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14)),
+                      if (_selectedTransactionIds.isNotEmpty)
+                        IconButton(
+                          icon:
+                              const Icon(Icons.receipt_long, color: kAccentRed),
+                          onPressed: _generateSelectedReceipts,
+                          tooltip: 'Generate Receipt for Selected',
+                          visualDensity: VisualDensity.compact,
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ...feeDocs.map((doc) {
+                    final data = doc.data() as Map<String, dynamic>;
+                    final date = (data['date'] as Timestamp).toDate();
+                    final isPaid = data['status'] == 'paid';
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey[900] : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: _selectedTransactionIds.contains(doc.id)
+                            ? Border.all(color: kAccentRed, width: 1)
+                            : isPaid
+                                ? Border.all(
+                                    color: Colors.green.withOpacity(0.4))
+                                : null,
+                      ),
+                      child: CheckboxListTile(
+                        value: _selectedTransactionIds.contains(doc.id),
+                        activeColor: kAccentRed,
+                        enabled: isPaid,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selectedTransactionIds.add(doc.id);
+                            } else {
+                              _selectedTransactionIds.remove(doc.id);
+                            }
+                          });
+                        },
+                        title: Text(
+                            '${data['description']} — Rs. ${data['amount']}',
+                            style: TextStyle(
+                                color: textColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13)),
+                        subtitle: Text(
+                          '${DateFormat('dd MMM yyyy').format(date)}'
+                          '${data['note'] != null && data['note'].toString().trim().isNotEmpty ? "\nNote: ${data['note']}" : ''}',
+                          style: TextStyle(color: subTextColor, fontSize: 11),
+                        ),
+                        secondary: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (isPaid)
+                              const Padding(
+                                padding: EdgeInsets.only(right: 8.0),
+                                child: Chip(
+                                  label: Text('Paid',
+                                      style: TextStyle(
+                                          color: Colors.white, fontSize: 11)),
+                                  backgroundColor: Colors.green,
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                ),
+                              )
+                            else
+                              TextButton(
+                                onPressed: () =>
+                                    PaymentUtils.showCollectExtraFeeDialog(
+                                  context: context,
+                                  docRef: baseDocRef,
+                                  feeDoc: doc,
+                                  targetId: targetId,
+                                  branchId: _workspaceController
+                                      .currentBranchId.value,
+                                ),
+                                style: TextButton.styleFrom(
+                                    foregroundColor: Colors.green),
+                                child: const Text('Collect',
+                                    style: TextStyle(fontSize: 12)),
+                              ),
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined,
+                                  size: 18, color: Colors.blue),
+                              onPressed: () =>
+                                  PaymentUtils.showEditExtraFeeDialog(
+                                context: context,
+                                docRef: baseDocRef,
+                                feeDoc: doc,
+                                targetId: targetId,
+                                category: 'licenseonly',
+                              ),
+                              tooltip: 'Edit',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline,
+                                  size: 18, color: Colors.red),
+                              onPressed: () => PaymentUtils.deleteExtraFee(
+                                context: context,
+                                docRef: baseDocRef,
+                                feeDoc: doc,
+                                targetId: targetId,
+                              ),
+                              tooltip: 'Delete',
+                            ),
+                          ],
+                        ),
+                        isThreeLine: data['note'] != null &&
+                            data['note'].toString().trim().isNotEmpty,
+                      ),
+                    );
+                  }),
+                ],
+              );
+            },
+          ),
         ],
       ),
     );
@@ -622,18 +810,58 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
     if (user == null) return;
 
     final targetId = _workspaceController.targetId;
+    final studentId = licenseDetails['studentId'].toString();
 
-    final query = await FirebaseFirestore.instance
+    // Separate IDs into payments and extra_fees
+    // In a real app, you'd know which is which, but here we can check both collections
+    // and combine them into a single list for PdfService.
+
+    final List<Map<String, dynamic>> allTransactions = [];
+
+    // Check payments collection
+    final paymentsQuery = await FirebaseFirestore.instance
         .collection('users')
         .doc(targetId)
         .collection('licenseonly')
-        .doc(licenseDetails['studentId'].toString())
+        .doc(studentId)
         .collection('payments')
         .where(FieldPath.documentId, whereIn: _selectedTransactionIds)
         .get();
+    allTransactions.addAll(paymentsQuery.docs.map((d) => d.data()));
 
-    final transactions = query.docs.map((d) => d.data()).toList();
-    _generateReceipts(transactions);
+    // Check extra_fees collection
+    final feesQuery = await FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('licenseonly')
+        .doc(studentId)
+        .collection('extra_fees')
+        .where(FieldPath.documentId, whereIn: _selectedTransactionIds)
+        .get();
+
+    // For extra fees, we need to adapt the data slightly to match transaction format if needed
+    // although they already have amount, date, description, etc.
+    allTransactions.addAll(feesQuery.docs.map((d) {
+      final data = d.data();
+      // Ensure date is a DateTime for PdfService
+      if (data['date'] is Timestamp) {
+        data['date'] = (data['date'] as Timestamp).toDate();
+      }
+      return data;
+    }));
+
+    if (allTransactions.isEmpty) return;
+
+    // Sort by date descending
+    allTransactions.sort((a, b) {
+      final dateA =
+          a['date'] is DateTime ? a['date'] : (a['date'] as Timestamp).toDate();
+      final dateB =
+          b['date'] is DateTime ? b['date'] : (b['date'] as Timestamp).toDate();
+      return dateB.compareTo(dateA);
+    });
+
+    _generateReceipts(allTransactions);
   }
 
   Future<void> _generateReceipts(
