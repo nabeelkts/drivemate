@@ -325,6 +325,13 @@ class OrganizationManagementPage extends StatelessWidget {
     Color cardColor,
     Color textColor,
   ) {
+    final showSwitchBranch = isOwner && controller.ownedBranches.length > 1;
+    final showLeaveBranch = !isOwner;
+
+    if (!showSwitchBranch && !showLeaveBranch) {
+      return const SizedBox.shrink();
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -338,13 +345,13 @@ class OrganizationManagementPage extends StatelessWidget {
           ),
           child: Column(
             children: [
-              _buildActionRow(IconlyLight.swap, 'Switch Branch',
-                  () => _showBranchSelector(context, controller), textColor),
-              if (!isOwner) ...[
-                const Divider(height: 1),
+              if (showSwitchBranch)
+                _buildActionRow(IconlyLight.swap, 'Switch Branch',
+                    () => _showBranchSelector(context, controller), textColor),
+              if (showSwitchBranch && showLeaveBranch) const Divider(height: 1),
+              if (showLeaveBranch)
                 _buildActionRow(IconlyLight.close_square, 'Leave Branch',
                     () => _confirmLeave(context, controller), Colors.red),
-              ],
             ],
           ),
         ),

@@ -59,6 +59,7 @@ class _LicenseOnlyState extends State<LicenseOnly> {
         ],
         index: 0,
         showLicenseField: false,
+        showStudyOption: true,
         onFormSubmit: (license) async {
           try {
             final cov = license['cov']?.toString() ?? '';

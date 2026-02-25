@@ -70,6 +70,7 @@ class _EndorsementDLState extends State<EndorsementDL> {
         ],
         index: 1,
         showLicenseField: true,
+        showStudyOption: true,
         onFormSubmit: (endorsement) async {
           try {
             final cov = endorsement['cov']?.toString() ?? '';

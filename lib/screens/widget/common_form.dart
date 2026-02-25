@@ -31,6 +31,7 @@ class CommonForm extends StatefulWidget {
   final Map<String, dynamic>? initialValues;
   final Future<void> Function(Map<String, dynamic>) onFormSubmit;
   final VoidCallback? onSubmitPressed;
+  final bool showStudyOption;
 
   const CommonForm({
     super.key,
@@ -41,6 +42,7 @@ class CommonForm extends StatefulWidget {
     this.initialValues,
     required this.onFormSubmit,
     this.onSubmitPressed,
+    this.showStudyOption = false,
   });
 
   @override
@@ -75,6 +77,7 @@ class CommonFormState extends State<CommonForm> {
   String _selectedPaymentMode = 'Cash';
   String? _selectedBloodGroup;
   List<String> _selectedItems = [];
+  List<String> _studySelectedItems = [];
 
   final StorageService _storageService = StorageService();
   final OCRService _ocrService = OCRService();
@@ -174,10 +177,23 @@ class CommonFormState extends State<CommonForm> {
         '';
 
     if (rawCov.isNotEmpty && rawCov != 'Select your cov' && rawCov != 'null') {
-      _selectedItems = rawCov.split(', ').map((e) => e.trim()).toList();
+      final parts = rawCov.split(', ');
+      _selectedItems = [];
+      _studySelectedItems = [];
+      for (var part in parts) {
+        final item = part.trim();
+        if (item.endsWith(' Study')) {
+          final baseItem = item.substring(0, item.length - 6);
+          _selectedItems.add(baseItem);
+          _studySelectedItems.add(baseItem);
+        } else {
+          _selectedItems.add(item);
+        }
+      }
       covController.text = rawCov;
     } else {
       _selectedItems = [];
+      _studySelectedItems = [];
       covController.text = 'Select your cov';
     }
 
@@ -415,6 +431,13 @@ class CommonFormState extends State<CommonForm> {
         print('COV: ${covController.text}');
       }
 
+      final List<String> formattedCovItems = _selectedItems.map((item) {
+        if (_studySelectedItems.contains(item)) {
+          return '$item Study';
+        }
+        return item;
+      }).toList();
+
       Map<String, dynamic> student = {
         'studentId': studentIdController.text,
         'fullName': fullNameController.text,
@@ -435,10 +458,10 @@ class CommonFormState extends State<CommonForm> {
         'advanceAmount': advanceAmount,
         'balanceAmount': balanceAmount,
         'paymentMode': _selectedPaymentMode,
-        'cov': _selectedItems.join(', '),
-        'serviceTypes': _selectedItems, // Store as array for better querying
+        'cov': formattedCovItems.join(', '),
+        'serviceTypes': formattedCovItems,
         'serviceType':
-            widget.showServiceType ? _selectedItems.join(', ') : null,
+            widget.showServiceType ? formattedCovItems.join(', ') : null,
         'otherService':
             widget.showServiceType && _selectedItems.contains('Other')
                 ? otherServiceController.text
@@ -690,6 +713,7 @@ class CommonFormState extends State<CommonForm> {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
     List<String> tempSelected = List.from(_selectedItems);
+    List<String> tempStudySelected = List.from(_studySelectedItems);
 
     showDialog(
       context: context,
@@ -714,24 +738,53 @@ class CommonFormState extends State<CommonForm> {
                   itemBuilder: (context, index) {
                     final item = widget.items[index];
                     final isSelected = tempSelected.contains(item);
-                    return CheckboxListTile(
-                      title: Text(
-                        item,
-                        style: TextStyle(
-                          color: isDark ? Colors.white70 : Colors.black87,
+                    final isStudySelected = tempStudySelected.contains(item);
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CheckboxListTile(
+                          title: Text(
+                            item,
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : Colors.black87,
+                            ),
+                          ),
+                          value: isSelected,
+                          activeColor: const Color(0xFFFF6B2C),
+                          onChanged: (bool? value) {
+                            setDialogState(() {
+                              if (value == true) {
+                                tempSelected.add(item);
+                              } else {
+                                tempSelected.remove(item);
+                                tempStudySelected.remove(item);
+                              }
+                            });
+                          },
                         ),
-                      ),
-                      value: isSelected,
-                      activeColor: const Color(0xFFFF6B2C),
-                      onChanged: (bool? value) {
-                        setDialogState(() {
-                          if (value == true) {
-                            tempSelected.add(item);
-                          } else {
-                            tempSelected.remove(item);
-                          }
-                        });
-                      },
+                        if (isSelected &&
+                            widget.showStudyOption &&
+                            !widget.showServiceType)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 32.0),
+                            child: CheckboxListTile(
+                              dense: true,
+                              title: const Text('Study Option'),
+                              value: isStudySelected,
+                              activeColor: const Color(0xFFFF6B2C),
+                              onChanged: (bool? value) {
+                                setDialogState(() {
+                                  if (value == true) {
+                                    tempStudySelected.add(item);
+                                  } else {
+                                    tempStudySelected.remove(item);
+                                  }
+                                });
+                              },
+                            ),
+                          ),
+                      ],
                     );
                   },
                 ),
@@ -753,9 +806,19 @@ class CommonFormState extends State<CommonForm> {
                   onPressed: () {
                     setState(() {
                       _selectedItems = tempSelected;
-                      covController.text = _selectedItems.isEmpty
+                      _studySelectedItems = tempStudySelected;
+
+                      final List<String> formattedCovItems =
+                          _selectedItems.map((item) {
+                        if (_studySelectedItems.contains(item)) {
+                          return '$item Study';
+                        }
+                        return item;
+                      }).toList();
+
+                      covController.text = formattedCovItems.isEmpty
                           ? 'Select your cov'
-                          : _selectedItems.join(', ');
+                          : formattedCovItems.join(', ');
                     });
                     Navigator.pop(context);
                   },

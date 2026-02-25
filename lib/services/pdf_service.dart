@@ -439,6 +439,7 @@ class PdfService {
                       pw.Expanded(
                           flex: 4,
                           child: pw.Text((() {
+                            String desc = '';
                             // Determine Description
                             // Check if it's a vehicle payment (has vehicle number)
                             if (studentDetails['vehicleNumber'] != null &&
@@ -458,13 +459,20 @@ class PdfService {
                               }
 
                               if (sType.isNotEmpty) {
-                                return '$vNum - $sType';
+                                desc = '$vNum - $sType';
                               } else {
-                                return vNum;
+                                desc = vNum;
                               }
+                            } else {
+                              // Default for students/others
+                              desc = studentDetails['cov'] ?? 'Course Payment';
                             }
-                            // Default for students/others
-                            return studentDetails['cov'] ?? 'Course Payment';
+
+                            if (tx['note'] != null &&
+                                tx['note'].toString().trim().isNotEmpty) {
+                              desc += '\nNote: ${tx['note']}';
+                            }
+                            return desc;
                           })(), style: const pw.TextStyle(fontSize: 10))),
                       pw.Expanded(
                           flex: 2,

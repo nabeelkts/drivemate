@@ -43,17 +43,24 @@ class _TodaysTestsState extends State<TodaysTests> {
       final field =
           widget.type == 'learners' ? 'learnersTestDate' : 'drivingTestDate';
 
-      final snapshot = await workspaceController
-          .getFilteredCollection('students')
-          .where(field, isEqualTo: dateStr)
-          .get();
+      final collections = ['students', 'licenseonly', 'endorsement'];
+      final List<Map<String, dynamic>> allStudents = [];
+
+      for (String col in collections) {
+        final snapshot = await workspaceController
+            .getFilteredCollection(col)
+            .where(field, isEqualTo: dateStr)
+            .get();
+
+        allStudents.addAll(snapshot.docs.map((doc) => {
+              ...doc.data(),
+              'id': doc.id,
+              '_collection': col,
+            }));
+      }
+
       setState(() {
-        students = snapshot.docs
-            .map((doc) => {
-                  ...doc.data(),
-                  'id': doc.id,
-                })
-            .toList();
+        students = allStudents;
         isLoading = false;
       });
     } catch (e) {
@@ -194,7 +201,7 @@ class _TodaysTestsState extends State<TodaysTests> {
                 await FirebaseFirestore.instance
                     .collection('users')
                     .doc(targetId)
-                    .collection('students')
+                    .collection(student['_collection'] ?? 'students')
                     .doc(student['id'])
                     .update({
                   'fullName': fullNameController.text,
@@ -352,7 +359,7 @@ class _TodaysTestsState extends State<TodaysTests> {
                 await FirebaseFirestore.instance
                     .collection('users')
                     .doc(targetId)
-                    .collection('students')
+                    .collection(student['_collection'] ?? 'students')
                     .doc(student['id'])
                     .update({
                   'licenseNumber': licenseNumberController.text,
@@ -514,7 +521,7 @@ class _TodaysTestsState extends State<TodaysTests> {
                 await FirebaseFirestore.instance
                     .collection('users')
                     .doc(targetId)
-                    .collection('students')
+                    .collection(student['_collection'] ?? 'students')
                     .doc(student['id'])
                     .update({
                   'endorsement': endorsementController.text,

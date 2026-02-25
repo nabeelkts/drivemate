@@ -207,8 +207,10 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
         CommonForm(
           key: formKey,
           items: widget.items,
-          index: widget.items.indexOf(widget.initialValues['cov']),
+          index: widget.items
+              .indexOf(widget.initialValues['cov'] ?? ''), // Null safe index
           showLicenseField: false,
+          showStudyOption: true,
           initialValues: widget.initialValues,
           onFormSubmit: (licenseonly) async {
             try {

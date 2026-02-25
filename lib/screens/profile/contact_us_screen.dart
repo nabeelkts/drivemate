@@ -79,7 +79,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
 
       await FlutterEmailSender.send(email);
 
-      Fluttertoast.showToast(msg: 'Opening email client...');
+      Fluttertoast.showToast(msg: 'Opening email ...');
 
       // Clear form after successful handoff
       if (mounted) {
@@ -89,7 +89,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
         });
       }
     } catch (error) {
-      Fluttertoast.showToast(msg: 'Failed to open email client: $error');
+      Fluttertoast.showToast(msg: 'Failed to open email: $error');
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
@@ -314,7 +314,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
                         ),
                       )
                     : const Text(
-                        'Send via Email client',
+                        'Send via Email',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 16,

@@ -17,6 +17,7 @@ class PaymentUtils {
         double.tryParse((data['balanceAmount'] ?? 0).toString()) ?? 0;
 
     final amountController = TextEditingController();
+    final noteController = TextEditingController();
     String selectedMode = 'Cash';
     final modes = [
       'Cash',
@@ -57,6 +58,13 @@ class PaymentUtils {
                       .toList(),
                   onChanged: (v) =>
                       setDialogState(() => selectedMode = v ?? 'Cash'),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: noteController,
+                  decoration: const InputDecoration(
+                      labelText: 'Note / Remarks (Optional)'),
+                  maxLines: 2,
                 ),
               ],
             ),
@@ -175,6 +183,7 @@ class PaymentUtils {
                     'recordName': name,
                     'category': category,
                     'branchId': branchId ?? targetId,
+                    'note': noteController.text.trim(),
                   });
 
                   // Add to recent activity
@@ -229,6 +238,7 @@ class PaymentUtils {
         double.tryParse((data['balanceAmount'] ?? 0).toString()) ?? 0;
 
     final amountController = TextEditingController();
+    final noteController = TextEditingController();
     String selectedMode = 'Cash';
     final modes = [
       'Cash',
@@ -266,6 +276,13 @@ class PaymentUtils {
                       DropdownMenuItem(value: mode, child: Text(mode)))
                   .toList(),
               onChanged: (val) => selectedMode = val!,
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: noteController,
+              decoration:
+                  const InputDecoration(labelText: 'Note / Remarks (Optional)'),
+              maxLines: 2,
             ),
           ],
         ),
@@ -311,6 +328,7 @@ class PaymentUtils {
                   'recordName': name,
                   'category': category,
                   'branchId': branchId ?? targetId,
+                  'note': noteController.text.trim(),
                 });
 
                 await batch.commit();

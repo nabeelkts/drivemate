@@ -313,6 +313,7 @@ class _EditEndorsementDetailsFormState
           items: widget.items,
           index: selectedIndex,
           showLicenseField: true,
+          showStudyOption: true,
           initialValues: widget.initialValues,
           onFormSubmit: (endorsement) async {
             try {

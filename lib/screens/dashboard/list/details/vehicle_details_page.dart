@@ -296,7 +296,7 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
                             fontWeight: FontWeight.bold,
                             fontSize: 14)),
                     subtitle: Text(
-                      '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}',
+                      '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}${data['note'] != null && data['note'].toString().isNotEmpty ? '\nNote: ${data['note']}' : ''}',
                       style: TextStyle(color: subTextColor, fontSize: 11),
                     ),
                     secondary: Row(

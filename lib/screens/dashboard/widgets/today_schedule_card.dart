@@ -22,8 +22,16 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
   final List<Map<String, dynamic>> _items = [];
   bool _isLoading = true;
   final List<StreamSubscription> _subscriptions = [];
-  List<DocumentSnapshot> _learnersDocs = [];
-  List<DocumentSnapshot> _drivingDocs = [];
+  final Map<String, List<DocumentSnapshot>> _learnersDocsMap = {
+    'students': [],
+    'licenseonly': [],
+    'endorsement': []
+  };
+  final Map<String, List<DocumentSnapshot>> _drivingDocsMap = {
+    'students': [],
+    'licenseonly': [],
+    'endorsement': []
+  };
   StreamSubscription? _schoolIdListener;
 
   @override
@@ -62,29 +70,32 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
     final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
     final dateStr = _storageDateFormat.format(DateTime.now());
 
-    // Learners Stream
-    _subscriptions.add(FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('students')
-        .where('learnersTestDate', isEqualTo: dateStr)
-        .snapshots()
-        .listen((snapshot) {
-      _learnersDocs = snapshot.docs;
-      _updateItems();
-    }));
+    final collections = ['students', 'licenseonly', 'endorsement'];
+    for (String col in collections) {
+      // Learners Stream
+      _subscriptions.add(FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection(col)
+          .where('learnersTestDate', isEqualTo: dateStr)
+          .snapshots()
+          .listen((snapshot) {
+        _learnersDocsMap[col] = snapshot.docs;
+        _updateItems();
+      }));
 
-    // Driving Stream
-    _subscriptions.add(FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('students')
-        .where('drivingTestDate', isEqualTo: dateStr)
-        .snapshots()
-        .listen((snapshot) {
-      _drivingDocs = snapshot.docs;
-      _updateItems();
-    }));
+      // Driving Stream
+      _subscriptions.add(FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection(col)
+          .where('drivingTestDate', isEqualTo: dateStr)
+          .snapshots()
+          .listen((snapshot) {
+        _drivingDocsMap[col] = snapshot.docs;
+        _updateItems();
+      }));
+    }
   }
 
   void _updateItems() {
@@ -100,7 +111,10 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
     ];
     int slot = 0;
 
-    for (var doc in _learnersDocs) {
+    final allLearners = _learnersDocsMap.values.expand((x) => x).toList();
+    final allDriving = _drivingDocsMap.values.expand((x) => x).toList();
+
+    for (var doc in allLearners) {
       final d = doc.data() as Map<String, dynamic>;
       if (slot < timeSlots.length) {
         newItems.add({
@@ -114,7 +128,7 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
       }
     }
 
-    for (var doc in _drivingDocs) {
+    for (var doc in allDriving) {
       final d = doc.data() as Map<String, dynamic>;
       if (slot < timeSlots.length) {
         newItems.add({

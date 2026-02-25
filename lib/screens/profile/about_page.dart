@@ -56,7 +56,7 @@ class AboutPage extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   Text(
-                    'MDS Management',
+                    'Drivemate Management',
                     style: TextStyle(
                       color: textColor,
                       fontSize: 20,
@@ -159,7 +159,7 @@ class AboutPage extends StatelessWidget {
             // ── Copyright ─────────────────────────────────────────────────
             Center(
               child: Text(
-                '© ${DateTime.now().year} MDS Management. All rights reserved.',
+                '© ${DateTime.now().year} Drivemate Management. All rights reserved.',
                 style: TextStyle(
                   color: subColor,
                   fontSize: 11,

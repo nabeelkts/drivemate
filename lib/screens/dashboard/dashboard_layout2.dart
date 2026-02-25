@@ -11,11 +11,10 @@ import 'package:carousel_slider/carousel_slider.dart';
 
 import 'package:mds/controller/workspace_controller.dart';
 import 'dart:math' as math;
+import 'dart:async';
 
 class DashboardLayout2 extends StatelessWidget {
   const DashboardLayout2({super.key});
-
-  static final DateFormat _storageDateFormat = DateFormat('yyyy-MM-dd');
 
   @override
   Widget build(BuildContext context) {
@@ -48,13 +47,20 @@ class DashboardLayout2 extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildTodaySchedule(context, workspaceController, isDark,
-                          textColor, targetId),
+                      _TodayScheduleWidget(
+                        controller: workspaceController,
+                        isDark: isDark,
+                        textColor: textColor,
+                        targetId: targetId,
+                      ),
                       const SizedBox(height: 12),
                       _buildQuickActions(context, isDark, textColor),
-                      const SizedBox(height: 12),
-                      _buildOrgInsights(context, workspaceController, isDark,
-                          textColor, targetId),
+                      if (workspaceController.userRole.value == 'Owner' &&
+                          workspaceController.ownedBranches.length > 1) ...[
+                        const SizedBox(height: 12),
+                        _buildOrgInsights(context, workspaceController, isDark,
+                            textColor, targetId),
+                      ],
                       const SizedBox(height: 12),
                       _buildRevenue(context, workspaceController, isDark,
                           textColor, targetId),
@@ -112,49 +118,56 @@ class DashboardLayout2 extends StatelessWidget {
                           letterSpacing: -0.5,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      GestureDetector(
-                        onTap: () => controller.toggleViewMode(),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: isOrg
-                                ? kOrange.withOpacity(0.1)
-                                : Colors.blue.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
+                      if (controller.userRole.value == 'Owner' &&
+                          controller.ownedBranches.length > 1) ...[
+                        const SizedBox(width: 12),
+                        GestureDetector(
+                          onTap: () => controller.toggleViewMode(),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 4),
+                            decoration: BoxDecoration(
                               color: isOrg
-                                  ? kOrange.withOpacity(0.2)
-                                  : Colors.blue.withOpacity(0.2),
+                                  ? kOrange.withOpacity(0.1)
+                                  : Colors.blue.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                color: isOrg
+                                    ? kOrange.withOpacity(0.2)
+                                    : Colors.blue.withOpacity(0.2),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  isOrg ? Icons.business : Icons.account_tree,
+                                  size: 12,
+                                  color: isOrg ? kOrange : Colors.blue,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isOrg ? 'Organization' : 'Branch',
+                                  style: TextStyle(
+                                    color: isOrg ? kOrange : Colors.blue,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                isOrg ? Icons.business : Icons.account_tree,
-                                size: 12,
-                                color: isOrg ? kOrange : Colors.blue,
-                              ),
-                              const SizedBox(width: 4),
-                              Text(
-                                isOrg ? 'Organization' : 'Branch',
-                                style: TextStyle(
-                                  color: isOrg ? kOrange : Colors.blue,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    isOrg ? 'Consolidated Insights' : branchName,
+                    (controller.userRole.value == 'Owner' &&
+                            controller.ownedBranches.length > 1 &&
+                            isOrg)
+                        ? 'Consolidated Insights'
+                        : branchName,
                     style: TextStyle(
                       color: textColor.withOpacity(0.6),
                       fontSize: 13,
@@ -176,85 +189,8 @@ class DashboardLayout2 extends StatelessWidget {
     );
   }
 
-  Widget _buildTodaySchedule(
-      BuildContext context,
-      WorkspaceController controller,
-      bool isDark,
-      Color textColor,
-      String targetId) {
-    final dateStr = _storageDateFormat.format(DateTime.now());
-    final isOrg = controller.isOrganizationMode.value;
-    final branchId = controller.currentBranchId.value;
-
-    Query<Map<String, dynamic>> learnersQuery = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('students')
-        .where('learnersTestDate', isEqualTo: dateStr);
-
-    Query<Map<String, dynamic>> drivingQuery = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('students')
-        .where('drivingTestDate', isEqualTo: dateStr);
-
-    if (!isOrg && branchId.isNotEmpty) {
-      learnersQuery = learnersQuery.where('branchId', isEqualTo: branchId);
-      drivingQuery = drivingQuery.where('branchId', isEqualTo: branchId);
-    }
-
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: learnersQuery.snapshots(),
-      builder: (context, learnersSnapshot) {
-        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: drivingQuery.snapshots(),
-          builder: (context, drivingSnapshot) {
-            final learners = learnersSnapshot.data?.docs ?? [];
-            final driving = drivingSnapshot.data?.docs ?? [];
-            final List<Map<String, dynamic>> items = [];
-            final timeSlots = [
-              '09:00 AM',
-              '10:00 AM',
-              '11:00 AM',
-              '12:00 PM',
-              '01:00 PM',
-              '02:00 PM',
-              '03:00 PM',
-              '04:00 PM',
-            ];
-            int slot = 0;
-            for (var doc in learners) {
-              final d = doc.data();
-              if (slot < timeSlots.length) {
-                items.add({
-                  'time': timeSlots[slot],
-                  'name': d['fullName'] ?? 'N/A',
-                  'role': 'LL',
-                  'profileUrl': d['profileImageUrl'],
-                  'type': 'learners',
-                });
-                slot++;
-              }
-            }
-            for (var doc in driving) {
-              final d = doc.data();
-              if (slot < timeSlots.length) {
-                items.add({
-                  'time': timeSlots[slot],
-                  'name': d['fullName'] ?? 'N/A',
-                  'role': 'DL',
-                  'profileUrl': d['profileImageUrl'],
-                  'type': 'driving',
-                });
-                slot++;
-              }
-            }
-            return _buildScheduleCard(context, isDark, textColor, items,
-                learners.length, driving.length);
-          },
-        );
-      },
-    );
+  Widget _buildTodaySchedulePlaceholder() {
+    return const SizedBox.shrink();
   }
 
   Widget _buildScheduleCard(
@@ -1130,6 +1066,250 @@ class DashboardLayout2 extends StatelessWidget {
           },
         );
       }).toList(),
+    );
+  }
+}
+
+class _TodayScheduleWidget extends StatefulWidget {
+  final WorkspaceController controller;
+  final bool isDark;
+  final Color textColor;
+  final String targetId;
+
+  const _TodayScheduleWidget({
+    required this.controller,
+    required this.isDark,
+    required this.textColor,
+    required this.targetId,
+  });
+
+  @override
+  State<_TodayScheduleWidget> createState() => _TodayScheduleWidgetState();
+}
+
+class _TodayScheduleWidgetState extends State<_TodayScheduleWidget> {
+  static final DateFormat _storageDateFormat = DateFormat('yyyy-MM-dd');
+  final Map<String, List<DocumentSnapshot>> _learnersDocsMap = {
+    'students': [],
+    'licenseonly': [],
+    'endorsement': []
+  };
+  final Map<String, List<DocumentSnapshot>> _drivingDocsMap = {
+    'students': [],
+    'licenseonly': [],
+    'endorsement': []
+  };
+  final List<StreamSubscription> _subscriptions = [];
+  bool _isLoading = true;
+  List<Map<String, dynamic>> _items = [];
+  int _learnersCount = 0;
+  int _drivingCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _setupStreams();
+  }
+
+  void _setupStreams() {
+    final dateStr = _storageDateFormat.format(DateTime.now());
+    final isOrg = widget.controller.isOrganizationMode.value;
+    final branchId = widget.controller.currentBranchId.value;
+    final collections = ['students', 'licenseonly', 'endorsement'];
+
+    for (String col in collections) {
+      Query<Map<String, dynamic>> learnersQuery = FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.targetId)
+          .collection(col)
+          .where('learnersTestDate', isEqualTo: dateStr);
+
+      Query<Map<String, dynamic>> drivingQuery = FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.targetId)
+          .collection(col)
+          .where('drivingTestDate', isEqualTo: dateStr);
+
+      if (!isOrg && branchId.isNotEmpty) {
+        learnersQuery = learnersQuery.where('branchId', isEqualTo: branchId);
+        drivingQuery = drivingQuery.where('branchId', isEqualTo: branchId);
+      }
+
+      _subscriptions.add(learnersQuery.snapshots().listen((snapshot) {
+        _learnersDocsMap[col] = snapshot.docs;
+        _updateItems();
+      }));
+
+      _subscriptions.add(drivingQuery.snapshots().listen((snapshot) {
+        _drivingDocsMap[col] = snapshot.docs;
+        _updateItems();
+      }));
+    }
+  }
+
+  void _updateItems() {
+    if (!mounted) return;
+    final allLearners = _learnersDocsMap.values.expand((x) => x).toList();
+    final allDriving = _drivingDocsMap.values.expand((x) => x).toList();
+
+    final List<Map<String, dynamic>> newItems = [];
+    final timeSlots = [
+      '09:00 AM',
+      '10:00 AM',
+      '11:00 AM',
+      '12:00 PM',
+      '01:00 PM',
+      '02:00 PM',
+      '03:00 PM',
+      '04:00 PM',
+    ];
+    int slot = 0;
+
+    for (var doc in allLearners) {
+      final d = doc.data() as Map<String, dynamic>?;
+      if (d != null && slot < timeSlots.length) {
+        newItems.add({
+          'time': timeSlots[slot],
+          'name': d['fullName'] ?? 'N/A',
+          'role': 'LL',
+          'profileUrl': d['profileImageUrl'],
+          'type': 'learners',
+        });
+        slot++;
+      }
+    }
+    for (var doc in allDriving) {
+      final d = doc.data() as Map<String, dynamic>?;
+      if (d != null && slot < timeSlots.length) {
+        newItems.add({
+          'time': timeSlots[slot],
+          'name': d['fullName'] ?? 'N/A',
+          'role': 'DL',
+          'profileUrl': d['profileImageUrl'],
+          'type': 'driving',
+        });
+        slot++;
+      }
+    }
+
+    setState(() {
+      _items = newItems;
+      _learnersCount = allLearners.length;
+      _drivingCount = allDriving.length;
+      _isLoading = false;
+    });
+  }
+
+  @override
+  void dispose() {
+    for (var sub in _subscriptions) {
+      sub.cancel();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Container(
+        height: 100,
+        alignment: Alignment.center,
+        child: const CircularProgressIndicator(),
+      );
+    }
+
+    final displayItems = _items.take(2).toList();
+    final kOrange =
+        const Color(0xFFFF5722); // Assuming kOrange based on mdscolors
+
+    return InkWell(
+      onTap: () => Navigator.pushNamed(context, '/today_schedule'),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: widget.isDark ? const Color(0xFF2a2a2a) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.04),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              "Today's Schedule",
+              style: TextStyle(
+                color: widget.textColor,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _learnersCount == 0 && _drivingCount == 0
+                  ? 'No sessions today'
+                  : '${_learnersCount > 0 ? '$_learnersCount LL' : ''}${_learnersCount > 0 && _drivingCount > 0 ? ', ' : ''}${_drivingCount > 0 ? '$_drivingCount DL' : ''} test${(_learnersCount + _drivingCount) > 1 ? 's' : ''} today',
+              style: TextStyle(
+                color: widget.textColor.withOpacity(0.5),
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 10),
+            if (displayItems.isEmpty)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Center(
+                  child: Text(
+                    'No sessions scheduled',
+                    style: TextStyle(
+                      color: widget.textColor.withOpacity(0.4),
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              )
+            else
+              ...displayItems.map((item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: kOrange,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            '${item['name']} — ${item['role']}',
+                            style: TextStyle(
+                              color: widget.textColor,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          item['time'] as String,
+                          style: TextStyle(
+                            color: widget.textColor.withOpacity(0.6),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+          ],
+        ),
+      ),
     );
   }
 }
