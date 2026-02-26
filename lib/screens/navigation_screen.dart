@@ -185,14 +185,9 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
         canPop: false,
         child: Stack(
           children: [
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 800),
-                child: IndexedStack(
-                  index: _currentIndex,
-                  children: _screens,
-                ),
-              ),
+            IndexedStack(
+              index: _currentIndex,
+              children: _screens,
             ),
             Obx(() {
               if (!_workspaceController.isConnected.value &&
@@ -279,11 +274,12 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
       unselectedItemColor: Colors.grey.shade500,
       elevation: 0.0,
       items: [
-        _buildNavBarItem(0, IconlyLight.home, 'Home'),
-        _buildNavBarItem(1, IconlyLight.chart, 'Statistics'),
-        _buildNavBarItem(2, Icons.map_outlined, 'Map', useIconData: true),
-        _buildNavBarItem(3, IconlyLight.swap, 'Accounts'),
-        _buildNavBarItem(4, IconlyLight.profile, 'Profile'),
+        _buildNavBarItem(0, IconlyLight.home, IconlyBold.home, 'Home'),
+        _buildNavBarItem(1, IconlyLight.chart, IconlyBold.chart, 'Statistics'),
+        _buildNavBarItem(2, Icons.map_outlined, Icons.map, 'Map',
+            useIconData: true),
+        _buildNavBarItem(3, IconlyLight.swap, IconlyBold.swap, 'Accounts'),
+        _buildNavBarItem(4, IconlyLight.profile, IconlyBold.profile, 'Profile'),
       ],
     );
   }
@@ -302,10 +298,10 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
       unselectedItemColor: Colors.grey.shade500,
       elevation: 0.0,
       items: [
-        _buildNavBarItem(0, IconlyLight.home, 'Home'),
-        _buildNavBarItem(1, IconlyLight.chart, 'Statistics'),
-        _buildNavBarItem(2, IconlyLight.swap, 'Accounts'),
-        _buildNavBarItem(3, IconlyLight.profile, 'Profile'),
+        _buildNavBarItem(0, IconlyLight.home, IconlyBold.home, 'Home'),
+        _buildNavBarItem(1, IconlyLight.chart, IconlyBold.chart, 'Statistics'),
+        _buildNavBarItem(2, IconlyLight.swap, IconlyBold.swap, 'Accounts'),
+        _buildNavBarItem(3, IconlyLight.profile, IconlyBold.profile, 'Profile'),
       ],
     );
   }
@@ -313,6 +309,7 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
   BottomNavigationBarItem _buildNavBarItem(
     int index,
     dynamic icon,
+    dynamic selectedIcon,
     String label, {
     bool useIconData = false,
   }) {
@@ -323,20 +320,34 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
     final isDisabled =
         (_isSubscriptionExpired || isStaffUnconnected) && index != profileIndex;
 
+    final isSelected = _currentIndex == index;
+
     final iconWidget = Opacity(
       opacity: isDisabled ? 0.3 : 1.0,
-      child: Icon(
-        icon as IconData,
-        color: _currentIndex == index
-            ? theme.colorScheme.primary
-            : (isDisabled ? Colors.grey.shade400 : Colors.grey.shade700),
-        size: 32,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        child: Icon(
+          isSelected ? (selectedIcon as IconData) : (icon as IconData),
+          color: isSelected
+              ? theme.colorScheme.primary
+              : (isDisabled ? Colors.grey.shade400 : Colors.grey.shade700),
+          size: isSelected
+              ? 30
+              : 28, // Slightly smaller base size, larger selected
+        ),
       ),
     );
 
     return BottomNavigationBarItem(
       label: label,
-      icon: iconWidget,
+      icon: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: iconWidget,
+      ),
+      activeIcon: Padding(
+        padding: const EdgeInsets.only(bottom: 4),
+        child: iconWidget,
+      ),
     );
   }
 }

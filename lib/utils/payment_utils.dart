@@ -270,6 +270,7 @@ class PaymentUtils {
                     'timestamp': FieldValue.serverTimestamp(),
                     'type': category,
                     'recordId': doc.id,
+                    'imageUrl': doc['image'],
                     'branchId': branchId ?? targetId,
                   });
 
@@ -484,6 +485,22 @@ class PaymentUtils {
                     'category': category,
                     'branchId': branchId ?? targetId,
                     'note': noteController.text.trim(),
+                  });
+
+                  // Add to recent activity
+                  final activityRef = firestore
+                      .collection('users')
+                      .doc(targetId)
+                      .collection('recentActivity')
+                      .doc();
+                  batch.set(activityRef, {
+                    'title': description,
+                    'details': '$name\nRs. ${amount.toStringAsFixed(0)}',
+                    'timestamp': FieldValue.serverTimestamp(),
+                    'type': category,
+                    'recordId': doc.id,
+                    'imageUrl': data['image'],
+                    'branchId': branchId ?? targetId,
                   });
 
                   await batch.commit();
@@ -717,6 +734,7 @@ class PaymentUtils {
                     'timestamp': FieldValue.serverTimestamp(),
                     'type': 'editing',
                     'recordId': parentDoc.id,
+                    'imageUrl': parentData['image'],
                     'branchId': branchId ?? targetId,
                   });
 
@@ -824,6 +842,7 @@ class PaymentUtils {
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'deletion',
         'recordId': studentDoc.id,
+        'imageUrl': studentData['image'],
         'branchId': targetId,
       });
 
@@ -1003,6 +1022,7 @@ class PaymentUtils {
                     'timestamp': FieldValue.serverTimestamp(),
                     'type': 'addition',
                     'recordId': doc.id,
+                    'imageUrl': data['image'],
                     'branchId': branchId ?? targetId,
                   });
 
@@ -1192,6 +1212,7 @@ class PaymentUtils {
                     'timestamp': FieldValue.serverTimestamp(),
                     'type': 'edit',
                     'recordId': parentDoc.id,
+                    'imageUrl': parentData['image'],
                     'branchId': branchId ?? targetId,
                   });
 
@@ -1384,6 +1405,12 @@ class PaymentUtils {
                     'targetId': targetId,
                     'branchId': branchId ?? targetId,
                     'type': 'extra_fee_collection',
+                    'recordId': feeData['recordId'] ?? parentDoc.id,
+                    'recordName': feeData['recordName'] ??
+                        parentData['fullName'] ??
+                        parentData['vehicleNumber'] ??
+                        'N/A',
+                    'category': feeData['category'] ?? docRef.parent.id,
                   });
 
                   // Log activity
@@ -1399,6 +1426,7 @@ class PaymentUtils {
                     'timestamp': FieldValue.serverTimestamp(),
                     'type': 'payment',
                     'recordId': parentDoc.id,
+                    'imageUrl': parentData['image'],
                     'branchId': branchId ?? targetId,
                   });
 
@@ -1540,6 +1568,7 @@ class PaymentUtils {
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'deletion',
         'recordId': parentDoc.id,
+        'imageUrl': parentData['image'],
         'branchId': targetId,
       });
 

@@ -127,6 +127,15 @@ class CommonFormState extends State<CommonForm> {
     fullNameController.addListener(() {
       if (mounted) setState(() {});
     });
+
+    // Add listener for Other service type to update display real-time
+    otherServiceController.addListener(() {
+      if (mounted &&
+          widget.showServiceType &&
+          _selectedItems.contains('Other')) {
+        _updateCovSummary();
+      }
+    });
   }
 
   void _initializeControllers() {
@@ -187,18 +196,36 @@ class CommonFormState extends State<CommonForm> {
           _selectedItems.add(baseItem);
           _studySelectedItems.add(baseItem);
         } else {
-          _selectedItems.add(item);
+          // If the item doesn't exist in the standard list, treat it as "Other"
+          if (widget.showServiceType && !widget.items.contains(item)) {
+            if (!_selectedItems.contains('Other')) {
+              _selectedItems.add('Other');
+            }
+            if (otherServiceController.text.isEmpty) {
+              otherServiceController.text = item;
+            }
+          } else {
+            _selectedItems.add(item);
+          }
         }
       }
       covController.text = rawCov;
     } else {
       _selectedItems = [];
       _studySelectedItems = [];
-      covController.text = 'Select your cov';
+      covController.text =
+          widget.showServiceType ? 'Select service' : 'Select your cov';
     }
 
-    otherServiceController.text =
-        widget.initialValues?['otherService']?.toString() ?? '';
+    // Initialize from explicit `otherService` map property if needed
+    if (widget.initialValues?['otherService'] != null &&
+        widget.initialValues!['otherService'].toString().isNotEmpty) {
+      otherServiceController.text =
+          widget.initialValues!['otherService'].toString();
+      if (!_selectedItems.contains('Other')) {
+        _selectedItems.add('Other');
+      }
+    }
 
     final initItem = widget.items
         .indexOf(_selectedItems.isNotEmpty ? _selectedItems.first : '');
@@ -206,6 +233,29 @@ class CommonFormState extends State<CommonForm> {
         initItem >= 0 ? initItem : (widget.index >= 0 ? widget.index : 0);
     _currentIndex = safeInitItem;
     scrollController = FixedExtentScrollController(initialItem: safeInitItem);
+
+    // Final check for summary alignment
+    _updateCovSummary();
+  }
+
+  void _updateCovSummary() {
+    final List<String> formattedItems = _selectedItems.map((item) {
+      if (item == 'Other' && widget.showServiceType) {
+        return otherServiceController.text.isNotEmpty
+            ? otherServiceController.text
+            : 'Other';
+      }
+      if (_studySelectedItems.contains(item)) {
+        return '$item Study';
+      }
+      return item;
+    }).toList();
+
+    setState(() {
+      covController.text = formattedItems.isEmpty
+          ? (widget.showServiceType ? 'Select service' : 'Select your cov')
+          : formattedItems.join(', ');
+    });
   }
 
   void _calculateBalance() {
@@ -432,6 +482,11 @@ class CommonFormState extends State<CommonForm> {
       }
 
       final List<String> formattedCovItems = _selectedItems.map((item) {
+        if (item == 'Other' && widget.showServiceType) {
+          return otherServiceController.text.isNotEmpty
+              ? otherServiceController.text
+              : 'Other';
+        }
         if (_studySelectedItems.contains(item)) {
           return '$item Study';
         }
@@ -459,14 +514,13 @@ class CommonFormState extends State<CommonForm> {
         'balanceAmount': balanceAmount,
         'paymentMode': _selectedPaymentMode,
         'cov': formattedCovItems.join(', '),
-        'serviceTypes': formattedCovItems,
+        'serviceTypes': _selectedItems,
         'serviceType':
             widget.showServiceType ? formattedCovItems.join(', ') : null,
         'otherService':
             widget.showServiceType && _selectedItems.contains('Other')
                 ? otherServiceController.text
                 : null,
-        'image': uploadedImageUrl,
         'createdAt': widget.initialValues?['createdAt'] ??
             DateTime.now().millisecondsSinceEpoch,
       };
@@ -810,6 +864,11 @@ class CommonFormState extends State<CommonForm> {
 
                       final List<String> formattedCovItems =
                           _selectedItems.map((item) {
+                        if (item == 'Other' && widget.showServiceType) {
+                          return otherServiceController.text.isNotEmpty
+                              ? otherServiceController.text
+                              : 'Other';
+                        }
                         if (_studySelectedItems.contains(item)) {
                           return '$item Study';
                         }
@@ -817,7 +876,9 @@ class CommonFormState extends State<CommonForm> {
                       }).toList();
 
                       covController.text = formattedCovItems.isEmpty
-                          ? 'Select your cov'
+                          ? (widget.showServiceType
+                              ? 'Select service'
+                              : 'Select your cov')
                           : formattedCovItems.join(', ');
                     });
                     Navigator.pop(context);

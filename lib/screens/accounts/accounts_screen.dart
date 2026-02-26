@@ -11,6 +11,7 @@ import 'package:mds/constants/colors.dart';
 import 'package:mds/screens/dashboard/list/details/endorsement_details_page.dart';
 import 'package:mds/screens/dashboard/list/details/license_only_details_page.dart';
 import 'package:mds/screens/dashboard/list/details/rc_details_page.dart';
+import 'package:mds/screens/dashboard/list/details/dl_service_details_page.dart';
 import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
 import 'package:mds/screens/accounts/daily_ledger_page.dart';
 import 'package:mds/screens/dashboard/widgets/custom/custom_text.dart';
@@ -456,9 +457,17 @@ class _AccountsScreenState extends State<AccountsScreen> {
                               t.date.day == date.day);
 
                           if (!duplicate) {
+                            String recordId = data['recordId'] ?? '';
+                            if (recordId.isEmpty) {
+                              final parentPath =
+                                  doc.reference.parent.parent?.path ?? '';
+                              final parts = parentPath.split('/');
+                              if (parts.isNotEmpty) recordId = parts.last;
+                            }
+
                             transactions.add(TransactionData(
                               date: date,
-                              name: data['recordName'] ?? 'Payment',
+                              name: data['recordName'] ?? 'N/A',
                               amount: amt,
                               type: data['description'] ?? 'Payment',
                               collectionId: data['category'] ?? 'payments',
@@ -797,29 +806,54 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
     return GestureDetector(
       onTap: () {
-        // Determine the collection and navigate to the appropriate details page
+        final rawData = transaction.doc.data() as Map<String, dynamic>;
+        final detailsData = Map<String, dynamic>.from(rawData);
+
+        String recordId = detailsData['recordId'] ?? '';
+        if (recordId.isEmpty) {
+          final parentPath =
+              transaction.doc.reference.parent.parent?.path ?? '';
+          final parts = parentPath.split('/');
+          if (parts.isNotEmpty) recordId = parts.last;
+        }
+
+        if (!detailsData.containsKey('studentId')) {
+          detailsData['studentId'] = recordId;
+        }
+        if (!detailsData.containsKey('id')) {
+          detailsData['id'] = recordId;
+        }
+
         if (transaction.collectionId == 'licenseonly') {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => LicenseOnlyDetailsPage(
-                  licenseDetails: transaction.doc.data()!),
+              builder: (context) =>
+                  LicenseOnlyDetailsPage(licenseDetails: detailsData),
             ),
           );
         } else if (transaction.collectionId == 'endorsement') {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => EndorsementDetailsPage(
-                  endorsementDetails: transaction.doc.data()!),
+              builder: (context) =>
+                  EndorsementDetailsPage(endorsementDetails: detailsData),
             ),
           );
-        } else if (transaction.collectionId == 'vehicleDetails') {
+        } else if (transaction.collectionId == 'dl_services') {
           Navigator.push(
             context,
             MaterialPageRoute(
               builder: (context) =>
-                  RCDetailsPage(vehicleDetails: transaction.doc.data()!),
+                  DlServiceDetailsPage(serviceDetails: detailsData),
+            ),
+          );
+        } else if (transaction.collectionId == 'vehicleDetails' ||
+            transaction.collectionId == 'rc_services') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => RCDetailsPage(vehicleDetails: detailsData),
             ),
           );
         } else if (transaction.collectionId == 'students') {
@@ -827,7 +861,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
             context,
             MaterialPageRoute(
               builder: (context) =>
-                  StudentDetailsPage(studentDetails: transaction.doc.data()!),
+                  StudentDetailsPage(studentDetails: detailsData),
             ),
           );
         }

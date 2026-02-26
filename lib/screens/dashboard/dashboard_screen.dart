@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:mds/constants/colors.dart';
@@ -232,13 +233,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   child: ListTile(
                     leading: CircleAvatar(
                       backgroundColor: kPrimaryColor.withOpacity(0.1),
-                      child: Text(
-                        activityIcon,
-                        style: TextStyle(
-                          color: kPrimaryColor,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+                      backgroundImage: (data['imageUrl'] != null &&
+                              data['imageUrl'].toString().isNotEmpty)
+                          ? CachedNetworkImageProvider(data['imageUrl'])
+                          : null,
+                      child: (data['imageUrl'] == null ||
+                              data['imageUrl'].toString().isEmpty)
+                          ? Text(
+                              activityIcon,
+                              style: TextStyle(
+                                color: kPrimaryColor,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : null,
                     ),
                     title: Text(
                       displayName,

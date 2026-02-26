@@ -113,6 +113,7 @@ class _RCDetailsFormState extends State<RCDetailsForm> {
               'details':
                   'Vehicle Number: ${vehicleData['vehicleNumber']}\nService: ${vehicleData['cov']}',
               'timestamp': FieldValue.serverTimestamp(),
+              'imageUrl': vehicleData['image'],
               'branchId': branchId.isNotEmpty ? branchId : targetId,
             });
 

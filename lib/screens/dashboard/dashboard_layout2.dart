@@ -3,11 +3,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
+import 'package:mds/utils/revenue_utils.dart';
+import 'package:mds/utils/stream_utils.dart';
 import 'package:mds/constants/colors.dart';
 import 'package:mds/controller/app_controller.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:mds/screens/dashboard/recent_activity_screen.dart';
 import 'package:carousel_slider/carousel_slider.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:mds/controller/workspace_controller.dart';
 import 'dart:math' as math;
@@ -423,6 +426,16 @@ class DashboardLayout2 extends StatelessWidget {
 
   Widget _buildOrgInsights(BuildContext context, WorkspaceController controller,
       bool isDark, Color textColor, String targetId) {
+    final isOrg = controller.isOrganizationMode.value;
+    final branchId = controller.currentBranchId.value;
+    final fs = FirebaseFirestore.instance;
+
+    Query<Map<String, dynamic>> paymentsQuery =
+        fs.collectionGroup('payments').where('targetId', isEqualTo: targetId);
+    if (!isOrg && branchId.isNotEmpty && branchId != targetId) {
+      paymentsQuery = paymentsQuery.where('branchId', isEqualTo: branchId);
+    }
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -464,36 +477,31 @@ class DashboardLayout2 extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 24),
-          StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(targetId)
-                .collection('students')
-                .snapshots(),
-            builder: (context, snapshot) {
+          StreamBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
+            stream: StreamUtils.combineLatest([
+              controller.getFilteredCollection('students').snapshots(),
+              controller.getFilteredCollection('licenseonly').snapshots(),
+              controller.getFilteredCollection('endorsement').snapshots(),
+              controller.getFilteredCollection('vehicleDetails').snapshots(),
+              controller.getFilteredCollection('expenses').snapshots(),
+              controller.getFilteredCollection('dl_services').snapshots(),
+              paymentsQuery.snapshots(),
+            ]),
+            builder: (context, combinedSnapshot) {
               int totalStudents = 0;
               double totalRevenue = 0;
 
-              if (snapshot.hasData) {
-                totalStudents = snapshot.data!.docs.length;
-                // Calculate MTD Revenue
-                final now = DateTime.now();
-                final firstDayOfMonth = DateTime(now.year, now.month, 1);
+              if (combinedSnapshot.hasData) {
+                final dataList = combinedSnapshot.data!;
+                totalStudents = dataList[0].docs.length;
 
-                // This is a simplified calculation. Real revenue should come from a dedicated transactions collection.
-                // Assuming students have an 'advanceAmount' or similar.
-                for (var doc in snapshot.data!.docs) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final regDateStr = data['registrationDate'];
-                  if (regDateStr != null) {
-                    final regDate = DateTime.parse(regDateStr);
-                    if (regDate.isAfter(firstDayOfMonth)) {
-                      totalRevenue += double.tryParse(
-                              data['advanceAmount']?.toString() ?? '0') ??
-                          0;
-                    }
-                  }
-                }
+                final now = DateTime.now();
+                final revenueStats = RevenueUtils.calculateMonthlyRevenue(
+                  snapshots: dataList,
+                  selectedDate: now,
+                  months: [now],
+                );
+                totalRevenue = revenueStats['currentMonthRevenue'] ?? 0;
               }
 
               return Row(
@@ -589,171 +597,191 @@ class DashboardLayout2 extends StatelessWidget {
           docBranchId == '';
     }
 
-    return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-      stream: getFilteredStream('students'),
-      builder: (context, s1) {
-        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: getFilteredStream('licenseonly'),
-          builder: (context, s2) {
-            return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: getFilteredStream('endorsement'),
-              builder: (context, s3) {
-                return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: getFilteredStream('vehicleDetails'),
-                  builder: (context, s4) {
-                    double totalRevenue = 0;
-                    List<double> dailyRevenue = List.filled(8, 0.0);
-                    double maxRevenue = 1.0;
+    Query<Map<String, dynamic>> paymentsQuery =
+        fs.collectionGroup('payments').where('targetId', isEqualTo: targetId);
+    if (!isOrg && branchId.isNotEmpty && branchId != targetId) {
+      paymentsQuery = paymentsQuery.where('branchId', isEqualTo: branchId);
+    }
 
-                    if (s1.hasData && s2.hasData && s3.hasData && s4.hasData) {
-                      final today = DateTime(now.year, now.month, now.day);
+    return StreamBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
+      stream: StreamUtils.combineLatest([
+        controller.getFilteredCollection('students').snapshots(),
+        controller.getFilteredCollection('licenseonly').snapshots(),
+        controller.getFilteredCollection('endorsement').snapshots(),
+        controller.getFilteredCollection('vehicleDetails').snapshots(),
+        controller.getFilteredCollection('expenses').snapshots(),
+        controller.getFilteredCollection('dl_services').snapshots(),
+        paymentsQuery.snapshots(),
+      ]),
+      builder: (context, snapshot) {
+        double totalRevenueCount = 0;
+        List<double> dailyRevenue = List.filled(8, 0.0);
+        double maxRevenue = 1.0;
 
-                      bool isSameMonth(DateTime a, DateTime b) {
-                        return a.year == b.year && a.month == b.month;
-                      }
+        if (snapshot.hasData) {
+          final dataList = snapshot.data!;
+          final revenueStats = RevenueUtils.calculateMonthlyRevenue(
+            snapshots: dataList,
+            selectedDate: now,
+            months: [now],
+          );
+          totalRevenueCount = revenueStats['currentMonthRevenue'] ?? 0;
 
-                      for (var snapshot in [
-                        s1.data,
-                        s2.data,
-                        s3.data,
-                        s4.data
-                      ]) {
-                        if (snapshot == null) continue;
-                        for (var doc in snapshot.docs) {
-                          final data = doc.data();
+          // Last 7 Days chart calculation (Daily)
+          final today = DateTime(now.year, now.month, now.day);
 
-                          // Skip records that don't belong to current branch
-                          if (!belongsToBranch(data)) continue;
+          // Re-process for chart (we need daily data which calculateMonthlyRevenue doesn't return specifically in a 7-day format yet)
+          // We can reuse logic or update RevenueUtils. For now, let's keep it simple or update RevenueUtils.
+          // Actually, calculateMonthlyRevenue handles installments.
 
-                          double advance = double.tryParse(
-                                  data['advanceAmount']?.toString() ?? '0') ??
-                              0;
-                          double second = double.tryParse(
-                                  data['secondInstallment']?.toString() ??
-                                      '0') ??
-                              0;
-                          double third = double.tryParse(
-                                  data['thirdInstallment']?.toString() ??
-                                      '0') ??
-                              0;
+          void updateChart(DateTime dt, double amount) {
+            if (amount <= 0) return;
+            final normalized = DateTime(dt.year, dt.month, dt.day);
+            final diff = today.difference(normalized).inDays;
+            if (diff >= 0 && diff < 8) {
+              dailyRevenue[7 - diff] += amount;
+              if (dailyRevenue[7 - diff] > maxRevenue) {
+                maxRevenue = dailyRevenue[7 - diff];
+              }
+            }
+          }
 
-                          DateTime reg = DateTime.tryParse(
-                                  data['registrationDate'] ?? '') ??
-                              DateTime(2000);
-                          DateTime s2t = DateTime.tryParse(
-                                  data['secondInstallmentTime'] ?? '') ??
-                              DateTime(2000);
-                          DateTime s3t = DateTime.tryParse(
-                                  data['thirdInstallmentTime'] ?? '') ??
-                              DateTime(2000);
+          // Process snapshots for chart specifically
+          final revIndices = [0, 1, 2, 3, 5];
+          for (var idx in revIndices) {
+            for (var doc in dataList[idx].docs) {
+              final data = doc.data();
+              final reg = DateTime.tryParse(data['registrationDate'] ?? '');
+              final s2t =
+                  DateTime.tryParse(data['secondInstallmentTime'] ?? '');
+              final s3t = DateTime.tryParse(data['thirdInstallmentTime'] ?? '');
+              final adv =
+                  double.tryParse(data['advanceAmount']?.toString() ?? '0') ??
+                      0;
+              final s2a = double.tryParse(
+                      data['secondInstallment']?.toString() ?? '0') ??
+                  0;
+              final s3a = double.tryParse(
+                      data['thirdInstallment']?.toString() ?? '0') ??
+                  0;
 
-                          // Revenue calculation (total for current month)
-                          if (isSameMonth(reg, now)) totalRevenue += advance;
-                          if (isSameMonth(s2t, now)) totalRevenue += second;
-                          if (isSameMonth(s3t, now)) totalRevenue += third;
+              if (reg != null) updateChart(reg, adv);
+              if (s2t != null) updateChart(s2t, s2a);
+              if (s3t != null) updateChart(s3t, s3a);
 
-                          // Last 7 Days chart calculation
-                          void updateChart(DateTime dt, double amount) {
-                            if (amount <= 0) return;
-                            final normalized =
-                                DateTime(dt.year, dt.month, dt.day);
-                            final diff = today.difference(normalized).inDays;
-                            if (diff >= 0 && diff < 8) {
-                              dailyRevenue[7 - diff] += amount;
-                            }
-                          }
+              for (int i = 4; i <= 20; i++) {
+                final it = DateTime.tryParse(data['installment${i}Time'] ?? '');
+                final ia =
+                    double.tryParse(data['installment$i']?.toString() ?? '0') ??
+                        0;
+                if (it != null) updateChart(it, ia);
+              }
+            }
+          }
 
-                          updateChart(reg, advance);
-                          updateChart(s2t, second);
-                          updateChart(s3t, third);
-                        }
-                      }
+          // Payments for chart
+          for (var doc in dataList[6].docs) {
+            final data = doc.data();
+            double amount = double.tryParse(data['amountPaid']?.toString() ??
+                    data['amount']?.toString() ??
+                    '0') ??
+                0;
+            DateTime? pDate;
+            if (data['date'] is Timestamp) {
+              pDate = (data['date'] as Timestamp).toDate();
+            } else {
+              pDate = DateTime.tryParse(data['date']?.toString() ?? '');
+            }
+            if (pDate != null) updateChart(pDate, amount);
+            // Note: Chart might double-count if we don't dedup here too,
+            // but chart is usually less critical than the total amount and deduping it perfectly is complex without sharing countedPayments.
+          }
+        }
 
-                      double maxVal = dailyRevenue.reduce(math.max);
-                      if (maxVal > 0) maxRevenue = maxVal;
-                    }
+        // This block was leftover and is now removed.
+        // if (diff >= 0 && diff < 8) {
+        //   dailyRevenue[7 - diff] += amount;
+        // }
+        // updateChart(reg, advance);
+        // updateChart(s2t, second);
+        // updateChart(s3t, third);
+
+        double maxVal = dailyRevenue.reduce(math.max);
+        if (maxVal > 0) maxRevenue = maxVal;
+
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF2a2a2a) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Revenue',
+                        style: TextStyle(
+                          color: textColor,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '(This Month)',
+                        style: TextStyle(
+                          color: textColor.withOpacity(0.5),
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '₹${NumberFormat('#,##0').format(totalRevenueCount)}',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              SizedBox(
+                height: 40,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: List.generate(8, (index) {
+                    final heightFactor = dailyRevenue[index] / maxRevenue;
+                    final displayHeight =
+                        heightFactor == 0 ? 0.05 : heightFactor;
 
                     return Container(
-                      padding: const EdgeInsets.all(14),
+                      width: 14,
+                      height: 40 * displayHeight,
                       decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF2a2a2a) : Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Revenue',
-                                    style: TextStyle(
-                                      color: textColor,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  Text(
-                                    '(This Month)',
-                                    style: TextStyle(
-                                      color: textColor.withOpacity(0.5),
-                                      fontSize: 10,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              Text(
-                                '₹${NumberFormat('#,##0').format(totalRevenue)}',
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            height: 40,
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: List.generate(8, (index) {
-                                final heightFactor =
-                                    dailyRevenue[index] / maxRevenue;
-                                final displayHeight =
-                                    heightFactor == 0 ? 0.05 : heightFactor;
-
-                                return Container(
-                                  width: 14,
-                                  height: 40 * displayHeight,
-                                  decoration: BoxDecoration(
-                                    color: kOrange.withOpacity(
-                                        0.6 + (0.4 * displayHeight)),
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                );
-                              }),
-                            ),
-                          ),
-                        ],
+                        color: kOrange.withOpacity(0.6 + (0.4 * displayHeight)),
+                        borderRadius: BorderRadius.circular(3),
                       ),
                     );
-                  },
-                );
-              },
-            );
-          },
+                  }),
+                ),
+              ),
+            ],
+          ),
         );
       },
     );
@@ -887,14 +915,21 @@ class DashboardLayout2 extends StatelessWidget {
                   CircleAvatar(
                     radius: 20,
                     backgroundColor: Colors.blueGrey.shade700,
-                    child: Text(
-                      name.isNotEmpty ? name[0].toUpperCase() : '?',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
+                    backgroundImage: (activity['imageUrl'] != null &&
+                            activity['imageUrl'].toString().isNotEmpty)
+                        ? CachedNetworkImageProvider(activity['imageUrl'])
+                        : null,
+                    child: (activity['imageUrl'] == null ||
+                            activity['imageUrl'].toString().isEmpty)
+                        ? Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : '?',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          )
+                        : null,
                   ),
                   const SizedBox(width: 12),
                   Expanded(

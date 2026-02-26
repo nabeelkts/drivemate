@@ -143,6 +143,7 @@ class _EndorsementDLState extends State<EndorsementDL> {
               'title': 'New Endorsement Registration',
               'details': '$fullName\n$cov',
               'timestamp': FieldValue.serverTimestamp(),
+              'imageUrl': endorsement['image'],
               'branchId': branchId.isNotEmpty ? branchId : targetId,
             });
 

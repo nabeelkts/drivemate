@@ -51,7 +51,7 @@ class _NewDlServiceFormState extends State<NewDlServiceForm> {
       body: CommonForm(
         key: _formKey,
         items: const [
-          'Renewal Of Dl',
+          'Renewal Of DL',
           'Change of Address',
           'Change of Name',
           'Change of Photo & Signature',
@@ -72,19 +72,6 @@ class _NewDlServiceFormState extends State<NewDlServiceForm> {
             if (fullName.isEmpty) {
               Fluttertoast.showToast(msg: 'Enter full name');
               return;
-            }
-            if (serviceType.isEmpty || serviceType == 'Select Service') {
-              Fluttertoast.showToast(msg: 'Please select a service');
-              return;
-            }
-
-            if (serviceType == 'Other') {
-              final otherService =
-                  serviceData['otherService']?.toString() ?? '';
-              if (otherService.isEmpty) {
-                Fluttertoast.showToast(msg: 'Please specify the service');
-                return;
-              }
             }
 
             String serviceId = serviceData['studentId']?.toString() ?? '';
@@ -146,6 +133,7 @@ class _NewDlServiceFormState extends State<NewDlServiceForm> {
               'title': 'New DL Service',
               'details': '$fullName\n$serviceType',
               'timestamp': FieldValue.serverTimestamp(),
+              'imageUrl': serviceData['image'],
               'branchId': branchId.isNotEmpty ? branchId : targetId,
             });
 

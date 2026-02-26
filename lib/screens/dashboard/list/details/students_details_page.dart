@@ -20,7 +20,11 @@ import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/utils/payment_utils.dart';
+import 'package:iconly/iconly.dart';
+import 'package:mds/utils/test_utils.dart';
+import 'package:mds/utils/image_utils.dart';
 import 'package:mds/utils/date_utils.dart';
+import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mds/features/tracking/services/background_service.dart';
@@ -47,6 +51,65 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   void initState() {
     super.initState();
     studentDetails = Map.from(widget.studentDetails);
+    _docId = studentDetails['studentId'].toString();
+    _initStreams();
+  }
+
+  late final String _docId;
+  late final Stream<DocumentSnapshot> _mainStream;
+  late final Stream<QuerySnapshot> _paymentsStream;
+  late final Stream<QuerySnapshot> _extraFeesStream;
+  late final Stream<QuerySnapshot> _attendanceLimitStream;
+  late final Stream<QuerySnapshot> _attendanceHistoryStream;
+
+  void _initStreams() {
+    final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+        ? _workspaceController.currentSchoolId.value
+        : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
+    _mainStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('students')
+        .doc(_docId)
+        .snapshots();
+
+    _paymentsStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('students')
+        .doc(_docId)
+        .collection('payments')
+        .orderBy('date', descending: true)
+        .snapshots();
+
+    _extraFeesStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('students')
+        .doc(_docId)
+        .collection('extra_fees')
+        .orderBy('date', descending: true)
+        .snapshots();
+
+    _attendanceLimitStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('students')
+        .doc(_docId)
+        .collection('attendance')
+        .orderBy('date', descending: true)
+        .limit(2)
+        .snapshots();
+
+    _attendanceHistoryStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('students')
+        .doc(_docId)
+        .collection('attendance')
+        .orderBy('date', descending: true)
+        .snapshots();
   }
 
   @override
@@ -98,12 +161,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(targetId)
-            .collection('students')
-            .doc(studentDetails['studentId'].toString())
-            .snapshots(),
+        stream: _mainStream,
         builder: (context, snapshot) {
           if (snapshot.hasData && snapshot.data!.exists) {
             studentDetails = snapshot.data!.data() as Map<String, dynamic>;
@@ -145,8 +203,6 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
 
   Widget _buildTestDateCard(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     final cardColor = Theme.of(context).cardColor;
 
     final llDate = AppDateUtils.formatDateForDisplay(
@@ -154,26 +210,84 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     final dlDate = AppDateUtils.formatDateForDisplay(
         studentDetails['drivingTestDate']?.toString());
 
-    if (llDate.isEmpty && dlDate.isEmpty) return const SizedBox.shrink();
-
+    // Test date card is always visible as per user request
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(context, kAccentRed),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kAccentRed.withOpacity(0.5)),
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Test Date',
-              style: TextStyle(
-                  color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Test Dates',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              IconButton(
+                icon: const Icon(IconlyLight.edit, color: kAccentRed, size: 20),
+                onPressed: () => TestUtils.showUpdateTestDateDialog(
+                  context: context,
+                  item: studentDetails,
+                  collection: 'students',
+                  studentId: _docId,
+                  onUpdate: () => setState(() {}),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
-          if (llDate.isNotEmpty)
-            _buildInfoRow(
-                'Learners Test (LL)', llDate, textColor, subTextColor),
-          if (dlDate.isNotEmpty)
-            _buildInfoRow('Driving Test (DL)', dlDate, textColor, subTextColor),
+          _buildTestDateRow('Learners Test (LL)', llDate, IconlyBold.calendar,
+              Colors.blue, isDark),
+          const Divider(height: 16),
+          _buildTestDateRow('Driving Test (DL)', dlDate, IconlyBold.calendar,
+              Colors.green, isDark),
         ],
       ),
+    );
+  }
+
+  Widget _buildTestDateRow(
+      String label, String date, IconData icon, Color iconColor, bool isDark) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: iconColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: iconColor, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: (isDark ? Colors.white : Colors.black).withOpacity(0.5),
+              ),
+            ),
+            Text(
+              date.isEmpty ? 'Pick test date' : date,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -189,36 +303,68 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       decoration: _cardDecoration(context, kAccentRed),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: kAccentRed,
-            child: CircleAvatar(
-              radius: 48,
-              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-              child: studentDetails['image'] != null &&
-                      studentDetails['image'].isNotEmpty
-                  ? ClipOval(
-                      child: CachedNetworkImage(
-                        imageUrl: studentDetails['image'],
-                        width: 96,
-                        height: 96,
-                        fit: BoxFit.cover,
-                        errorWidget: (context, url, error) => Center(
+          Builder(builder: (context) {
+            Timer? holdTimer;
+            return GestureDetector(
+              onTapDown: (_) {
+                if (studentDetails['image'] != null &&
+                    studentDetails['image'].toString().isNotEmpty) {
+                  holdTimer = Timer(const Duration(seconds: 1), () {
+                    ImageUtils.showImagePopup(context, studentDetails['image'],
+                        studentDetails['fullName']);
+                  });
+                }
+              },
+              onTapUp: (_) => holdTimer?.cancel(),
+              onTapCancel: () => holdTimer?.cancel(),
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: kAccentRed,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    width: 3,
+                  ),
+                ),
+                child: ClipOval(
+                  child: (studentDetails['image'] != null &&
+                          studentDetails['image'].toString().isNotEmpty)
+                      ? CachedNetworkImage(
+                          imageUrl: studentDetails['image'],
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) =>
+                              const CircularProgressIndicator(strokeWidth: 2),
+                          errorWidget: (context, url, error) => Container(
+                            alignment: Alignment.center,
+                            child: Text(
+                              _initials,
+                              style: TextStyle(
+                                fontSize: 40,
+                                color: textColor,
+                                height: 1.0,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          alignment: Alignment.center,
                           child: Text(
                             _initials,
-                            style: TextStyle(fontSize: 40, color: textColor),
+                            style: TextStyle(
+                              fontSize: 40,
+                              color: textColor,
+                              height: 1.0,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
                         ),
-                        placeholder: (context, url) =>
-                            const Center(child: CircularProgressIndicator()),
-                      ),
-                    )
-                  : Center(
-                      child: Text(_initials,
-                          style: TextStyle(fontSize: 40, color: textColor)),
-                    ),
-            ),
-          ),
+                ),
+              ),
+            );
+          }),
           const SizedBox(width: 20),
           Expanded(
             child: Column(
@@ -502,14 +648,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           ),
           const SizedBox(height: 8),
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(targetId)
-                .collection('students')
-                .doc(studentDetails['studentId'].toString())
-                .collection('payments')
-                .orderBy('date', descending: true)
-                .snapshots(),
+            stream: _paymentsStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -576,7 +715,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                                   .collection('students')
                                   .doc(studentDetails['studentId'].toString()),
                               paymentDoc: doc,
-                              targetId: targetId!,
+                              targetId: targetId.toString(),
                               category: 'students',
                             ),
                             tooltip: 'Edit Payment',
@@ -592,7 +731,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                                   .collection('students')
                                   .doc(studentDetails['studentId'].toString()),
                               paymentDoc: doc,
-                              targetId: targetId!,
+                              targetId: targetId.toString(),
                             ),
                             tooltip: 'Delete Payment',
                           ),
@@ -607,14 +746,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           ),
           // ── Additional Fees (inline) ────────────────────────────────────
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(targetId!)
-                .collection('students')
-                .doc(studentDetails['studentId'].toString())
-                .collection('extra_fees')
-                .orderBy('date', descending: true)
-                .snapshots(),
+            stream: _extraFeesStream,
             builder: (context, feesSnapshot) {
               if (!feesSnapshot.hasData || feesSnapshot.data!.docs.isEmpty) {
                 return const SizedBox.shrink();
@@ -665,90 +797,131 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                                     color: Colors.green.withOpacity(0.4))
                                 : null,
                       ),
-                      child: CheckboxListTile(
-                        value: _selectedTransactionIds.contains(doc.id),
-                        activeColor: kAccentRed,
-                        enabled: isPaid,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        onChanged: (val) {
-                          setState(() {
-                            if (val == true) {
-                              _selectedTransactionIds.add(doc.id);
-                            } else {
-                              _selectedTransactionIds.remove(doc.id);
-                            }
-                          });
-                        },
-                        title: Text(
-                            '${data['description']} — Rs. ${data['amount']}',
-                            style: TextStyle(
-                                color: textColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13)),
-                        subtitle: Text(
-                          '${DateFormat('dd MMM yyyy').format(date)}'
-                          '${data['note'] != null && data['note'].toString().trim().isNotEmpty ? "\nNote: ${data['note']}" : ''}',
-                          style: TextStyle(color: subTextColor, fontSize: 11),
-                        ),
-                        secondary: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (isPaid)
-                              const Padding(
-                                padding: EdgeInsets.only(right: 8.0),
-                                child: Chip(
-                                  label: Text('Paid',
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: _selectedTransactionIds.contains(doc.id),
+                            activeColor: kAccentRed,
+                            onChanged: isPaid
+                                ? (val) {
+                                    setState(() {
+                                      if (val == true) {
+                                        _selectedTransactionIds.add(doc.id);
+                                      } else {
+                                        _selectedTransactionIds.remove(doc.id);
+                                      }
+                                    });
+                                  }
+                                : null,
+                          ),
+                          Expanded(
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(data['description'] ?? 'N/A',
                                       style: TextStyle(
-                                          color: Colors.white, fontSize: 11)),
-                                  backgroundColor: Colors.green,
-                                  visualDensity: VisualDensity.compact,
-                                  padding: EdgeInsets.zero,
-                                ),
-                              )
-                            else
-                              TextButton(
-                                onPressed: () =>
-                                    PaymentUtils.showCollectExtraFeeDialog(
-                                  context: context,
-                                  docRef: baseDocRef,
-                                  feeDoc: doc,
-                                  targetId: targetId,
-                                  branchId: _workspaceController
-                                      .currentBranchId.value,
-                                ),
-                                style: TextButton.styleFrom(
-                                    foregroundColor: Colors.green),
-                                child: const Text('Collect',
-                                    style: TextStyle(fontSize: 12)),
+                                          color: textColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14)),
+                                  const SizedBox(height: 2),
+                                  Text('Rs. ${data['amount']}',
+                                      style: TextStyle(
+                                          color: textColor,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13)),
+                                  const SizedBox(height: 2),
+                                  Text(DateFormat('dd MMM yyyy').format(date),
+                                      style: TextStyle(
+                                          color: subTextColor, fontSize: 11)),
+                                  if (isPaid &&
+                                      data['paymentMode'] != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text('Mode: ${data['paymentMode']}',
+                                        style: TextStyle(
+                                            color: subTextColor, fontSize: 11)),
+                                  ],
+                                  if (data['note'] != null &&
+                                      data['note']
+                                          .toString()
+                                          .trim()
+                                          .isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text('Note: ${data['note']}',
+                                        style: TextStyle(
+                                            color: subTextColor, fontSize: 11),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis),
+                                  ],
+                                ],
                               ),
-                            IconButton(
-                              icon: const Icon(Icons.edit_outlined,
-                                  size: 18, color: Colors.blue),
-                              onPressed: () =>
-                                  PaymentUtils.showEditExtraFeeDialog(
-                                context: context,
-                                docRef: baseDocRef,
-                                feeDoc: doc,
-                                targetId: targetId,
-                                category: 'students',
-                              ),
-                              tooltip: 'Edit',
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline,
-                                  size: 18, color: Colors.red),
-                              onPressed: () => PaymentUtils.deleteExtraFee(
-                                context: context,
-                                docRef: baseDocRef,
-                                feeDoc: doc,
-                                targetId: targetId,
+                          ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isPaid)
+                                const Padding(
+                                  padding: EdgeInsets.only(right: 8.0),
+                                  child: Chip(
+                                    label: Text('Paid',
+                                        style: TextStyle(
+                                            color: Colors.white, fontSize: 11)),
+                                    backgroundColor: Colors.green,
+                                    visualDensity: VisualDensity.compact,
+                                    padding: EdgeInsets.zero,
+                                  ),
+                                )
+                              else
+                                TextButton(
+                                  onPressed: () =>
+                                      PaymentUtils.showCollectExtraFeeDialog(
+                                    context: context,
+                                    docRef: baseDocRef,
+                                    feeDoc: doc,
+                                    targetId: targetId.toString(),
+                                    branchId: _workspaceController
+                                        .currentBranchId.value,
+                                  ),
+                                  style: TextButton.styleFrom(
+                                      foregroundColor: Colors.redAccent),
+                                  child: const Text('Collect',
+                                      style: TextStyle(fontSize: 12)),
+                                ),
+                              Row(
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined,
+                                        size: 18, color: Colors.blue),
+                                    onPressed: () =>
+                                        PaymentUtils.showEditExtraFeeDialog(
+                                      context: context,
+                                      docRef: baseDocRef,
+                                      feeDoc: doc,
+                                      targetId: targetId.toString(),
+                                      category: 'students',
+                                    ),
+                                    tooltip: 'Edit',
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline,
+                                        size: 18, color: Colors.red),
+                                    onPressed: () =>
+                                        PaymentUtils.deleteExtraFee(
+                                      context: context,
+                                      docRef: baseDocRef,
+                                      feeDoc: doc,
+                                      targetId: targetId.toString(),
+                                    ),
+                                    tooltip: 'Delete',
+                                  ),
+                                ],
                               ),
-                              tooltip: 'Delete',
-                            ),
-                          ],
-                        ),
-                        isThreeLine: data['note'] != null &&
-                            data['note'].toString().trim().isNotEmpty,
+                            ],
+                          ),
+                        ],
                       ),
                     );
                   }),
@@ -874,15 +1047,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           ),
           const SizedBox(height: 8),
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(targetId)
-                .collection('students')
-                .doc(studentDetails['studentId'].toString())
-                .collection('attendance')
-                .orderBy('date', descending: true)
-                .limit(2)
-                .snapshots(),
+            stream: _attendanceLimitStream,
             builder: (context, snapshot) {
               if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
                 return Text(
@@ -1081,14 +1246,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
             // List
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
-                stream: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(targetId)
-                    .collection('students')
-                    .doc(studentDetails['studentId'].toString())
-                    .collection('attendance')
-                    .orderBy('date', descending: true)
-                    .snapshots(),
+                stream: _attendanceHistoryStream,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());

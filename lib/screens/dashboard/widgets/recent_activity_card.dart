@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -222,6 +223,7 @@ class RecentActivityCard extends StatelessWidget {
                       name: _extractName(activity['details'] ?? '',
                           activity['title'] ?? 'Activity'),
                       title: activity['title'] ?? 'Activity',
+                      imageUrl: activity['imageUrl'],
                       textColor: textColor,
                     );
                   },
@@ -250,11 +252,13 @@ class RecentActivityCard extends StatelessWidget {
 class _ActivityRow extends StatelessWidget {
   final String name;
   final String title;
+  final String? imageUrl;
   final Color textColor;
 
   const _ActivityRow({
     required this.name,
     required this.title,
+    this.imageUrl,
     required this.textColor,
   });
 
@@ -266,22 +270,37 @@ class _ActivityRow extends StatelessWidget {
           width: 36,
           height: 36,
           decoration: BoxDecoration(
-            shape: BoxShape.circle,
             color: Colors.blueGrey.withOpacity(0.1),
-            border: Border.all(
-              color: Colors.blueGrey.withOpacity(0.2),
-              width: 1,
-            ),
+            shape: BoxShape.circle,
           ),
-          child: Center(
-            child: Text(
-              name.isNotEmpty ? name[0].toUpperCase() : '?',
-              style: TextStyle(
-                color: textColor.withOpacity(0.8),
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+          child: ClipOval(
+            child: (imageUrl != null && imageUrl!.isNotEmpty)
+                ? CachedNetworkImage(
+                    imageUrl: imageUrl!,
+                    fit: BoxFit.cover,
+                    placeholder: (context, url) =>
+                        const CircularProgressIndicator(strokeWidth: 2),
+                    errorWidget: (context, url, error) => Center(
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : '?',
+                        style: TextStyle(
+                          color: textColor.withOpacity(0.8),
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  )
+                : Center(
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: TextStyle(
+                        color: textColor.withOpacity(0.8),
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
           ),
         ),
         const SizedBox(width: 12),

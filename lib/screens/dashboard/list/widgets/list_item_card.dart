@@ -114,27 +114,33 @@ class ListItemCard extends StatelessWidget {
   }
 
   Widget _buildAvatar(Color textColor, BuildContext context) {
-    return CircleAvatar(
-      radius: 24,
-      backgroundColor: kPrimaryColor.withOpacity(0.1),
-      child: CircleAvatar(
-        radius: 22,
-        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        color: kPrimaryColor.withOpacity(0.1),
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          width: 2,
+        ),
+      ),
+      child: ClipOval(
         child: (imageUrl != null && imageUrl!.isNotEmpty)
-            ? ClipOval(
-                child: CachedNetworkImage(
-                  imageUrl: imageUrl!,
-                  fit: BoxFit.cover,
-                  width: 44,
-                  height: 44,
-                  placeholder: (context, url) =>
-                      const CircularProgressIndicator(
-                    strokeWidth: 2,
-                  ),
-                  errorWidget: (context, url, error) => _initials(textColor),
+            ? CachedNetworkImage(
+                imageUrl: imageUrl!,
+                fit: BoxFit.cover,
+                placeholder: (context, url) =>
+                    const CircularProgressIndicator(strokeWidth: 2),
+                errorWidget: (context, url, error) => Container(
+                  alignment: Alignment.center,
+                  child: _initials(textColor),
                 ),
               )
-            : _initials(textColor),
+            : Container(
+                alignment: Alignment.center,
+                child: _initials(textColor),
+              ),
       ),
     );
   }
@@ -146,7 +152,9 @@ class ListItemCard extends StatelessWidget {
         fontSize: 18,
         fontWeight: FontWeight.bold,
         color: kPrimaryColor,
+        height: 1.0,
       ),
+      textAlign: TextAlign.center,
     );
   }
 }

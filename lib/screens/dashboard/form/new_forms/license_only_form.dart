@@ -132,6 +132,7 @@ class _LicenseOnlyState extends State<LicenseOnly> {
               'title': 'New License Registration',
               'details': '$fullName\n$cov',
               'timestamp': FieldValue.serverTimestamp(),
+              'imageUrl': license['image'],
               'branchId': branchId.isNotEmpty ? branchId : targetId,
             });
 

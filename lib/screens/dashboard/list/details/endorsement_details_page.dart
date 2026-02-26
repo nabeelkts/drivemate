@@ -15,9 +15,13 @@ import 'package:share_plus/share_plus.dart';
 
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
+import 'package:iconly/iconly.dart';
+import 'package:mds/utils/test_utils.dart';
+import 'package:mds/utils/image_utils.dart';
+import 'package:mds/utils/date_utils.dart';
+import 'dart:async';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/utils/payment_utils.dart';
-import 'package:mds/utils/date_utils.dart';
 import 'package:http/http.dart' as http;
 
 class EndorsementDetailsPage extends StatefulWidget {
@@ -40,6 +44,47 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
   void initState() {
     super.initState();
     endorsementDetails = Map.from(widget.endorsementDetails);
+    _docId = (endorsementDetails['studentId'] ??
+            endorsementDetails['id'] ??
+            endorsementDetails['recordId'])
+        .toString();
+    _initStreams();
+  }
+
+  late final String _docId;
+  late final Stream<DocumentSnapshot> _mainStream;
+  late final Stream<QuerySnapshot> _paymentsStream;
+  late final Stream<QuerySnapshot> _extraFeesStream;
+
+  void _initStreams() {
+    final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+        ? _workspaceController.currentSchoolId.value
+        : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
+    _mainStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('endorsement')
+        .doc(_docId)
+        .snapshots();
+
+    _paymentsStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('endorsement')
+        .doc(_docId)
+        .collection('payments')
+        .orderBy('date', descending: true)
+        .snapshots();
+
+    _extraFeesStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('endorsement')
+        .doc(_docId)
+        .collection('extra_fees')
+        .orderBy('date', descending: true)
+        .snapshots();
   }
 
   @override
@@ -98,12 +143,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
         ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(targetId)
-            .collection('endorsement')
-            .doc(endorsementDetails['studentId'].toString())
-            .snapshots(),
+        stream: _mainStream,
         builder: (context, snapshot) {
           if (snapshot.hasData && snapshot.data!.exists) {
             endorsementDetails = snapshot.data!.data() as Map<String, dynamic>;
@@ -149,10 +189,6 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
     final dlDate = AppDateUtils.formatDateForDisplay(
         endorsementDetails['drivingTestDate']?.toString());
 
-    if (llDate.isEmpty && dlDate.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -173,15 +209,47 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Test Date',
-              style: TextStyle(
-                  color: textColor, fontWeight: FontWeight.bold, fontSize: 16)),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Test Date',
+                  style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16)),
+              IconButton(
+                icon: const Icon(IconlyLight.edit, color: kAccentRed, size: 20),
+                onPressed: () => TestUtils.showUpdateTestDateDialog(
+                  context: context,
+                  item: endorsementDetails,
+                  collection: 'endorsement',
+                  studentId: endorsementDetails['studentId'].toString(),
+                ),
+                tooltip: 'Update Test Dates',
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
-          if (llDate.isNotEmpty)
-            _buildInfoRow(
-                'Learners Test (LL)', llDate, textColor, subTextColor),
-          if (dlDate.isNotEmpty)
-            _buildInfoRow('Driving Test (DL)', dlDate, textColor, subTextColor),
+          if (llDate.isEmpty && dlDate.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4.0),
+              child: Text(
+                'No test dates. Pick test date',
+                style: TextStyle(
+                    color: subTextColor.withOpacity(0.7),
+                    fontSize: 13,
+                    fontStyle: FontStyle.italic),
+              ),
+            )
+          else ...[
+            if (llDate.isNotEmpty)
+              _buildInfoRow(
+                  'Learners Test (LL)', llDate, textColor, subTextColor),
+            if (dlDate.isNotEmpty)
+              _buildInfoRow(
+                  'Driving Test (DL)', dlDate, textColor, subTextColor),
+          ],
         ],
       ),
     );
@@ -192,6 +260,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
     final textColor = isDark ? Colors.white : Colors.black;
     final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     final cardColor = Theme.of(context).cardColor;
+    Timer? holdTimer;
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
@@ -211,30 +280,81 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: kAccentRed,
-            child: CircleAvatar(
-              radius: 48,
-              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-              backgroundImage: endorsementDetails['image'] != null &&
-                      endorsementDetails['image'].toString().isNotEmpty
-                  ? CachedNetworkImageProvider(endorsementDetails['image'])
-                  : null,
-              child: endorsementDetails['image'] == null ||
-                      endorsementDetails['image'].toString().isEmpty
-                  ? Text(
-                      endorsementDetails['fullName'] != null &&
-                              endorsementDetails['fullName']
-                                  .toString()
-                                  .isNotEmpty
-                          ? endorsementDetails['fullName'][0].toUpperCase()
-                          : '',
-                      style: TextStyle(fontSize: 40, color: textColor),
-                    )
-                  : null,
-            ),
-          ),
+          Builder(builder: (context) {
+            return GestureDetector(
+              onTapDown: (_) {
+                if (endorsementDetails['image'] != null &&
+                    endorsementDetails['image'].toString().isNotEmpty) {
+                  holdTimer = Timer(const Duration(seconds: 1), () {
+                    ImageUtils.showImagePopup(
+                        context,
+                        endorsementDetails['image'],
+                        endorsementDetails['fullName']);
+                  });
+                }
+              },
+              onTapUp: (_) => holdTimer?.cancel(),
+              onTapCancel: () => holdTimer?.cancel(),
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: kAccentRed,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    width: 3,
+                  ),
+                ),
+                child: ClipOval(
+                  child: endorsementDetails['image'] != null &&
+                          endorsementDetails['image'].toString().isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: endorsementDetails['image'],
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) =>
+                              const CircularProgressIndicator(strokeWidth: 2),
+                          errorWidget: (context, url, error) => Container(
+                            alignment: Alignment.center,
+                            child: Text(
+                              endorsementDetails['fullName'] != null &&
+                                      endorsementDetails['fullName']
+                                          .toString()
+                                          .isNotEmpty
+                                  ? endorsementDetails['fullName'][0]
+                                      .toUpperCase()
+                                  : '',
+                              style: TextStyle(
+                                fontSize: 40,
+                                color: textColor,
+                                height: 1.0,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          alignment: Alignment.center,
+                          child: Text(
+                            endorsementDetails['fullName'] != null &&
+                                    endorsementDetails['fullName']
+                                        .toString()
+                                        .isNotEmpty
+                                ? endorsementDetails['fullName'][0]
+                                    .toUpperCase()
+                                : '',
+                            style: TextStyle(
+                              fontSize: 40,
+                              color: textColor,
+                              height: 1.0,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                ),
+              ),
+            );
+          }),
           const SizedBox(width: 20),
           Expanded(
             child: Column(
@@ -404,11 +524,6 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
     final textColor = isDark ? Colors.white : Colors.black;
     final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     final cardColor = Theme.of(context).cardColor;
-    final baseDocRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('endorsement')
-        .doc(endorsementDetails['studentId'].toString());
 
     double total =
         double.tryParse(endorsementDetails['totalAmount']?.toString() ?? '0') ??
@@ -558,16 +673,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
           ),
           const SizedBox(height: 8),
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(_workspaceController.currentSchoolId.value.isNotEmpty
-                    ? _workspaceController.currentSchoolId.value
-                    : (FirebaseAuth.instance.currentUser?.uid ?? ''))
-                .collection('endorsement')
-                .doc(endorsementDetails['studentId'].toString())
-                .collection('payments')
-                .orderBy('date', descending: true)
-                .snapshots(),
+            stream: _paymentsStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -632,8 +738,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                                   .collection('users')
                                   .doc(targetId)
                                   .collection('endorsement')
-                                  .doc(endorsementDetails['studentId']
-                                      .toString()),
+                                  .doc(_docId),
                               paymentDoc: doc,
                               targetId: targetId,
                               category: 'endorsement',
@@ -655,8 +760,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                                               .instance.currentUser?.uid ??
                                           ''))
                                   .collection('endorsement')
-                                  .doc(endorsementDetails['studentId']
-                                      .toString()),
+                                  .doc(_docId),
                               paymentDoc: doc,
                               targetId: _workspaceController
                                       .currentSchoolId.value.isNotEmpty
@@ -677,10 +781,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
           ),
           // ── Additional Fees (inline) ─────────────────────────────────────────
           StreamBuilder<QuerySnapshot>(
-            stream: baseDocRef
-                .collection('extra_fees')
-                .orderBy('date', descending: true)
-                .snapshots(),
+            stream: _extraFeesStream,
             builder: (context, feesSnapshot) {
               if (!feesSnapshot.hasData || feesSnapshot.data!.docs.isEmpty) {
                 return const SizedBox.shrink();
@@ -726,90 +827,150 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                                     color: Colors.green.withOpacity(0.4))
                                 : null,
                       ),
-                      child: CheckboxListTile(
-                        value: _selectedTransactionIds.contains(doc.id),
-                        activeColor: kAccentRed,
-                        enabled: isPaid,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        onChanged: (val) {
-                          setState(() {
-                            if (val == true) {
-                              _selectedTransactionIds.add(doc.id);
-                            } else {
-                              _selectedTransactionIds.remove(doc.id);
-                            }
-                          });
-                        },
-                        title: Text(
-                            '${data['description']} — Rs. ${data['amount']}',
-                            style: TextStyle(
-                                color: textColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13)),
-                        subtitle: Text(
-                          '${DateFormat('dd MMM yyyy').format(date)}'
-                          '${data['note'] != null && data['note'].toString().trim().isNotEmpty ? "\nNote: ${data['note']}" : ''}',
-                          style: TextStyle(color: subTextColor, fontSize: 11),
-                        ),
-                        secondary: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (isPaid)
-                              const Padding(
-                                padding: EdgeInsets.only(right: 8.0),
-                                child: Chip(
-                                  label: Text('Paid',
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: _selectedTransactionIds.contains(doc.id),
+                            activeColor: kAccentRed,
+                            onChanged: isPaid
+                                ? (val) {
+                                    setState(() {
+                                      if (val == true) {
+                                        _selectedTransactionIds.add(doc.id);
+                                      } else {
+                                        _selectedTransactionIds.remove(doc.id);
+                                      }
+                                    });
+                                  }
+                                : null,
+                          ),
+                          Expanded(
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(data['description'] ?? 'N/A',
                                       style: TextStyle(
-                                          color: Colors.white, fontSize: 11)),
-                                  backgroundColor: Colors.green,
-                                  visualDensity: VisualDensity.compact,
-                                  padding: EdgeInsets.zero,
-                                ),
-                              )
-                            else
-                              TextButton(
-                                onPressed: () =>
-                                    PaymentUtils.showCollectExtraFeeDialog(
-                                  context: context,
-                                  docRef: baseDocRef,
-                                  feeDoc: doc,
-                                  targetId: targetId,
-                                  branchId: _workspaceController
-                                      .currentBranchId.value,
-                                ),
-                                style: TextButton.styleFrom(
-                                    foregroundColor: Colors.green),
-                                child: const Text('Collect',
-                                    style: TextStyle(fontSize: 12)),
+                                          color: textColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14)),
+                                  const SizedBox(height: 2),
+                                  Text('Rs. ${data['amount']}',
+                                      style: TextStyle(
+                                          color: textColor,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13)),
+                                  const SizedBox(height: 2),
+                                  Text(DateFormat('dd MMM yyyy').format(date),
+                                      style: TextStyle(
+                                          color: subTextColor, fontSize: 11)),
+                                  if (isPaid &&
+                                      data['paymentMode'] != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text('Mode: ${data['paymentMode']}',
+                                        style: TextStyle(
+                                            color: subTextColor, fontSize: 11)),
+                                  ],
+                                  if (data['note'] != null &&
+                                      data['note']
+                                          .toString()
+                                          .trim()
+                                          .isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text('Note: ${data['note']}',
+                                        style: TextStyle(
+                                            color: subTextColor, fontSize: 11),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis),
+                                  ],
+                                ],
                               ),
-                            IconButton(
-                              icon: const Icon(Icons.edit_outlined,
-                                  size: 18, color: Colors.blue),
-                              onPressed: () =>
-                                  PaymentUtils.showEditExtraFeeDialog(
-                                context: context,
-                                docRef: baseDocRef,
-                                feeDoc: doc,
-                                targetId: targetId,
-                                category: 'endorsement',
-                              ),
-                              tooltip: 'Edit',
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline,
-                                  size: 18, color: Colors.red),
-                              onPressed: () => PaymentUtils.deleteExtraFee(
-                                context: context,
-                                docRef: baseDocRef,
-                                feeDoc: doc,
-                                targetId: targetId,
+                          ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isPaid)
+                                    const Padding(
+                                      padding: EdgeInsets.only(right: 8.0),
+                                      child: Chip(
+                                        label: Text('Paid',
+                                            style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 11)),
+                                        backgroundColor: Colors.green,
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                      ),
+                                    )
+                                  else
+                                    TextButton(
+                                      onPressed: () => PaymentUtils
+                                          .showCollectExtraFeeDialog(
+                                        context: context,
+                                        docRef: FirebaseFirestore.instance
+                                            .collection('users')
+                                            .doc(targetId)
+                                            .collection('endorsement')
+                                            .doc(_docId),
+                                        feeDoc: doc,
+                                        targetId: targetId.toString(),
+                                        branchId: _workspaceController
+                                            .currentBranchId.value,
+                                      ),
+                                      style: TextButton.styleFrom(
+                                          foregroundColor: Colors.green),
+                                      child: const Text('Collect',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                ],
                               ),
-                              tooltip: 'Delete',
-                            ),
-                          ],
-                        ),
-                        isThreeLine: data['note'] != null &&
-                            data['note'].toString().trim().isNotEmpty,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined,
+                                        size: 18, color: Colors.blue),
+                                    onPressed: () =>
+                                        PaymentUtils.showEditExtraFeeDialog(
+                                      context: context,
+                                      docRef: FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(targetId)
+                                          .collection('endorsement')
+                                          .doc(_docId),
+                                      feeDoc: doc,
+                                      targetId: targetId.toString(),
+                                      category: 'endorsement',
+                                    ),
+                                    tooltip: 'Edit',
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline,
+                                        size: 18, color: Colors.red),
+                                    onPressed: () =>
+                                        PaymentUtils.deleteExtraFee(
+                                      context: context,
+                                      docRef: FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(targetId)
+                                          .collection('endorsement')
+                                          .doc(_docId),
+                                      feeDoc: doc,
+                                      targetId: targetId.toString(),
+                                    ),
+                                    tooltip: 'Delete',
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     );
                   }),

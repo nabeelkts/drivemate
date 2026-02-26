@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 class ShortcutIcon extends StatefulWidget {
   const ShortcutIcon({super.key});
@@ -31,7 +32,8 @@ class _ShortcutIconState extends State<ShortcutIcon> {
           .snapshots()
           .listen((snapshot) {
         // Filter out duplicate entries based on studentId
-        final uniqueActivities = <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+        final uniqueActivities =
+            <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
         for (var doc in snapshot.docs) {
           final data = doc.data();
           if (data['studentId'] != null) {
@@ -64,8 +66,10 @@ class _ShortcutIconState extends State<ShortcutIcon> {
                       builder: (context) {
                         final activity = recentActivities[i];
                         final data = activity.data();
-                        final fullName = _extractFullName(data['details'] ?? 'N/A');
-                        return buildIconContainer(fullName, data['title'] ?? 'No Title');
+                        final fullName =
+                            _extractFullName(data['details'] ?? 'N/A');
+                        return buildIconContainer(fullName,
+                            data['title'] ?? 'No Title', data['imageUrl']);
                       },
                     ),
                   ],
@@ -102,7 +106,8 @@ class _ShortcutIconState extends State<ShortcutIcon> {
     );
   }
 
-  Widget buildIconContainer(String fullName, String activityDescription) {
+  Widget buildIconContainer(
+      String fullName, String activityDescription, String? imageUrl) {
     return Column(
       children: [
         SizedBox(
@@ -110,13 +115,18 @@ class _ShortcutIconState extends State<ShortcutIcon> {
           height: 74,
           child: CircleAvatar(
             backgroundColor: Colors.blueGrey,
-            child: Text(
-              _getFirstSixLetters(fullName),
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-              ),
-            ),
+            backgroundImage: (imageUrl != null && imageUrl.isNotEmpty)
+                ? CachedNetworkImageProvider(imageUrl)
+                : null,
+            child: (imageUrl == null || imageUrl.isEmpty)
+                ? Text(
+                    _getFirstSixLetters(fullName),
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                    ),
+                  )
+                : null,
           ),
         ),
         Text(
@@ -139,9 +149,9 @@ class _ShortcutIconState extends State<ShortcutIcon> {
   String _extractFullName(String details) {
     // Assuming details are in the format "Name: John Doe\nCourse: XYZ"
     final nameLine = details.split('\n').firstWhere(
-      (line) => line.startsWith(''),
-      orElse: () => 'N/A',
-    );
+          (line) => line.startsWith(''),
+          orElse: () => 'N/A',
+        );
     return nameLine.replaceFirst('', '').trim();
   }
 }

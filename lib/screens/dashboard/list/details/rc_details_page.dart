@@ -8,10 +8,26 @@ import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/authentication/widgets/my_button.dart';
 import 'package:mds/screens/dashboard/form/edit_forms/edit_vehicle_details_form.dart';
 
-class RCDetailsPage extends StatelessWidget {
+import 'package:intl/intl.dart';
+import 'package:mds/utils/payment_utils.dart';
+import 'package:mds/services/image_cache_service.dart';
+import 'package:mds/utils/image_utils.dart';
+
+class RCDetailsPage extends StatefulWidget {
   final Map<String, dynamic> vehicleDetails;
 
   const RCDetailsPage({required this.vehicleDetails, super.key});
+
+  @override
+  State<RCDetailsPage> createState() => _RCDetailsPageState();
+}
+
+class _RCDetailsPageState extends State<RCDetailsPage> {
+  late Map<String, dynamic> vehicleDetails;
+  final List<String> _selectedTransactionIds = [];
+  static const Color kAccentRed = Color.fromRGBO(241, 135, 71, 1);
+  final WorkspaceController _workspaceController =
+      Get.find<WorkspaceController>();
 
   final TextStyle labelStyle = const TextStyle(
     fontFamily: 'Inter',
@@ -29,113 +45,449 @@ class RCDetailsPage extends StatelessWidget {
   );
 
   @override
+  void initState() {
+    super.initState();
+    vehicleDetails = Map.from(widget.vehicleDetails);
+    _docId = (vehicleDetails['studentId'] ??
+            vehicleDetails['id'] ??
+            vehicleDetails['recordId'])
+        .toString();
+    _initStreams();
+  }
+
+  late final String _docId;
+  late final Stream<DocumentSnapshot> _mainStream;
+  late final Stream<QuerySnapshot> _paymentsStream;
+  late final Stream<QuerySnapshot> _extraFeesStream;
+
+  void _initStreams() {
+    final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+        ? _workspaceController.currentSchoolId.value
+        : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
+    _mainStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('vehicleDetails')
+        .doc(_docId)
+        .snapshots();
+
+    _paymentsStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('vehicleDetails')
+        .doc(_docId)
+        .collection('payments')
+        .orderBy('date', descending: true)
+        .snapshots();
+
+    _extraFeesStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('vehicleDetails')
+        .doc(_docId)
+        .collection('extra_fees')
+        .orderBy('date', descending: true)
+        .snapshots();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final WorkspaceController workspaceController =
-        Get.find<WorkspaceController>();
-    final targetId = workspaceController.currentSchoolId.value.isNotEmpty
-        ? workspaceController.currentSchoolId.value
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
+
+    final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+        ? _workspaceController.currentSchoolId.value
         : (FirebaseAuth.instance.currentUser?.uid ?? '');
 
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('vehicleDetails')
-          .doc(vehicleDetails['studentId'].toString())
-          .snapshots(),
+      stream: _mainStream,
       builder: (context, snapshot) {
-        var currentDetails = vehicleDetails;
         if (snapshot.hasData && snapshot.data!.exists) {
-          currentDetails = snapshot.data!.data() as Map<String, dynamic>;
+          vehicleDetails = snapshot.data!.data() as Map<String, dynamic>;
         }
 
         return Scaffold(
+          backgroundColor: Theme.of(context).scaffoldBackgroundColor,
           appBar: AppBar(
-            title: const Text('RC Details'),
+            backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+            title: Text('RC Details', style: TextStyle(color: textColor)),
             elevation: 0,
             leading: const CustomBackButton(),
+            actions: [
+              IconButton(
+                icon: Icon(Icons.edit, color: subTextColor),
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditVehicleDetailsForm(
+                        initialValues: vehicleDetails,
+                        items: const [
+                          'Transfer of Ownership',
+                          'Re-Registration',
+                          'Hypothecation Addition',
+                          'Hypothecation Termination',
+                          'Duplicate RC',
+                          'Fitness Renewal',
+                          'Permit Renewal',
+                          'Tax Payment',
+                          'Registration Renewal',
+                          'Echellan',
+                          'Other'
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
           body: SingleChildScrollView(
+            padding: const EdgeInsets.all(16.0),
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: 20),
                 Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).cardColor,
                     borderRadius: BorderRadius.circular(15),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.grey.withOpacity(0.5),
+                        color: Colors.black.withOpacity(0.05),
                         spreadRadius: 2,
-                        blurRadius: 5,
-                        offset: const Offset(0, 3),
+                        blurRadius: 10,
                       ),
                     ],
                   ),
                   child: Column(
                     children: [
                       buildTableRow(
-                          'Vehicle Number', currentDetails['vehicleNumber']),
+                          'Vehicle Number', vehicleDetails['vehicleNumber']),
                       const Divider(color: kDivider),
                       buildTableRow(
-                          'Chassis Number', currentDetails['chassisNumber']),
+                          'Chassis Number', vehicleDetails['chassisNumber']),
                       const Divider(color: kDivider),
                       buildTableRow(
-                          'Engine Number', currentDetails['engineNumber']),
+                          'Engine Number', vehicleDetails['engineNumber']),
                       const Divider(color: kDivider),
                       buildTableRow(
-                          'Mobile Number', currentDetails['mobileNumber']),
+                          'Mobile Number', vehicleDetails['mobileNumber']),
                       const Divider(color: kDivider),
-                      buildTableRow(
-                          'Total Amount', currentDetails['totalAmount']),
+                      buildTableRow('Total Amount',
+                          'Rs. ${vehicleDetails['totalAmount']}'),
                       const Divider(color: kDivider),
-                      buildTableRow(
-                          'Advance Amount', currentDetails['advanceAmount']),
+                      buildTableRow('Advance Amount',
+                          'Rs. ${vehicleDetails['advanceAmount']}'),
                       const Divider(color: kDivider),
-                      buildTableRow(
-                          'Balance Amount', currentDetails['balanceAmount']),
+                      buildTableRow('Balance Amount',
+                          'Rs. ${vehicleDetails['balanceAmount']}'),
                       const Divider(color: kDivider),
-                      buildTableRow('Service', currentDetails['service']),
+                      buildTableRow('Service', vehicleDetails['service']),
                     ],
                   ),
                 ),
-                const SizedBox(height: 20),
-                Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-                  child: MyButton(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => EditVehicleDetailsForm(
-                            initialValues: currentDetails,
-                            items: const [
-                              'Transfer of Ownership',
-                              'Re-Registration',
-                              'Hypothecation Addition',
-                              'Hypothecation Termination',
-                              'Duplicate RC',
-                              'Fitness Renewal',
-                              'Permit Renewal',
-                              'Tax Payment',
-                              'Registration Renewal',
-                              'Echellan',
-                              'Other'
-                            ],
-                          ),
+                const SizedBox(height: 24),
+                // ── Payment Actions ──────────────────────────────────────────
+                Row(
+                  children: [
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
-                      );
-                    },
-                    text: 'Update Vehicle details',
-                    isLoading: false,
-                    isEnabled: true,
-                    width: double.infinity,
-                  ),
+                        onPressed: () => PaymentUtils.showReceiveMoneyDialog(
+                          context: context,
+                          doc: snapshot.data!
+                              as DocumentSnapshot<Map<String, dynamic>>,
+                          targetId: targetId,
+                          category: 'vehicleDetails',
+                          branchId: _workspaceController.currentBranchId.value,
+                        ),
+                        icon: const Icon(Icons.add_card, size: 20),
+                        label: const Text('Add Payment'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: kAccentRed,
+                          side: const BorderSide(color: kAccentRed),
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
+                        ),
+                        onPressed: () => PaymentUtils.showAddExtraFeeDialog(
+                          context: context,
+                          doc: snapshot.data!
+                              as DocumentSnapshot<Map<String, dynamic>>,
+                          targetId: targetId,
+                          category: 'vehicleDetails',
+                          branchId: _workspaceController.currentBranchId.value,
+                        ),
+                        icon: const Icon(Icons.add_circle_outline, size: 20),
+                        label: const Text('Add Fee'),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 24),
+
+                // ── Transaction History ──────────────────────────────────────
+                StreamBuilder<QuerySnapshot>(
+                  stream: _paymentsStream,
+                  builder: (context, snap) {
+                    if (!snap.hasData || snap.data!.docs.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Transaction History',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16)),
+                        const SizedBox(height: 12),
+                        ...snap.data!.docs.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final date = (data['date'] as Timestamp).toDate();
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color:
+                                  isDark ? Colors.grey[900] : Colors.grey[50],
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(Icons.payment,
+                                    color: Colors.green[400], size: 24),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(data['description'] ?? 'Payment',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w600)),
+                                      Text('Rs. ${data['amount']}',
+                                          style: TextStyle(
+                                              color: Colors.green[600],
+                                              fontWeight: FontWeight.bold)),
+                                      Text(
+                                          DateFormat('dd MMM yyyy, hh:mm a')
+                                              .format(date),
+                                          style: TextStyle(
+                                              color: subTextColor,
+                                              fontSize: 11)),
+                                      if (data['mode'] != null)
+                                        Text('Mode: ${data['mode']}',
+                                            style: TextStyle(
+                                                color: subTextColor,
+                                                fontSize: 11)),
+                                    ],
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.edit,
+                                      size: 18, color: Colors.blue),
+                                  onPressed: () =>
+                                      PaymentUtils.showEditPaymentDialog(
+                                    context: context,
+                                    docRef: snapshot.data!.reference,
+                                    paymentDoc: doc,
+                                    targetId: targetId,
+                                    category: 'vehicleDetails',
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 16),
+
+                // ── Additional Fees ──────────────────────────────────────────
+                StreamBuilder<QuerySnapshot>(
+                  stream: _extraFeesStream,
+                  builder: (context, snap) {
+                    if (!snap.hasData || snap.data!.docs.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Additional Fees',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 16)),
+                        const SizedBox(height: 12),
+                        ...snap.data!.docs.map((doc) {
+                          final data = doc.data() as Map<String, dynamic>;
+                          final date = (data['date'] as Timestamp).toDate();
+                          final isPaid = data['status'] == 'paid';
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            decoration: BoxDecoration(
+                              color:
+                                  isDark ? Colors.grey[900] : Colors.grey[100],
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                  color: isPaid
+                                      ? Colors.green.withOpacity(0.3)
+                                      : Colors.orange.withOpacity(0.3)),
+                            ),
+                            child: Row(
+                              children: [
+                                Checkbox(
+                                  value:
+                                      _selectedTransactionIds.contains(doc.id),
+                                  activeColor: kAccentRed,
+                                  onChanged: isPaid
+                                      ? (val) {
+                                          setState(() {
+                                            if (val == true) {
+                                              _selectedTransactionIds
+                                                  .add(doc.id);
+                                            } else {
+                                              _selectedTransactionIds
+                                                  .remove(doc.id);
+                                            }
+                                          });
+                                        }
+                                      : null,
+                                ),
+                                Expanded(
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 8.0),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(data['description'] ?? 'Fee',
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.bold)),
+                                        Text('Rs. ${data['amount']}',
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w600)),
+                                        Text(
+                                            DateFormat('dd MMM yyyy')
+                                                .format(date),
+                                            style: TextStyle(
+                                                color: subTextColor,
+                                                fontSize: 11)),
+                                        if (isPaid &&
+                                            data['paymentMode'] != null)
+                                          Text('Mode: ${data['paymentMode']}',
+                                              style: TextStyle(
+                                                  color: subTextColor,
+                                                  fontSize: 11)),
+                                        if (data['note'] != null &&
+                                            data['note']
+                                                .toString()
+                                                .trim()
+                                                .isNotEmpty)
+                                          Text('Note: ${data['note']}',
+                                              style: TextStyle(
+                                                  color: subTextColor,
+                                                  fontSize: 11),
+                                              maxLines: 2,
+                                              overflow: TextOverflow.ellipsis),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        if (isPaid)
+                                          const Padding(
+                                            padding:
+                                                EdgeInsets.only(right: 8.0),
+                                            child: Chip(
+                                              label: Text('Paid',
+                                                  style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 11)),
+                                              backgroundColor: Colors.green,
+                                              visualDensity:
+                                                  VisualDensity.compact,
+                                              padding: EdgeInsets.zero,
+                                            ),
+                                          )
+                                        else
+                                          TextButton(
+                                            onPressed: () => PaymentUtils
+                                                .showCollectExtraFeeDialog(
+                                              context: context,
+                                              docRef: snapshot.data!.reference,
+                                              feeDoc: doc,
+                                              targetId: targetId,
+                                              branchId: _workspaceController
+                                                  .currentBranchId.value,
+                                            ),
+                                            style: TextButton.styleFrom(
+                                                foregroundColor: Colors.green),
+                                            child: const Text('Collect',
+                                                style: TextStyle(fontSize: 12)),
+                                          ),
+                                      ],
+                                    ),
+                                    Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        IconButton(
+                                          icon: const Icon(Icons.edit_outlined,
+                                              size: 18, color: Colors.blue),
+                                          onPressed: () => PaymentUtils
+                                              .showEditExtraFeeDialog(
+                                            context: context,
+                                            docRef: snapshot.data!.reference,
+                                            feeDoc: doc,
+                                            targetId: targetId,
+                                            category: 'vehicleDetails',
+                                          ),
+                                          tooltip: 'Edit',
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.delete_outline,
+                                              size: 18, color: Colors.red),
+                                          onPressed: () =>
+                                              PaymentUtils.deleteExtraFee(
+                                            context: context,
+                                            docRef: snapshot.data!.reference,
+                                            feeDoc: doc,
+                                            targetId: targetId,
+                                          ),
+                                          tooltip: 'Delete',
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    );
+                  },
+                ),
               ],
             ),
           ),

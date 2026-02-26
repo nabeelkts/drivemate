@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -88,16 +89,45 @@ class RecentActivityScreen extends StatelessWidget {
                       ? Colors.grey.shade900
                       : Colors.grey.shade100,
                   child: ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: kPrimaryColor.withOpacity(0.2),
-                      child: Text(
-                        displayName.isNotEmpty
-                            ? displayName[0].toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          color: kPrimaryColor,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: kPrimaryColor.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: ClipOval(
+                        child: (data['imageUrl'] != null &&
+                                data['imageUrl'].toString().isNotEmpty)
+                            ? CachedNetworkImage(
+                                imageUrl: data['imageUrl'],
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) =>
+                                    const CircularProgressIndicator(
+                                        strokeWidth: 2),
+                                errorWidget: (context, url, error) => Center(
+                                  child: Text(
+                                    displayName.isNotEmpty
+                                        ? displayName[0].toUpperCase()
+                                        : '?',
+                                    style: const TextStyle(
+                                      color: kPrimaryColor,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : Center(
+                                child: Text(
+                                  displayName.isNotEmpty
+                                      ? displayName[0].toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(
+                                    color: kPrimaryColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                       ),
                     ),
                     title: Text(

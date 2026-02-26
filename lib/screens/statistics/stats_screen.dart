@@ -11,12 +11,14 @@ import 'package:mds/screens/dashboard/list/details/license_only_details_page.dar
 import 'package:mds/screens/dashboard/list/details/rc_details_page.dart';
 import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
 import 'package:mds/screens/dashboard/list/details/vehicle_details_page.dart';
+import 'package:mds/screens/dashboard/list/details/dl_service_details_page.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:mds/screens/dashboard/widgets/custom/custom_text.dart';
 import 'package:mds/screens/statistics/receive_money.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/utils/revenue_utils.dart';
 import 'package:shimmer/shimmer.dart';
 
 class StatsScreen extends StatefulWidget {
@@ -259,7 +261,6 @@ class _StatsScreenState extends State<StatsScreen> {
           }
 
           final dataList = snapshot.data!;
-          Map<String, double> revenueByMonth = {};
           Map<String, double> expensesByMonth = {};
           List<DateTime> months = List.generate(6, (i) {
             return DateTime(selectedDate.year, selectedDate.month - (5 - i), 1);
@@ -267,67 +268,21 @@ class _StatsScreenState extends State<StatsScreen> {
 
           for (var month in months) {
             String key = DateFormat('MM/yy').format(month);
-            revenueByMonth[key] = 0;
             expensesByMonth[key] = 0;
           }
 
-          // Track counted payments to avoid duplication
-          final Set<String> countedPayments = {};
-
-          // 1. Process Revenue from main collections (indices 0, 1, 2, 3, 5)
-          final revIndices = [0, 1, 2, 3, 5];
-          for (var idx in revIndices) {
-            if (dataList.length > idx) {
-              for (var doc in dataList[idx].docs) {
-                _processRevenue(doc.data(), doc.id, months, revenueByMonth,
-                    countedPayments);
-              }
-            }
-          }
+          final revenueStats = RevenueUtils.calculateMonthlyRevenue(
+            snapshots: dataList,
+            selectedDate: selectedDate,
+            months: months,
+          );
+          final Map<String, double> revenueByMonth =
+              revenueStats['revenueByMonth'];
 
           // 2. Process Expenses (index 4)
           if (dataList.length > 4) {
             for (var doc in dataList[4].docs) {
               _processExpenses(doc.data(), months, expensesByMonth);
-            }
-          }
-
-          // 3. Process Payments (index 6)
-          if (dataList.length > 6) {
-            for (var doc in dataList[6].docs) {
-              final data = doc.data();
-              double amount = double.tryParse(data['amountPaid']?.toString() ??
-                      data['amount']?.toString() ??
-                      '0') ??
-                  0;
-              DateTime? date;
-              if (data['date'] is Timestamp) {
-                date = (data['date'] as Timestamp).toDate();
-              } else {
-                date = DateTime.tryParse(data['date']?.toString() ?? '');
-              }
-
-              if (date != null) {
-                // Get parent ID (recordId) or payment ID
-                String recordId = data['recordId'] ?? '';
-                if (recordId.isEmpty) {
-                  final parentPath = doc.reference.parent.parent?.path ?? '';
-                  final parts = parentPath.split('/');
-                  if (parts.isNotEmpty) recordId = parts.last;
-                }
-                final dateStr = date.toIso8601String().substring(0, 10);
-                String dedupKey =
-                    '${recordId}_${amount.toStringAsFixed(2)}_$dateStr';
-
-                if (!countedPayments.contains(dedupKey)) {
-                  for (var month in months) {
-                    String key = DateFormat('MM/yy').format(month);
-                    if (date.year == month.year && date.month == month.month) {
-                      revenueByMonth[key] = (revenueByMonth[key] ?? 0) + amount;
-                    }
-                  }
-                }
-              }
             }
           }
 
@@ -427,51 +382,6 @@ class _StatsScreenState extends State<StatsScreen> {
         },
       );
     });
-  }
-
-  void _processRevenue(
-      Map<String, dynamic> data,
-      String itemId,
-      List<DateTime> months,
-      Map<String, double> revenueByMonth,
-      Set<String> countedPayments) {
-    double advance =
-        double.tryParse(data['advanceAmount']?.toString() ?? '0') ?? 0;
-    double second =
-        double.tryParse(data['secondInstallment']?.toString() ?? '0') ?? 0;
-    double third =
-        double.tryParse(data['thirdInstallment']?.toString() ?? '0') ?? 0;
-
-    DateTime? t1 = DateTime.tryParse(data['registrationDate'] ?? '');
-    DateTime? t2 = DateTime.tryParse(data['secondInstallmentTime'] ?? '');
-    DateTime? t3 = DateTime.tryParse(data['thirdInstallmentTime'] ?? '');
-
-    for (var month in months) {
-      String key = DateFormat('MM/yy').format(month);
-      if (t1 != null && t1.year == month.year && t1.month == month.month) {
-        revenueByMonth[key] = (revenueByMonth[key] ?? 0) + advance;
-        if (advance > 0) {
-          final dateStr = t1.toIso8601String().substring(0, 10);
-          countedPayments
-              .add('${itemId}_${advance.toStringAsFixed(2)}_$dateStr');
-        }
-      }
-      if (t2 != null && t2.year == month.year && t2.month == month.month) {
-        revenueByMonth[key] = (revenueByMonth[key] ?? 0) + second;
-        if (second > 0) {
-          final dateStr = t2.toIso8601String().substring(0, 10);
-          countedPayments
-              .add('${itemId}_${second.toStringAsFixed(2)}_$dateStr');
-        }
-      }
-      if (t3 != null && t3.year == month.year && t3.month == month.month) {
-        revenueByMonth[key] = (revenueByMonth[key] ?? 0) + third;
-        if (third > 0) {
-          final dateStr = t3.toIso8601String().substring(0, 10);
-          countedPayments.add('${itemId}_${third.toStringAsFixed(2)}_$dateStr');
-        }
-      }
-    }
   }
 
   void _processExpenses(Map<String, dynamic> data, List<DateTime> months,
@@ -581,114 +491,29 @@ class _StatsScreenState extends State<StatsScreen> {
           }
 
           int totalLearners = allItems.length;
-          double currentMonthRevenue = 0;
           double totalBalance = 0;
+          final revenueStats = RevenueUtils.calculateMonthlyRevenue(
+            snapshots: snapshot.data!,
+            selectedDate: selectedDate,
+            months: [selectedDate],
+          );
+          double currentMonthRevenue = revenueStats['currentMonthRevenue'] ?? 0;
 
-          final startOfMonth =
-              DateTime(selectedDate.year, selectedDate.month, 1);
-          final endOfMonth = DateTime(
-              selectedDate.year, selectedDate.month + 1, 0, 23, 59, 59);
-
-          // Revenue from main collections
-          // Track counted installments: recordId_amount_dateStr
-          final Set<String> countedPayments = {};
-
-          for (var item in allItems) {
-            final data = item['data'] as Map<String, dynamic>;
-            final itemId = item['id'] as String;
-
-            double advance =
-                double.tryParse(data['advanceAmount']?.toString() ?? '0') ?? 0;
-            double second =
-                double.tryParse(data['secondInstallment']?.toString() ?? '0') ??
-                    0;
-            double third =
-                double.tryParse(data['thirdInstallment']?.toString() ?? '0') ??
-                    0;
-            double balance =
-                double.tryParse(data['balanceAmount']?.toString() ?? '0') ?? 0;
-
-            totalBalance += balance;
-
-            DateTime? t1 = DateTime.tryParse(data['registrationDate'] ?? '');
-            DateTime? t2 =
-                DateTime.tryParse(data['secondInstallmentTime'] ?? '');
-            DateTime? t3 =
-                DateTime.tryParse(data['thirdInstallmentTime'] ?? '');
-
-            if (t1 != null &&
-                t1.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-                t1.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
-              currentMonthRevenue += advance;
-              if (advance > 0) {
-                final dateStr = t1.toIso8601String().substring(0, 10);
-                countedPayments
-                    .add('${itemId}_${advance.toStringAsFixed(2)}_$dateStr');
-              }
-            }
-            if (t2 != null &&
-                t2.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-                t2.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
-              currentMonthRevenue += second;
-              if (second > 0) {
-                final dateStr = t2.toIso8601String().substring(0, 10);
-                countedPayments
-                    .add('${itemId}_${second.toStringAsFixed(2)}_$dateStr');
-              }
-            }
-            if (t3 != null &&
-                t3.isAfter(startOfMonth.subtract(const Duration(seconds: 1))) &&
-                t3.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
-              currentMonthRevenue += third;
-              if (third > 0) {
-                final dateStr = t3.toIso8601String().substring(0, 10);
-                countedPayments
-                    .add('${itemId}_${third.toStringAsFixed(2)}_$dateStr');
-              }
-            }
-          }
-
-          // Revenue from Payments collectionGroup (index 6) with fixed deduplication
-          if (snapshot.data!.length > 6) {
-            for (var doc in snapshot.data![6].docs) {
+          // Process balance from main records
+          for (int i = 0; i < snapshot.data!.length; i++) {
+            if (i == 4 || i == 6) continue;
+            for (var doc in snapshot.data![i].docs) {
               final data = doc.data();
-              double amount = double.tryParse(data['amountPaid']?.toString() ??
-                      data['amount']?.toString() ??
-                      '0') ??
-                  0;
-              DateTime? pDate;
-              if (data['date'] is Timestamp) {
-                pDate = (data['date'] as Timestamp).toDate();
-              } else {
-                pDate = DateTime.tryParse(data['date']?.toString() ?? '');
-              }
+              double balance =
+                  double.tryParse(data['balanceAmount']?.toString() ?? '0') ??
+                      0;
+              totalBalance += balance;
 
-              if (pDate != null &&
-                  pDate.isAfter(
-                      startOfMonth.subtract(const Duration(seconds: 1))) &&
-                  pDate.isBefore(endOfMonth.add(const Duration(seconds: 1)))) {
-                // Get parent ID (recordId)
-                final String recordId = data['recordId'] ?? '';
-                final String dateStr = pDate.toIso8601String().substring(0, 10);
-
-                // Create deduplication key matching the main record format
-                // Note: If recordId is missing in payment doc (old data), check parent path
-                String finalRecordId = recordId;
-                if (finalRecordId.isEmpty) {
-                  final parentPath = doc.reference.parent.parent?.path ?? '';
-                  // path is users/{uid}/{collection}/{docId}
-                  final parts = parentPath.split('/');
-                  if (parts.isNotEmpty) finalRecordId = parts.last;
-                }
-
-                String dedupKey =
-                    '${finalRecordId}_${amount.toStringAsFixed(2)}_$dateStr';
-
-                // Only add if not already counted via main record
-                if (!countedPayments.contains(dedupKey)) {
-                  currentMonthRevenue += amount;
-                }
-              }
+              allItems.add({
+                'data': data,
+                'id': doc.id,
+                'source': collections[i],
+              });
             }
           }
 
@@ -742,7 +567,8 @@ class _StatsScreenState extends State<StatsScreen> {
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: () => _showRevenueDetails(context, allItems),
+                      onTap: () => _showRevenueDetails(
+                          context, allItems, snapshot.data!),
                       child: _buildMetricCard(
                         'Revenue (${DateFormat('MMM').format(selectedDate)})',
                         'Rs. ${currentMonthRevenue.toStringAsFixed(0)}',
@@ -1052,7 +878,9 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   void _showRevenueDetails(
-      BuildContext context, List<Map<String, dynamic>> items) {
+      BuildContext context,
+      List<Map<String, dynamic>> items,
+      List<QuerySnapshot<Map<String, dynamic>>> snapshots) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -1063,68 +891,11 @@ class _StatsScreenState extends State<StatsScreen> {
         String localFilter = 'Month';
         DateTime localDate = DateTime.now();
         return StatefulBuilder(builder: (ctx, setStateSB) {
-          List<Map<String, dynamic>> transactions = [];
-          for (var item in items) {
-            final data = item['data'] as Map<String, dynamic>;
-            final name = data['fullName'] ?? data['vehicleNumber'] ?? 'N/A';
-            final source = item['source'];
-            final id = item['id'];
-
-            DateTime? t1 = DateTime.tryParse(data['registrationDate'] ?? '');
-            DateTime? t2 =
-                DateTime.tryParse(data['secondInstallmentTime'] ?? '');
-            DateTime? t3 =
-                DateTime.tryParse(data['thirdInstallmentTime'] ?? '');
-
-            if (t1 != null) {
-              transactions.add({
-                'name': name,
-                'amount':
-                    double.tryParse(data['advanceAmount']?.toString() ?? '0') ??
-                        0,
-                'date': t1,
-                'label': 'Advance',
-                'source': source,
-                'id': id,
-                'data': data,
-              });
-            }
-            if (t2 != null) {
-              transactions.add({
-                'name': name,
-                'amount': double.tryParse(
-                        data['secondInstallment']?.toString() ?? '0') ??
-                    0,
-                'date': t2,
-                'label': '2nd Installment',
-                'source': source,
-                'id': id,
-                'data': data,
-              });
-            }
-            if (t3 != null) {
-              transactions.add({
-                'name': name,
-                'amount': double.tryParse(
-                        data['thirdInstallment']?.toString() ?? '0') ??
-                    0,
-                'date': t3,
-                'label': '3rd Installment',
-                'source': source,
-                'id': id,
-                'data': data,
-              });
-            }
-          }
-          transactions.sort((a, b) => b['date'].compareTo(a['date']));
-          final filtered = transactions.where((t) {
-            final d = t['date'] as DateTime;
-            if (localFilter == 'Day') return isSameDate(d, localDate);
-            if (localFilter == 'Month')
-              return d.year == localDate.year && d.month == localDate.month;
-            if (localFilter == 'Year') return d.year == localDate.year;
-            return true;
-          }).toList();
+          final filtered = RevenueUtils.getTransactionsFromSnapshots(
+            snapshots: snapshots,
+            selectedDate: localDate,
+            filter: localFilter,
+          );
           double total =
               filtered.fold(0, (sum, item) => sum + (item['amount'] as double));
           return _buildFilterListSheet(
@@ -1464,7 +1235,7 @@ class _StatsScreenState extends State<StatsScreen> {
           ),
         ),
       );
-    } else if (source == 'licenseonly') {
+    } else if (source.toLowerCase() == 'licenseonly') {
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -1479,6 +1250,24 @@ class _StatsScreenState extends State<StatsScreen> {
         MaterialPageRoute(
           builder: (context) => EndorsementDetailsPage(
             endorsementDetails: detailsData,
+          ),
+        ),
+      );
+    } else if (source == 'dl_services') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DlServiceDetailsPage(
+            serviceDetails: detailsData,
+          ),
+        ),
+      );
+    } else if (source == 'rc_services') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => RCDetailsPage(
+            vehicleDetails: detailsData,
           ),
         ),
       );

@@ -17,6 +17,7 @@ import 'package:mds/services/pdf_service.dart';
 import 'package:mds/services/image_cache_service.dart';
 import 'package:mds/utils/date_utils.dart';
 import 'package:mds/utils/loading_utils.dart';
+import 'package:mds/utils/image_utils.dart';
 import 'package:mds/utils/payment_utils.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:http/http.dart' as http;
@@ -41,6 +42,47 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
   void initState() {
     super.initState();
     serviceDetails = Map.from(widget.serviceDetails);
+    _docId = (serviceDetails['studentId'] ??
+            serviceDetails['id'] ??
+            serviceDetails['recordId'])
+        .toString();
+    _initStreams();
+  }
+
+  late final String _docId;
+  late final Stream<DocumentSnapshot> _mainStream;
+  late final Stream<QuerySnapshot> _paymentsStream;
+  late final Stream<QuerySnapshot> _extraFeesStream;
+
+  void _initStreams() {
+    final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+        ? _workspaceController.currentSchoolId.value
+        : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
+    _mainStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('dl_services')
+        .doc(_docId)
+        .snapshots();
+
+    _paymentsStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('dl_services')
+        .doc(_docId)
+        .collection('payments')
+        .orderBy('date', descending: true)
+        .snapshots();
+
+    _extraFeesStream = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('dl_services')
+        .doc(_docId)
+        .collection('extra_fees')
+        .orderBy('date', descending: true)
+        .snapshots();
   }
 
   @override
@@ -74,12 +116,14 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
                   builder: (context) => EditDlServiceForm(
                     initialValues: serviceDetails,
                     items: const [
-                      'License Renewal',
-                      'Address Change',
-                      'Name Change',
-                      'Biometric Change',
+                      'Renewal Of DL',
+                      'Change of Address',
+                      'Change of Name',
+                      'Change of Photo & Signature',
                       'Duplicate License',
-                      'DOB Change',
+                      'Change of DOB',
+                      'Endorsement to DL',
+                      'Issue of PSV Badge',
                       'Other',
                     ],
                   ),
@@ -90,13 +134,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
         ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(targetId)
-            // Note: collection name is dl_services
-            .collection('dl_services')
-            .doc(serviceDetails['studentId'].toString())
-            .snapshots(),
+        stream: _mainStream,
         builder: (context, snapshot) {
           if (snapshot.hasData && snapshot.data!.exists) {
             serviceDetails = snapshot.data!.data() as Map<String, dynamic>;
@@ -153,28 +191,78 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
       ),
       child: Row(
         children: [
-          CircleAvatar(
-            radius: 50,
-            backgroundColor: kAccentRed,
-            child: CircleAvatar(
-              radius: 48,
-              backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-              backgroundImage: serviceDetails['image'] != null &&
-                      serviceDetails['image'].toString().isNotEmpty
-                  ? CachedNetworkImageProvider(serviceDetails['image'])
-                  : null,
-              child: serviceDetails['image'] == null ||
-                      serviceDetails['image'].toString().isEmpty
-                  ? Text(
-                      serviceDetails['fullName'] != null &&
-                              serviceDetails['fullName'].toString().isNotEmpty
-                          ? serviceDetails['fullName'][0].toUpperCase()
-                          : '',
-                      style: TextStyle(fontSize: 40, color: textColor),
-                    )
-                  : null,
-            ),
-          ),
+          Builder(builder: (context) {
+            Timer? holdTimer;
+            return GestureDetector(
+              onTapDown: (_) {
+                if (serviceDetails['image'] != null &&
+                    serviceDetails['image'].toString().isNotEmpty) {
+                  holdTimer = Timer(const Duration(seconds: 1), () {
+                    ImageUtils.showImagePopup(context, serviceDetails['image'],
+                        serviceDetails['fullName']);
+                  });
+                }
+              },
+              onTapUp: (_) => holdTimer?.cancel(),
+              onTapCancel: () => holdTimer?.cancel(),
+              child: Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  color: kAccentRed,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Theme.of(context).scaffoldBackgroundColor,
+                    width: 3,
+                  ),
+                ),
+                child: ClipOval(
+                  child: serviceDetails['image'] != null &&
+                          serviceDetails['image'].toString().isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: serviceDetails['image'],
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) =>
+                              const CircularProgressIndicator(strokeWidth: 2),
+                          errorWidget: (context, url, error) => Container(
+                            alignment: Alignment.center,
+                            child: Text(
+                              serviceDetails['fullName'] != null &&
+                                      serviceDetails['fullName']
+                                          .toString()
+                                          .isNotEmpty
+                                  ? serviceDetails['fullName'][0].toUpperCase()
+                                  : '',
+                              style: TextStyle(
+                                fontSize: 40,
+                                color: textColor,
+                                height: 1.0,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                        )
+                      : Container(
+                          alignment: Alignment.center,
+                          child: Text(
+                            serviceDetails['fullName'] != null &&
+                                    serviceDetails['fullName']
+                                        .toString()
+                                        .isNotEmpty
+                                ? serviceDetails['fullName'][0].toUpperCase()
+                                : '',
+                            style: TextStyle(
+                              fontSize: 40,
+                              color: textColor,
+                              height: 1.0,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                ),
+              ),
+            );
+          }),
           const SizedBox(width: 20),
           Expanded(
             child: Column(
@@ -372,7 +460,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
         .collection('users')
         .doc(targetId)
         .collection('dl_services')
-        .doc(serviceDetails['studentId'].toString());
+        .doc(_docId);
 
     double total =
         double.tryParse(serviceDetails['totalAmount']?.toString() ?? '0') ?? 0;
@@ -519,16 +607,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
           ),
           const SizedBox(height: 8),
           StreamBuilder<QuerySnapshot>(
-            stream: FirebaseFirestore.instance
-                .collection('users')
-                .doc(_workspaceController.currentSchoolId.value.isNotEmpty
-                    ? _workspaceController.currentSchoolId.value
-                    : (FirebaseAuth.instance.currentUser?.uid ?? ''))
-                .collection('dl_services')
-                .doc(serviceDetails['studentId'].toString())
-                .collection('payments')
-                .orderBy('date', descending: true)
-                .snapshots(),
+            stream: _paymentsStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -593,7 +672,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
                                   .collection('users')
                                   .doc(targetId)
                                   .collection('dl_services')
-                                  .doc(serviceDetails['studentId'].toString()),
+                                  .doc(_docId),
                               paymentDoc: doc,
                               targetId: targetId,
                               category: 'dl_services',
@@ -615,7 +694,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
                                               .instance.currentUser?.uid ??
                                           ''))
                                   .collection('dl_services')
-                                  .doc(serviceDetails['studentId'].toString()),
+                                  .doc(_docId),
                               paymentDoc: doc,
                               targetId: _workspaceController
                                       .currentSchoolId.value.isNotEmpty
@@ -636,10 +715,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
           ),
           // ── Additional Fees (inline) ─────────────────────────────────────────
           StreamBuilder<QuerySnapshot>(
-            stream: baseDocRef
-                .collection('extra_fees')
-                .orderBy('date', descending: true)
-                .snapshots(),
+            stream: _extraFeesStream,
             builder: (context, feesSnapshot) {
               if (!feesSnapshot.hasData || feesSnapshot.data!.docs.isEmpty) {
                 return const SizedBox.shrink();
@@ -685,93 +761,141 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
                                     color: Colors.green.withOpacity(0.4))
                                 : null,
                       ),
-                      child: CheckboxListTile(
-                        value: _selectedTransactionIds.contains(doc.id),
-                        activeColor: kAccentRed,
-                        enabled: isPaid,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        onChanged: (val) {
-                          setState(() {
-                            if (val == true) {
-                              _selectedTransactionIds.add(doc.id);
-                            } else {
-                              _selectedTransactionIds.remove(doc.id);
-                            }
-                          });
-                        },
-                        title: Text(
-                            '${data['description']} — Rs. ${data['amount']}',
-                            style: TextStyle(
-                                color: textColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13)),
-                        subtitle: Text(
-                          '${DateFormat('dd MMM yyyy').format(date)}'
-                          '${data['note'] != null && data['note'].toString().trim().isNotEmpty ? "\nNote: ${data['note']}" : ''}',
-                          style: TextStyle(color: subTextColor, fontSize: 11),
-                        ),
-                        secondary: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            if (isPaid)
-                              const Padding(
-                                padding: EdgeInsets.only(right: 8.0),
-                                child: Chip(
-                                  label: Text('Paid',
+                      child: Row(
+                        children: [
+                          Checkbox(
+                            value: _selectedTransactionIds.contains(doc.id),
+                            activeColor: kAccentRed,
+                            onChanged: isPaid
+                                ? (val) {
+                                    setState(() {
+                                      if (val == true) {
+                                        _selectedTransactionIds.add(doc.id);
+                                      } else {
+                                        _selectedTransactionIds.remove(doc.id);
+                                      }
+                                    });
+                                  }
+                                : null,
+                          ),
+                          Expanded(
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 8.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(data['description'] ?? 'N/A',
                                       style: TextStyle(
-                                          color: Colors.white, fontSize: 11)),
-                                  backgroundColor: Colors.green,
-                                  visualDensity: VisualDensity.compact,
-                                  padding: EdgeInsets.zero,
-                                ),
-                              )
-                            else
-                              TextButton(
-                                onPressed: () =>
-                                    PaymentUtils.showCollectExtraFeeDialog(
-                                  context: context,
-                                  docRef: baseDocRef,
-                                  feeDoc: doc,
-                                  targetId: targetId,
-                                  branchId: _workspaceController
-                                      .currentBranchId.value,
-                                ),
-                                style: TextButton.styleFrom(
-                                    foregroundColor: Colors.green),
-                                child: const Text('Collect',
-                                    style: TextStyle(fontSize: 12)),
+                                          color: textColor,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14)),
+                                  const SizedBox(height: 2),
+                                  Text('Rs. ${data['amount']}',
+                                      style: TextStyle(
+                                          color: textColor,
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13)),
+                                  const SizedBox(height: 2),
+                                  Text(DateFormat('dd MMM yyyy').format(date),
+                                      style: TextStyle(
+                                          color: subTextColor, fontSize: 11)),
+                                  if (isPaid &&
+                                      data['paymentMode'] != null) ...[
+                                    const SizedBox(height: 2),
+                                    Text('Mode: ${data['paymentMode']}',
+                                        style: TextStyle(
+                                            color: subTextColor, fontSize: 11)),
+                                  ],
+                                  if (data['note'] != null &&
+                                      data['note']
+                                          .toString()
+                                          .trim()
+                                          .isNotEmpty) ...[
+                                    const SizedBox(height: 2),
+                                    Text('Note: ${data['note']}',
+                                        style: TextStyle(
+                                            color: subTextColor, fontSize: 11),
+                                        maxLines: 2,
+                                        overflow: TextOverflow.ellipsis),
+                                  ],
+                                ],
                               ),
-                            IconButton(
-                              icon: const Icon(Icons.edit_outlined,
-                                  size: 18, color: Colors.blue),
-                              onPressed: () =>
-                                  PaymentUtils.showEditExtraFeeDialog(
-                                context: context,
-                                docRef: baseDocRef,
-                                feeDoc: doc,
-                                targetId: targetId,
-                                category: 'dl_services',
-                              ),
-                              tooltip: 'Edit',
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.delete_outline,
-                                  size: 18, color: Colors.red),
-                              onPressed: () => PaymentUtils.deleteExtraFee(
-                                context: context,
-                                docRef: baseDocRef,
-                                feeDoc: doc,
-                                targetId: targetId,
+                          ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (isPaid)
+                                    const Padding(
+                                      padding: EdgeInsets.only(right: 8.0),
+                                      child: Chip(
+                                        label: Text('Paid',
+                                            style: TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 11)),
+                                        backgroundColor: Colors.green,
+                                        visualDensity: VisualDensity.compact,
+                                        padding: EdgeInsets.zero,
+                                      ),
+                                    )
+                                  else
+                                    TextButton(
+                                      onPressed: () => PaymentUtils
+                                          .showCollectExtraFeeDialog(
+                                        context: context,
+                                        docRef: baseDocRef,
+                                        feeDoc: doc,
+                                        targetId: targetId.toString(),
+                                        branchId: _workspaceController
+                                            .currentBranchId.value,
+                                      ),
+                                      style: TextButton.styleFrom(
+                                          foregroundColor: Colors.green),
+                                      child: const Text('Collect',
+                                          style: TextStyle(fontSize: 12)),
+                                    ),
+                                ],
                               ),
-                              tooltip: 'Delete',
-                            ),
-                          ],
-                        ),
-                        isThreeLine: data['note'] != null &&
-                            data['note'].toString().trim().isNotEmpty,
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.edit_outlined,
+                                        size: 18, color: Colors.blue),
+                                    onPressed: () =>
+                                        PaymentUtils.showEditExtraFeeDialog(
+                                      context: context,
+                                      docRef: baseDocRef,
+                                      feeDoc: doc,
+                                      targetId: targetId.toString(),
+                                      category: 'dl_services',
+                                    ),
+                                    tooltip: 'Edit',
+                                  ),
+                                  IconButton(
+                                    icon: const Icon(Icons.delete_outline,
+                                        size: 18, color: Colors.red),
+                                    onPressed: () =>
+                                        PaymentUtils.deleteExtraFee(
+                                      context: context,
+                                      docRef: baseDocRef,
+                                      feeDoc: doc,
+                                      targetId: targetId.toString(),
+                                    ),
+                                    tooltip: 'Delete',
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
                     );
-                  }),
+                  }).toList(),
                 ],
               );
             },

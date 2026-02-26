@@ -40,10 +40,16 @@ class _EditDlServiceFormState extends State<EditDlServiceForm> {
     final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
 
     // Get the index, defaulting to 0 if not found
-    final int selectedIndex =
-        widget.items.contains(widget.initialValues['serviceType'] ?? '')
-            ? widget.items.indexOf(widget.initialValues['serviceType'] ?? '')
-            : 0;
+    // If otherService is present, we should default to the "Other" index if available in widget.items
+    int selectedIndex = widget.items.indexOf('Other');
+    if (widget.initialValues['otherService'] == null ||
+        widget.initialValues['otherService'].toString().isEmpty) {
+      selectedIndex =
+          widget.items.contains(widget.initialValues['serviceType'] ?? '')
+              ? widget.items.indexOf(widget.initialValues['serviceType'] ?? '')
+              : 0;
+    }
+    if (selectedIndex == -1) selectedIndex = 0;
 
     return Scaffold(
       appBar: AppBar(

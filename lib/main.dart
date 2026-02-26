@@ -176,6 +176,19 @@ class MyApp extends StatelessWidget {
               );
             });
 
+            if (kIsWeb) {
+              return Container(
+                color:
+                    isDark ? const Color(0xFF000000) : const Color(0xFFF5F5F5),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 1000),
+                    child: child!,
+                  ),
+                ),
+              );
+            }
+
             return child!;
           },
           routes: {

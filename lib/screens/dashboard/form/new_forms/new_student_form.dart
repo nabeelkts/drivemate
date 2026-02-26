@@ -176,6 +176,7 @@ class _NewStudentState extends State<NewStudent> {
               'timestamp': FieldValue.serverTimestamp(),
               'studentId': studentId,
               'type': 'student',
+              'imageUrl': student['image'],
               'branchId': branchId,
               'branchName': branchName,
             }));
