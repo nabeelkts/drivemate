@@ -862,6 +862,294 @@ class PaymentUtils {
     }
   }
 
+  static Future<void> showEditLegacyPaymentDialog({
+    required BuildContext context,
+    required DocumentReference docRef,
+    required String legacyId,
+    required Map<String, dynamic> parentData,
+    required String targetId,
+    required String category,
+    String? branchId,
+  }) async {
+    double oldAmount = 0;
+    String oldMode = 'Cash';
+    DateTime oldDate = DateTime.now();
+    String fieldName = '';
+    String dateFieldName = '';
+    String label = '';
+
+    if (legacyId == 'legacy_adv') {
+      oldAmount =
+          double.tryParse(parentData['advanceAmount']?.toString() ?? '0') ?? 0;
+      oldMode = parentData['paymentMode'] ?? 'Cash';
+      oldDate = DateTime.tryParse(parentData['registrationDate']?.toString() ??
+              parentData['date']?.toString() ??
+              '') ??
+          DateTime.now();
+      fieldName = 'advanceAmount';
+      dateFieldName = 'registrationDate';
+      label = 'Advance Payment';
+    } else if (legacyId.startsWith('legacy_inst')) {
+      int index = int.tryParse(legacyId.replaceFirst('legacy_inst', '')) ?? 0;
+      oldAmount =
+          double.tryParse(parentData['installment$index']?.toString() ?? '0') ??
+              0;
+      oldMode = 'Cash';
+      oldDate = DateTime.tryParse(
+              parentData['installment${index}Time']?.toString() ?? '') ??
+          DateTime.now();
+      fieldName = 'installment$index';
+      dateFieldName = 'installment${index}Time';
+      label = 'Installment $index';
+    }
+
+    final amountController =
+        TextEditingController(text: oldAmount.toStringAsFixed(0));
+    String selectedMode = oldMode;
+    DateTime selectedDate = oldDate;
+    TimeOfDay selectedTime = TimeOfDay.fromDateTime(oldDate);
+
+    final modes = [
+      'Cash',
+      'GPay',
+      'PhonePe',
+      'Paytm',
+      'Bank Transfer',
+      'Other'
+    ];
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          title: Text('Edit $label'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: amountController,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: const InputDecoration(
+                      labelText: 'Amount (Rs.)', prefixText: 'Rs. '),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedMode,
+                  decoration: const InputDecoration(labelText: 'Payment Mode'),
+                  items: modes
+                      .map((mode) =>
+                          DropdownMenuItem(value: mode, child: Text(mode)))
+                      .toList(),
+                  onChanged: (val) => setDialogState(() => selectedMode = val!),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.calendar_today, size: 18),
+                        label: Text(DateFormat('dd MMM').format(selectedDate)),
+                        onPressed: () async {
+                          final date = await showDatePicker(
+                            context: context,
+                            initialDate: selectedDate,
+                            firstDate: DateTime(2000),
+                            lastDate:
+                                DateTime.now().add(const Duration(days: 365)),
+                          );
+                          if (date != null) {
+                            setDialogState(() => selectedDate = date);
+                          }
+                        },
+                      ),
+                    ),
+                    Expanded(
+                      child: TextButton.icon(
+                        icon: const Icon(Icons.access_time, size: 18),
+                        label: Text(selectedTime.format(context)),
+                        onPressed: () async {
+                          final time = await showTimePicker(
+                              context: context, initialTime: selectedTime);
+                          if (time != null) {
+                            setDialogState(() => selectedTime = time);
+                          }
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel')),
+            ElevatedButton(
+              onPressed: () async {
+                final newAmount =
+                    double.tryParse(amountController.text.trim()) ?? 0;
+                final combinedDateTime = DateTime(
+                    selectedDate.year,
+                    selectedDate.month,
+                    selectedDate.day,
+                    selectedTime.hour,
+                    selectedTime.minute);
+
+                try {
+                  final firestore = FirebaseFirestore.instance;
+                  final batch = firestore.batch();
+
+                  final currentBalance = double.tryParse(
+                          parentData['balanceAmount']?.toString() ?? '0') ??
+                      0.0;
+                  final newBalance = (currentBalance + oldAmount - newAmount)
+                      .clamp(0.0, double.infinity);
+
+                  final Map<String, dynamic> updateData = {
+                    'balanceAmount': newBalance,
+                    fieldName: newAmount,
+                    dateFieldName: combinedDateTime.toIso8601String(),
+                    'lastPaymentUpdate': FieldValue.serverTimestamp(),
+                  };
+                  if (legacyId == 'legacy_adv') {
+                    updateData['paymentMode'] = selectedMode;
+                  }
+
+                  batch.update(docRef, updateData);
+
+                  final activityRef = firestore
+                      .collection('users')
+                      .doc(targetId)
+                      .collection('recentActivity')
+                      .doc();
+                  batch.set(activityRef, {
+                    'title': 'Legacy Payment Updated',
+                    'details':
+                        '${parentData['fullName'] ?? parentData['vehicleNumber'] ?? 'N/A'}\n$label updated to Rs. ${newAmount.toStringAsFixed(0)}',
+                    'timestamp': FieldValue.serverTimestamp(),
+                    'type': 'editing',
+                    'recordId': docRef.id,
+                    'imageUrl': parentData['image'],
+                    'branchId': branchId ?? targetId,
+                  });
+
+                  await batch.commit();
+                  if (context.mounted) {
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        content: Text('Payment updated successfully')));
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context)
+                        .showSnackBar(SnackBar(content: Text('Error: $e')));
+                  }
+                }
+              },
+              child: const Text('Update'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static Future<void> deleteLegacyPayment({
+    required BuildContext context,
+    required DocumentReference docRef,
+    required String legacyId,
+    required Map<String, dynamic> parentData,
+    required String targetId,
+  }) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Payment'),
+        content: const Text(
+            'Are you sure you want to delete this legacy payment? This will update the balance.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final firestore = FirebaseFirestore.instance;
+      final batch = firestore.batch();
+
+      double amount = 0;
+      String fieldName = '';
+      String dateFieldName = '';
+
+      if (legacyId == 'legacy_adv') {
+        amount =
+            double.tryParse(parentData['advanceAmount']?.toString() ?? '0') ??
+                0;
+        fieldName = 'advanceAmount';
+        dateFieldName = 'registrationDate';
+      } else if (legacyId.startsWith('legacy_inst')) {
+        int index = int.tryParse(legacyId.replaceFirst('legacy_inst', '')) ?? 0;
+        amount = double.tryParse(
+                parentData['installment$index']?.toString() ?? '0') ??
+            0;
+        fieldName = 'installment$index';
+        dateFieldName = 'installment${index}Time';
+      }
+
+      final currentBalance =
+          double.tryParse(parentData['balanceAmount']?.toString() ?? '0') ?? 0;
+      final newBalance = currentBalance + amount;
+
+      final Map<String, dynamic> updateData = {
+        'balanceAmount': newBalance,
+        fieldName: 0,
+        dateFieldName: '',
+        'lastPaymentUpdate': FieldValue.serverTimestamp(),
+      };
+
+      batch.update(docRef, updateData);
+
+      final activityRef = firestore
+          .collection('users')
+          .doc(targetId)
+          .collection('recentActivity')
+          .doc();
+      batch.set(activityRef, {
+        'title': 'Legacy Payment Deleted',
+        'details':
+            '${parentData['fullName'] ?? parentData['vehicleNumber'] ?? 'N/A'}\nDeleted Rs. ${amount.toStringAsFixed(0)} ($legacyId)',
+        'timestamp': FieldValue.serverTimestamp(),
+        'type': 'deletion',
+        'recordId': docRef.id,
+        'imageUrl': parentData['image'],
+        'branchId': targetId,
+      });
+
+      await batch.commit();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Payment deleted successfully')));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
   static Future<void> showAddExtraFeeDialog({
     required BuildContext context,
     required DocumentSnapshot<Map<String, dynamic>> doc,
@@ -1391,26 +1679,8 @@ class PaymentUtils {
                     'status': 'paid',
                     'collectedAt': FieldValue.serverTimestamp(),
                     'paymentMode': selectedMode,
-                  });
-
-                  // Add to payments subcollection
-                  final paymentRef = docRef.collection('payments').doc();
-                  batch.set(paymentRef, {
-                    'amount': feeAmount,
-                    'description': feeDescription,
-                    'mode': selectedMode,
-                    'date': Timestamp.fromDate(combinedDateTime),
-                    'note': noteController.text.trim(),
-                    'createdAt': FieldValue.serverTimestamp(),
-                    'targetId': targetId,
-                    'branchId': branchId ?? targetId,
-                    'type': 'extra_fee_collection',
-                    'recordId': feeData['recordId'] ?? parentDoc.id,
-                    'recordName': feeData['recordName'] ??
-                        parentData['fullName'] ??
-                        parentData['vehicleNumber'] ??
-                        'N/A',
-                    'category': feeData['category'] ?? docRef.parent.id,
+                    'paymentDate': Timestamp.fromDate(combinedDateTime),
+                    'paymentNote': noteController.text.trim(),
                   });
 
                   // Log activity
@@ -1546,12 +1816,27 @@ class PaymentUtils {
       final currentBalance =
           double.tryParse(parentData['balanceAmount']?.toString() ?? '0') ??
               0.0;
+      final currentAdvance =
+          double.tryParse(parentData['advanceAmount']?.toString() ?? '0') ??
+              0.0;
 
-      // Subtract the fee from total and balance
-      batch.update(docRef, {
-        'totalAmount': currentTotal - amount,
-        'balanceAmount': currentBalance - amount,
-      });
+      final isPaid = feeData['status'] == 'paid';
+      final newTotal = currentTotal - amount;
+      final updateData = <String, dynamic>{
+        'totalAmount': newTotal,
+      };
+
+      if (isPaid) {
+        // If fee was paid, reduce the advance amount and recalculate balance
+        final newAdvance = currentAdvance - amount;
+        updateData['advanceAmount'] = newAdvance;
+        updateData['balanceAmount'] = newTotal - newAdvance;
+      } else {
+        // If fee was unpaid, reduce the balance
+        updateData['balanceAmount'] = currentBalance - amount;
+      }
+
+      batch.update(docRef, updateData);
 
       batch.delete(feeDoc.reference);
 

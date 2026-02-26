@@ -10,6 +10,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:mds/utils/loading_utils.dart';
+import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 
 class TodaySchedulePage extends StatefulWidget {
   const TodaySchedulePage({super.key});
@@ -223,36 +224,36 @@ class _TodaySchedulePageState extends State<TodaySchedulePage>
 
   Widget _buildList(List<Map<String, dynamic>> data) {
     if (isLoading) {
-      return const Center(child: CircularProgressIndicator());
+      return const ShimmerLoadingList();
     }
     if (data.isEmpty) {
       return Center(
           child: Text('No tests for ${displayFormat.format(selectedDate)}'));
     }
     return ListView.builder(
-  itemCount: data.length,
-  itemBuilder: (context, index) {
-    final s = data[index];
-    final balance = s['balanceAmount']?.toString() ?? '';
-    final colType = s['_collection']?.toString() ?? 'STUDENTS';
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: ListTile(
-        isThreeLine: true,
-        title: Text(s['fullName'] ?? ''),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(colType.toUpperCase()),
-            Text('COV: ${s['cov'] ?? ''}'),
-            Text('Mobile: ${s['mobileNumber'] ?? ''}'),
-          ],
-        ),
-        trailing: Text(balance.isNotEmpty ? '₹ $balance' : ''),
-      ),
+      itemCount: data.length,
+      itemBuilder: (context, index) {
+        final s = data[index];
+        final balance = s['balanceAmount']?.toString() ?? '';
+        final colType = s['_collection']?.toString() ?? 'STUDENTS';
+        return Card(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          child: ListTile(
+            isThreeLine: true,
+            title: Text(s['fullName'] ?? ''),
+            subtitle: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(colType.toUpperCase()),
+                Text('COV: ${s['cov'] ?? ''}'),
+                Text('Mobile: ${s['mobileNumber'] ?? ''}'),
+              ],
+            ),
+            trailing: Text(balance.isNotEmpty ? '₹ $balance' : ''),
+          ),
+        );
+      },
     );
-  },
-);
   }
 
   @override

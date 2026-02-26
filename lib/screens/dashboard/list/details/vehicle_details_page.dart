@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'package:mds/utils/payment_utils.dart';
 import 'package:mds/utils/date_utils.dart';
 import 'package:http/http.dart' as http;
@@ -284,9 +285,41 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const ShimmerLoadingList();
             }
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            final docs = snapshot.data?.docs ?? [];
+
+            List<Map<String, dynamic>> combinedDocs = docs.map((d) {
+              final map = d.data() as Map<String, dynamic>;
+              map['id'] = d.id;
+              map['docRef'] = d;
+              return map;
+            }).toList();
+
+            // For old records: show legacy advance if no payments exist yet
+            if (combinedDocs.isEmpty) {
+              final advAmt = double.tryParse(
+                      vehicleDetails['advanceAmount']?.toString() ?? '0') ??
+                  0;
+              if (advAmt > 0) {
+                final regDate = DateTime.tryParse(
+                        vehicleDetails['registrationDate']?.toString() ?? '') ??
+                    DateTime(2000);
+                combinedDocs.add({
+                  'id': 'legacy_adv',
+                  'amount': advAmt,
+                  'date': Timestamp.fromDate(regDate),
+                  'mode': vehicleDetails['paymentMode'] ?? 'Cash',
+                  'description': 'Initial Advance',
+                  'isLegacy': true,
+                });
+              }
+            }
+
+            combinedDocs.sort((a, b) =>
+                (b['date'] as Timestamp).compareTo(a['date'] as Timestamp));
+
+            if (combinedDocs.isEmpty) {
               return Center(
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -296,12 +329,10 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
               );
             }
 
-            final docs = snapshot.data!.docs;
             return Column(
-              children: docs.map((doc) {
-                final data = doc.data() as Map<String, dynamic>;
+              children: combinedDocs.map((data) {
                 final date = (data['date'] as Timestamp).toDate();
-                final isSelected = _selectedTransactionIds.contains(doc.id);
+                final isSelected = _selectedTransactionIds.contains(data['id']);
 
                 return Container(
                   margin: const EdgeInsets.only(bottom: 8),
@@ -319,9 +350,9 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
                     onChanged: (val) {
                       setState(() {
                         if (val == true) {
-                          _selectedTransactionIds.add(doc.id);
+                          _selectedTransactionIds.add(data['id']);
                         } else {
-                          _selectedTransactionIds.remove(doc.id);
+                          _selectedTransactionIds.remove(data['id']);
                         }
                       });
                     },
@@ -334,50 +365,50 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
                       '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}${data['note'] != null && data['note'].toString().trim().isNotEmpty ? '\nNote: ${data['note']}' : (data['description'] != null && data['description'].toString().trim().isNotEmpty ? '\n${data['description']}' : '')}',
                       style: TextStyle(color: subTextColor, fontSize: 11),
                     ),
-                    secondary: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.edit_outlined,
-                              size: 20, color: Colors.blue),
-                          onPressed: () => PaymentUtils.showEditPaymentDialog(
-                            context: context,
-                            docRef: FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(targetId)
-                                .collection('vehicleDetails')
-                                .doc(vehicleDetails['studentId'].toString()),
-                            paymentDoc: doc,
-                            targetId: targetId,
-                            category: 'vehicleDetails',
+                    secondary: data['isLegacy'] == true
+                        ? null
+                        : Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.edit_outlined,
+                                    size: 20, color: Colors.blue),
+                                onPressed: () {
+                                  PaymentUtils.showEditPaymentDialog(
+                                    context: context,
+                                    docRef: FirebaseFirestore.instance
+                                        .collection('users')
+                                        .doc(targetId)
+                                        .collection('vehicleDetails')
+                                        .doc(vehicleDetails['studentId']
+                                            .toString()),
+                                    paymentDoc: data['docRef'],
+                                    targetId: targetId,
+                                    category: 'vehicleDetails',
+                                  );
+                                },
+                                tooltip: 'Edit Payment',
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    size: 20, color: Colors.red),
+                                onPressed: () {
+                                  PaymentUtils.deletePayment(
+                                    context: context,
+                                    studentRef: FirebaseFirestore.instance
+                                        .collection('users')
+                                        .doc(targetId)
+                                        .collection('vehicleDetails')
+                                        .doc(vehicleDetails['studentId']
+                                            .toString()),
+                                    paymentDoc: data['docRef'],
+                                    targetId: targetId,
+                                  );
+                                },
+                                tooltip: 'Delete Payment',
+                              ),
+                            ],
                           ),
-                          tooltip: 'Edit Payment',
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              size: 20, color: Colors.red),
-                          onPressed: () => PaymentUtils.deletePayment(
-                            context: context,
-                            studentRef: FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(_workspaceController
-                                        .currentSchoolId.value.isNotEmpty
-                                    ? _workspaceController.currentSchoolId.value
-                                    : (FirebaseAuth.instance.currentUser?.uid ??
-                                        ''))
-                                .collection('vehicleDetails')
-                                .doc(vehicleDetails['studentId'].toString()),
-                            paymentDoc: doc,
-                            targetId: _workspaceController
-                                    .currentSchoolId.value.isNotEmpty
-                                ? _workspaceController.currentSchoolId.value
-                                : (FirebaseAuth.instance.currentUser?.uid ??
-                                    ''),
-                          ),
-                          tooltip: 'Delete Payment',
-                        ),
-                      ],
-                    ),
                     isThreeLine: true,
                   ),
                 );
@@ -567,11 +598,32 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
 
     allTransactions.addAll(feesQuery.docs.map((d) {
       final data = d.data();
-      if (data['date'] is Timestamp) {
-        data['date'] = (data['date'] as Timestamp).toDate();
-      }
-      return data;
+      // Map extra fee data to receipt format
+      return {
+        'amount': data['amount'],
+        'description': data['description'] ?? 'Additional Fee',
+        'mode': data['paymentMode'] ?? 'Cash',
+        'date': data['paymentDate'] ?? data['date'],
+        'note': data['paymentNote'] ?? data['note'],
+      };
     }));
+
+    // Add legacy advance if selected
+    if (_selectedTransactionIds.contains('legacy_adv')) {
+      final double amount =
+          double.tryParse(vehicleDetails['advanceAmount']?.toString() ?? '0') ??
+              0;
+      if (amount > 0) {
+        allTransactions.add({
+          'amount': amount,
+          'date': DateTime.tryParse(
+                  vehicleDetails['registrationDate']?.toString() ?? '') ??
+              DateTime(2000),
+          'mode': vehicleDetails['paymentMode'] ?? 'Cash',
+          'description': 'Initial Advance',
+        });
+      }
+    }
 
     if (allTransactions.isEmpty) return;
 

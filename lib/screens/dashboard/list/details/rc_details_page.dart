@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -12,6 +13,7 @@ import 'package:intl/intl.dart';
 import 'package:mds/utils/payment_utils.dart';
 import 'package:mds/services/image_cache_service.dart';
 import 'package:mds/utils/image_utils.dart';
+import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 
 class RCDetailsPage extends StatefulWidget {
   final Map<String, dynamic> vehicleDetails;
@@ -244,9 +246,26 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
                 StreamBuilder<QuerySnapshot>(
                   stream: _paymentsStream,
                   builder: (context, snap) {
-                    if (!snap.hasData || snap.data!.docs.isEmpty) {
+                    if (snap.connectionState == ConnectionState.waiting) {
+                      return const ShimmerLoadingList();
+                    }
+
+                    final docs = snap.data?.docs ?? [];
+
+                    List<Map<String, dynamic>> combinedDocs = docs.map((d) {
+                      final map = d.data() as Map<String, dynamic>;
+                      map['id'] = d.id;
+                      map['docRef'] = d;
+                      return map;
+                    }).toList();
+
+                    combinedDocs.sort((a, b) => (b['date'] as Timestamp)
+                        .compareTo(a['date'] as Timestamp));
+
+                    if (combinedDocs.isEmpty) {
                       return const SizedBox.shrink();
                     }
+
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -254,8 +273,7 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
                             style: TextStyle(
                                 fontWeight: FontWeight.bold, fontSize: 16)),
                         const SizedBox(height: 12),
-                        ...snap.data!.docs.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
+                        ...combinedDocs.map((data) {
                           final date = (data['date'] as Timestamp).toDate();
                           return Container(
                             margin: const EdgeInsets.only(bottom: 8),
@@ -303,7 +321,7 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
                                       PaymentUtils.showEditPaymentDialog(
                                     context: context,
                                     docRef: snapshot.data!.reference,
-                                    paymentDoc: doc,
+                                    paymentDoc: data['docRef'],
                                     targetId: targetId,
                                     category: 'vehicleDetails',
                                   ),

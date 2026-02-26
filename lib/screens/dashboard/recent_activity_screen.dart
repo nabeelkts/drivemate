@@ -6,6 +6,7 @@ import 'package:mds/constants/colors.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 
 class RecentActivityScreen extends StatelessWidget {
   const RecentActivityScreen({super.key});
@@ -63,7 +64,7 @@ class RecentActivityScreen extends StatelessWidget {
               );
             }
             if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
+              return const ShimmerLoadingList();
             }
             final docs = snapshot.data?.docs ?? [];
             if (docs.isEmpty) {

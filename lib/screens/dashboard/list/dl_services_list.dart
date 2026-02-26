@@ -39,6 +39,9 @@ class DlServicesList extends StatelessWidget {
       },
       itemBuilder: (context, doc) {
         final data = doc.data();
+        data['recordId'] = doc.id; // Inject ID for Details Stream fallback
+        data['id'] = doc.id;
+
         final isDark = Theme.of(context).brightness == Brightness.dark;
         return ListItemCard(
           title: data['fullName'] ?? 'N/A',

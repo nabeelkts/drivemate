@@ -10,6 +10,8 @@ class ShimmerLoadingList extends StatelessWidget {
       baseColor: Colors.grey[300]!,
       highlightColor: Colors.white10,
       child: ListView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
         itemCount: 8, // Specify the number of shimmering items you want
         itemBuilder: (context, index) {
           return Padding(

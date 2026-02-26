@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:mds/screens/widget/custom_back_button.dart';
@@ -15,6 +16,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'package:iconly/iconly.dart';
 import 'package:mds/utils/test_utils.dart';
 import 'package:mds/utils/image_utils.dart';
@@ -321,8 +323,13 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                     ? CachedNetworkImage(
                         imageUrl: licenseDetails['image'],
                         fit: BoxFit.cover,
-                        placeholder: (context, url) =>
-                            const CircularProgressIndicator(strokeWidth: 2),
+                        placeholder: (context, url) => Shimmer.fromColors(
+                          baseColor:
+                              isDark ? Colors.grey[800]! : Colors.grey[300]!,
+                          highlightColor:
+                              isDark ? Colors.grey[700]! : Colors.grey[100]!,
+                          child: Container(color: Colors.white),
+                        ),
                         errorWidget: (context, url, error) => Container(
                           alignment: Alignment.center,
                           child: Text(
@@ -673,9 +680,44 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
             stream: _paymentsStream,
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const ShimmerLoadingList();
               }
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+
+              final docs = snapshot.data?.docs ?? [];
+
+              // Show only original transactions from payments subcollection
+              List<Map<String, dynamic>> combinedDocs = docs.map((d) {
+                final map = d.data() as Map<String, dynamic>;
+                map['id'] = d.id;
+                map['docRef'] = d;
+                return map;
+              }).toList();
+
+              // For old records: show legacy advance if no payments exist yet
+              if (combinedDocs.isEmpty) {
+                final advAmt = double.tryParse(
+                        licenseDetails['advanceAmount']?.toString() ?? '0') ??
+                    0;
+                if (advAmt > 0) {
+                  final regDate = DateTime.tryParse(
+                          licenseDetails['registrationDate']?.toString() ??
+                              '') ??
+                      DateTime(2000);
+                  combinedDocs.add({
+                    'id': 'legacy_adv',
+                    'amount': advAmt,
+                    'date': Timestamp.fromDate(regDate),
+                    'mode': licenseDetails['paymentMode'] ?? 'Cash',
+                    'description': 'Initial Advance',
+                    'isLegacy': true,
+                  });
+                }
+              }
+
+              combinedDocs.sort((a, b) =>
+                  (b['date'] as Timestamp).compareTo(a['date'] as Timestamp));
+
+              if (combinedDocs.isEmpty) {
                 return Center(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -685,12 +727,11 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                 );
               }
 
-              final docs = snapshot.data!.docs;
               return Column(
-                children: docs.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
+                children: combinedDocs.map((data) {
                   final date = (data['date'] as Timestamp).toDate();
-                  final isSelected = _selectedTransactionIds.contains(doc.id);
+                  final isSelected =
+                      _selectedTransactionIds.contains(data['id']);
 
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8),
@@ -708,9 +749,9 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                       onChanged: (val) {
                         setState(() {
                           if (val == true) {
-                            _selectedTransactionIds.add(doc.id);
+                            _selectedTransactionIds.add(data['id']);
                           } else {
-                            _selectedTransactionIds.remove(doc.id);
+                            _selectedTransactionIds.remove(data['id']);
                           }
                         });
                       },
@@ -729,42 +770,36 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                           IconButton(
                             icon: const Icon(Icons.edit_outlined,
                                 size: 20, color: Colors.blue),
-                            onPressed: () => PaymentUtils.showEditPaymentDialog(
-                              context: context,
-                              docRef: FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(targetId)
-                                  .collection('licenseonly')
-                                  .doc(_docId),
-                              paymentDoc: doc,
-                              targetId: targetId,
-                              category: 'licenseonly',
-                            ),
+                            onPressed: () {
+                              PaymentUtils.showEditPaymentDialog(
+                                context: context,
+                                docRef: FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(targetId)
+                                    .collection('licenseonly')
+                                    .doc(_docId),
+                                paymentDoc: data['docRef'],
+                                targetId: targetId,
+                                category: 'licenseonly',
+                              );
+                            },
                             tooltip: 'Edit Payment',
                           ),
                           IconButton(
                             icon: const Icon(Icons.delete_outline,
                                 size: 20, color: Colors.red),
-                            onPressed: () => PaymentUtils.deletePayment(
-                              context: context,
-                              studentRef: FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(_workspaceController
-                                          .currentSchoolId.value.isNotEmpty
-                                      ? _workspaceController
-                                          .currentSchoolId.value
-                                      : (FirebaseAuth
-                                              .instance.currentUser?.uid ??
-                                          ''))
-                                  .collection('licenseonly')
-                                  .doc(_docId),
-                              paymentDoc: doc,
-                              targetId: _workspaceController
-                                      .currentSchoolId.value.isNotEmpty
-                                  ? _workspaceController.currentSchoolId.value
-                                  : (FirebaseAuth.instance.currentUser?.uid ??
-                                      ''),
-                            ),
+                            onPressed: () {
+                              PaymentUtils.deletePayment(
+                                context: context,
+                                studentRef: FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(targetId)
+                                    .collection('licenseonly')
+                                    .doc(_docId),
+                                paymentDoc: data['docRef'],
+                                targetId: targetId,
+                              );
+                            },
                             tooltip: 'Delete Payment',
                           ),
                         ],
@@ -1022,15 +1057,16 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
         .where(FieldPath.documentId, whereIn: _selectedTransactionIds)
         .get();
 
-    // For extra fees, we need to adapt the data slightly to match transaction format if needed
-    // although they already have amount, date, description, etc.
     allTransactions.addAll(feesQuery.docs.map((d) {
       final data = d.data();
-      // Ensure date is a DateTime for PdfService
-      if (data['date'] is Timestamp) {
-        data['date'] = (data['date'] as Timestamp).toDate();
-      }
-      return data;
+      // Map extra fee data to receipt format
+      return {
+        'amount': data['amount'],
+        'description': data['description'] ?? 'Additional Fee',
+        'mode': data['paymentMode'] ?? 'Cash',
+        'date': data['paymentDate'] ?? data['date'],
+        'note': data['paymentNote'] ?? data['note'],
+      };
     }));
 
     if (allTransactions.isEmpty) return;

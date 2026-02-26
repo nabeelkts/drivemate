@@ -7,6 +7,7 @@ import 'package:mds/utils/date_utils.dart';
 import 'package:get/get.dart';
 import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 
 class TestDateUpdaterScreen extends StatefulWidget {
   const TestDateUpdaterScreen({super.key});
@@ -124,7 +125,7 @@ class _TestDateUpdaterScreenState extends State<TestDateUpdaterScreen> {
         ),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const ShimmerLoadingList()
           : _filteredResults.isEmpty
               ? const Center(child: Text('No students found'))
               : ListView.builder(

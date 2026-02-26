@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:mds/constants/colors.dart';
 
 class ListItemCard extends StatelessWidget {
@@ -130,15 +131,18 @@ class ListItemCard extends StatelessWidget {
             ? CachedNetworkImage(
                 imageUrl: imageUrl!,
                 fit: BoxFit.cover,
-                placeholder: (context, url) =>
-                    const CircularProgressIndicator(strokeWidth: 2),
+                placeholder: (context, url) => Shimmer.fromColors(
+                  baseColor: isDark ? Colors.grey[800]! : Colors.grey[300]!,
+                  highlightColor:
+                      isDark ? Colors.grey[700]! : Colors.grey[100]!,
+                  child: Container(color: Colors.white),
+                ),
                 errorWidget: (context, url, error) => Container(
                   alignment: Alignment.center,
                   child: _initials(textColor),
                 ),
               )
-            : Container(
-                alignment: Alignment.center,
+            : Center(
                 child: _initials(textColor),
               ),
       ),
@@ -146,15 +150,16 @@ class ListItemCard extends StatelessWidget {
   }
 
   Widget _initials(Color textColor) {
-    return Text(
-      title.isNotEmpty ? title[0].toUpperCase() : '?',
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: kPrimaryColor,
-        height: 1.0,
+    return Center(
+      child: Text(
+        title.isNotEmpty ? title[0].toUpperCase() : '?',
+        style: const TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+          color: kPrimaryColor,
+        ),
+        textAlign: TextAlign.center,
       ),
-      textAlign: TextAlign.center,
     );
   }
 }
