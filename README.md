@@ -20,7 +20,7 @@
 
 📥 Grab the **latest build** here:
 
-➡️ **https://github.com/nabeelkts/drivemate/releases/latest/download/app.apk**
+➡️ **https://github.com/nabeelkts/drivemate/releases/latest/download/drivemate.apk**
 
 > ⬆️ This link always points to the newest APK automatically.
 
@@ -94,5 +94,6 @@ Want to contribute or build locally?
 git clone https://github.com/nabeelkts/drivemate.git
 cd drivemate
 # Open in Android Studio or your favorite IDE
+
 
 
