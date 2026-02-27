@@ -28,23 +28,38 @@
 
 ## ✨ Key Features
 
-- 📊 **Driving School Data Management**
-  - Student records
-  - Course tracking
-  - Trainer & vehicle assignments
+- ## Features
 
-- 💰 **Finance Tools**
-  - Income & expense entries
-  - Expense categories
-  - Summary reports
+### 📊 Driving School Data Management
+- Manage student records & course progress  
+- Assign trainers & vehicles  
+- Support for multiple branches  
 
-- 📋 **User-friendly Interface**
-  - Optimized Android experience
+### 📍 Live Operations & Monitoring
+- Real-time driver tracking  
+- Attendance logs for students & staff  
+- Daily activity tracking & vehicle usage monitoring  
 
-- 🔄 Auto-update friendly via GitHub Releases
+### 💰 Finance & Accounting Tools
+- Income & expense entries  
+- Categorized expenses  
+- Daily ledger tracking  
+- Branch-wise and summary reports  
 
-*(Add additional features as needed — basic structure from your project contents)*
+### 👥 Role-Based Access Control
+- Multi-role system (Owner, Manager, Staff)  
+- Permission-based access  
+- Branch-level data visibility  
 
+### 📱 User-Friendly Mobile Experience
+- Optimized Android interface  
+- Clean, intuitive dashboard  
+- Fast and simple navigation  
+
+### 🔄 System & Updates
+- Auto-update via GitHub Releases  
+- Secure cloud-synced data
+- 
 ---
 
 ## 📱 Mobile Preview
@@ -94,6 +109,7 @@ Want to contribute or build locally?
 git clone https://github.com/nabeelkts/drivemate.git
 cd drivemate
 # Open in Android Studio or your favorite IDE
+
 
 
 
