@@ -51,8 +51,10 @@
 
 <p align="center">
   <img width="250" src="screenshots/mobile/dashboard.jpeg">
-  <img width="250" src="screenshots/mobile/students.jpeg">
+  <img width="250" src="screenshots/mobile/students.png">
   <img width="250" src="screenshots/mobile/finance.jpeg">
+  <img width="250" src="screenshots/mobile/studentdetail.jpeg">
+  <img width="250" src="screenshots/mobile/studentdetail2.jpeg">
 </p>
 
 ---
@@ -92,4 +94,5 @@ Want to contribute or build locally?
 git clone https://github.com/nabeelkts/drivemate.git
 cd drivemate
 # Open in Android Studio or your favorite IDE
+
 
