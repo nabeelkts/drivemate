@@ -47,17 +47,21 @@
 
 ---
 
-## 📸 Preview
+## 📱 Mobile Preview
 
-<div align="center">
-  <!-- Replace with actual screenshot links -->
-  <img width="200" src="screenshots/dashboard.png" alt="Dashboard">
-  <img width="200" src="screenshots/students.png" alt="Students">
-  <img width="200" src="screenshots/finance.png" alt="Income & Expense">
-</div>
+<p align="center">
+  <img width="250" src="screenshots/mobile/dashboard.jpeg">
+  <img width="250" src="screenshots/mobile/students.jpeg">
+  <img width="250" src="screenshots/mobile/finance.jpeg">
+</p>
 
-> Add **real screenshots** under `screenshots/` to make this section sparkle ✨
+---
 
+## 🌐 Web Preview
+
+<p align="center">
+  <img width="800" src="screenshots/web/webdashboard.png">
+</p>
 ---
 
 ## 🛠️ Tech Stack
@@ -88,3 +92,4 @@ Want to contribute or build locally?
 git clone https://github.com/nabeelkts/drivemate.git
 cd drivemate
 # Open in Android Studio or your favorite IDE
+
