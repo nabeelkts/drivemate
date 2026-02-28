@@ -17,6 +17,8 @@ import 'package:mds/services/image_cache_service.dart';
 import 'package:mds/utils/image_utils.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mds/widgets/additional_info_sheet.dart';
+import 'package:mds/services/additional_info_service.dart';
 
 class RCDetailsPage extends StatefulWidget {
   final Map<String, dynamic> vehicleDetails;
@@ -117,6 +119,7 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
             elevation: 0,
             leading: const CustomBackButton(),
             actions: [
+              _buildAdditionalInfoButton(),
               IconButton(
                 icon: Icon(Icons.edit, color: subTextColor),
                 onPressed: () => Navigator.push(
@@ -624,6 +627,34 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
                   style: valueStyle, textAlign: TextAlign.right)),
         ],
       ),
+    );
+  }
+
+  // ── Additional Info button for AppBar ──────────────────────────────────────
+
+  Widget _buildAdditionalInfoButton() {
+    final additionalInfo =
+        vehicleDetails['additionalInfo'] as Map<String, dynamic>?;
+    final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
+
+    return IconButton(
+      icon: Icon(
+        hasData ? Icons.info : Icons.info_outline,
+        color: hasData ? kPrimaryColor : Colors.grey,
+      ),
+      onPressed: () async {
+        final result = await showAdditionalInfoSheet(
+          context: context,
+          type: AdditionalInfoType.rcService,
+          collection: 'vehicleDetails',
+          documentId: _docId,
+          existingData: additionalInfo,
+        );
+        if (result == true) {
+          setState(() {});
+        }
+      },
+      tooltip: 'Additional Information',
     );
   }
 }

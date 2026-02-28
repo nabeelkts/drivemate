@@ -13,6 +13,7 @@ import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import 'package:mds/controller/workspace_controller.dart';
+import 'package:mds/widgets/urgent_task_card.dart';
 import 'dart:math' as math;
 import 'dart:async';
 
@@ -44,6 +45,8 @@ class DashboardLayout2 extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(context, workspaceController, isDark, textColor),
+                const SizedBox(height: 12),
+                const UrgentTaskCard(),
                 const SizedBox(height: 12),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),

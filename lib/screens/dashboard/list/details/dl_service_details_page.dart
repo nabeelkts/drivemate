@@ -7,10 +7,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:mds/constants/colors.dart';
 import 'package:get/get.dart';
 import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:intl/intl.dart';
 import 'package:mds/screens/widget/utils.dart';
+import 'package:mds/widgets/additional_info_sheet.dart';
+import 'package:mds/services/additional_info_service.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'package:mds/screens/dashboard/form/edit_forms/edit_dl_service_form.dart';
@@ -107,6 +110,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
         elevation: 0,
         leading: const CustomBackButton(),
         actions: [
+          _buildAdditionalInfoButton(),
           IconButton(
             icon: Icon(Icons.picture_as_pdf, color: subTextColor),
             onPressed: () => _shareServiceDetails(context),
@@ -168,6 +172,34 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
           );
         },
       ),
+    );
+  }
+
+  // ── Additional Info button for AppBar ──────────────────────────────────────
+
+  Widget _buildAdditionalInfoButton() {
+    final additionalInfo =
+        serviceDetails['additionalInfo'] as Map<String, dynamic>?;
+    final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
+
+    return IconButton(
+      icon: Icon(
+        hasData ? Icons.info : Icons.info_outline,
+        color: hasData ? kPrimaryColor : Colors.grey,
+      ),
+      onPressed: () async {
+        final result = await showAdditionalInfoSheet(
+          context: context,
+          type: AdditionalInfoType.dlService,
+          collection: 'dl_services',
+          documentId: _docId,
+          existingData: additionalInfo,
+        );
+        if (result == true) {
+          setState(() {});
+        }
+      },
+      tooltip: 'Additional Information',
     );
   }
 

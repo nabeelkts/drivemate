@@ -30,6 +30,8 @@ import 'package:iconly/iconly.dart';
 import 'package:mds/utils/test_utils.dart';
 import 'package:mds/utils/image_utils.dart';
 import 'package:mds/utils/date_utils.dart';
+import 'package:mds/widgets/additional_info_sheet.dart';
+import 'package:mds/services/additional_info_service.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
@@ -139,6 +141,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         leading: const CustomBackButton(),
         actions: [
           _buildLessonControlButton(targetId),
+          _buildAdditionalInfoButton(),
           IconButton(
             icon: Icon(Icons.picture_as_pdf, color: subTextColor),
             onPressed: () => _shareStudentDetails(context),
@@ -1176,6 +1179,35 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       ),
       onPressed: () => _toggleLessonStatus(targetId, isLessonActive),
       tooltip: isLessonActive ? 'End Lesson' : 'Start Lesson',
+    );
+  }
+
+  // ── Additional Info button for AppBar ──────────────────────────────────────
+
+  Widget _buildAdditionalInfoButton() {
+    final additionalInfo =
+        studentDetails['additionalInfo'] as Map<String, dynamic>?;
+    final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
+
+    return IconButton(
+      icon: Icon(
+        hasData ? Icons.info : Icons.info_outline,
+        color: hasData ? kPrimaryColor : Colors.grey,
+      ),
+      onPressed: () async {
+        final result = await showAdditionalInfoSheet(
+          context: context,
+          type: AdditionalInfoType.student,
+          collection: 'students',
+          documentId: _docId,
+          existingData: additionalInfo,
+        );
+        if (result == true) {
+          // Refresh data
+          setState(() {});
+        }
+      },
+      tooltip: 'Additional Information',
     );
   }
 

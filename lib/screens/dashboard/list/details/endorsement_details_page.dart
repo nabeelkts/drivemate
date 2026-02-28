@@ -3,6 +3,7 @@ import 'package:android_intent_plus/android_intent.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter/material.dart';
+import 'package:mds/constants/colors.dart';
 import 'package:flutter/services.dart';
 import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/screens/authentication/widgets/my_button.dart';
@@ -17,6 +18,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
 import 'package:mds/screens/widget/utils.dart';
+import 'package:mds/widgets/additional_info_sheet.dart';
+import 'package:mds/services/additional_info_service.dart';
 import 'package:get/get.dart';
 import 'package:iconly/iconly.dart';
 import 'package:mds/utils/test_utils.dart';
@@ -110,6 +113,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
         elevation: 0,
         leading: const CustomBackButton(),
         actions: [
+          _buildAdditionalInfoButton(),
           IconButton(
               icon: Icon(Icons.picture_as_pdf, color: subTextColor),
               onPressed: () => _shareEndorsementDetails(context)),
@@ -172,6 +176,34 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
           );
         },
       ),
+    );
+  }
+
+  // ── Additional Info button for AppBar ──────────────────────────────────────
+
+  Widget _buildAdditionalInfoButton() {
+    final additionalInfo =
+        endorsementDetails['additionalInfo'] as Map<String, dynamic>?;
+    final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
+
+    return IconButton(
+      icon: Icon(
+        hasData ? Icons.info : Icons.info_outline,
+        color: hasData ? kPrimaryColor : Colors.grey,
+      ),
+      onPressed: () async {
+        final result = await showAdditionalInfoSheet(
+          context: context,
+          type: AdditionalInfoType.student,
+          collection: 'endorsement',
+          documentId: _docId,
+          existingData: additionalInfo,
+        );
+        if (result == true) {
+          setState(() {});
+        }
+      },
+      tooltip: 'Additional Information',
     );
   }
 
