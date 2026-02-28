@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:typed_data';
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +22,7 @@ import 'package:mds/screens/profile/action_button.dart';
 import 'package:mds/utils/loading_utils.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
+import 'package:mds/screens/widget/utils.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/utils/payment_utils.dart';
@@ -32,6 +36,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:mds/features/tracking/services/background_service.dart';
 import 'package:mds/features/tracking/data/repositories/tracking_repository.dart';
 import 'package:mds/features/tracking/services/location_tracking_service.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class StudentDetailsPage extends StatefulWidget {
   final Map<String, dynamic> studentDetails;
@@ -48,6 +53,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   final List<String> _selectedTransactionIds = [];
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
+  bool _isTransactionHistoryExpanded = false;
 
   @override
   void initState() {
@@ -132,6 +138,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         elevation: 0,
         leading: const CustomBackButton(),
         actions: [
+          _buildLessonControlButton(targetId),
           IconButton(
             icon: Icon(Icons.picture_as_pdf, color: subTextColor),
             onPressed: () => _shareStudentDetails(context),
@@ -184,10 +191,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                   ],
                 ),
                 const SizedBox(height: 16),
-                const SizedBox(height: 16),
                 _buildPaymentOverviewCard(context),
-                const SizedBox(height: 16),
-                _buildLessonStatusCard(context, targetId),
                 const SizedBox(height: 16),
                 _buildAttendanceCard(context, targetId),
                 const SizedBox(height: 16),
@@ -208,11 +212,12 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     final cardColor = Theme.of(context).cardColor;
 
     final llDate = AppDateUtils.formatDateForDisplay(
-        studentDetails['learnersTestDate']?.toString());
+      studentDetails['learnersTestDate']?.toString(),
+    );
     final dlDate = AppDateUtils.formatDateForDisplay(
-        studentDetails['drivingTestDate']?.toString());
+      studentDetails['drivingTestDate']?.toString(),
+    );
 
-    // Test date card is always visible as per user request
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -229,10 +234,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
             children: [
               const Text(
                 'Test Dates',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               IconButton(
                 icon: const Icon(IconlyLight.edit, color: kAccentRed, size: 20),
@@ -247,18 +249,33 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
             ],
           ),
           const SizedBox(height: 12),
-          _buildTestDateRow('Learners Test (LL)', llDate, IconlyBold.calendar,
-              Colors.blue, isDark),
+          _buildTestDateRow(
+            'Learners Test (LL)',
+            llDate,
+            IconlyBold.calendar,
+            Colors.blue,
+            isDark,
+          ),
           const Divider(height: 16),
-          _buildTestDateRow('Driving Test (DL)', dlDate, IconlyBold.calendar,
-              Colors.green, isDark),
+          _buildTestDateRow(
+            'Driving Test (DL)',
+            dlDate,
+            IconlyBold.calendar,
+            Colors.green,
+            isDark,
+          ),
         ],
       ),
     );
   }
 
   Widget _buildTestDateRow(
-      String label, String date, IconData icon, Color iconColor, bool isDark) {
+    String label,
+    String date,
+    IconData icon,
+    Color iconColor,
+    bool isDark,
+  ) {
     return Row(
       children: [
         Container(
@@ -282,10 +299,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
             ),
             Text(
               date.isEmpty ? 'Pick test date' : date,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             ),
           ],
         ),
@@ -305,45 +319,64 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       decoration: _cardDecoration(context, kAccentRed),
       child: Row(
         children: [
-          Builder(builder: (context) {
-            Timer? holdTimer;
-            return GestureDetector(
-              onTapDown: (_) {
-                if (studentDetails['image'] != null &&
-                    studentDetails['image'].toString().isNotEmpty) {
-                  holdTimer = Timer(const Duration(seconds: 1), () {
-                    ImageUtils.showImagePopup(context, studentDetails['image'],
-                        studentDetails['fullName']);
-                  });
-                }
-              },
-              onTapUp: (_) => holdTimer?.cancel(),
-              onTapCancel: () => holdTimer?.cancel(),
-              child: Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                  color: kAccentRed,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                    color: Theme.of(context).scaffoldBackgroundColor,
-                    width: 3,
+          Builder(
+            builder: (context) {
+              Timer? holdTimer;
+              return GestureDetector(
+                onTapDown: (_) {
+                  if (studentDetails['image'] != null &&
+                      studentDetails['image'].toString().isNotEmpty) {
+                    holdTimer = Timer(const Duration(seconds: 1), () {
+                      ImageUtils.showImagePopup(
+                        context,
+                        studentDetails['image'],
+                        studentDetails['fullName'],
+                      );
+                    });
+                  }
+                },
+                onTapUp: (_) => holdTimer?.cancel(),
+                onTapCancel: () => holdTimer?.cancel(),
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: kAccentRed,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Theme.of(context).scaffoldBackgroundColor,
+                      width: 3,
+                    ),
                   ),
-                ),
-                child: ClipOval(
-                  child: (studentDetails['image'] != null &&
-                          studentDetails['image'].toString().isNotEmpty)
-                      ? CachedNetworkImage(
-                          imageUrl: studentDetails['image'],
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => Shimmer.fromColors(
-                            baseColor:
-                                isDark ? Colors.grey[800]! : Colors.grey[300]!,
-                            highlightColor:
-                                isDark ? Colors.grey[700]! : Colors.grey[100]!,
-                            child: Container(color: Colors.white),
-                          ),
-                          errorWidget: (context, url, error) => Container(
+                  child: ClipOval(
+                    child: (studentDetails['image'] != null &&
+                            studentDetails['image'].toString().isNotEmpty)
+                        ? CachedNetworkImage(
+                            imageUrl: studentDetails['image'],
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Shimmer.fromColors(
+                              baseColor: isDark
+                                  ? Colors.grey[800]!
+                                  : Colors.grey[300]!,
+                              highlightColor: isDark
+                                  ? Colors.grey[700]!
+                                  : Colors.grey[100]!,
+                              child: Container(color: Colors.white),
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              alignment: Alignment.center,
+                              child: Text(
+                                _initials,
+                                style: TextStyle(
+                                  fontSize: 40,
+                                  color: textColor,
+                                  height: 1.0,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          )
+                        : Container(
                             alignment: Alignment.center,
                             child: Text(
                               _initials,
@@ -355,23 +388,11 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                               textAlign: TextAlign.center,
                             ),
                           ),
-                        )
-                      : Container(
-                          alignment: Alignment.center,
-                          child: Text(
-                            _initials,
-                            style: TextStyle(
-                              fontSize: 40,
-                              color: textColor,
-                              height: 1.0,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
+                  ),
                 ),
-              ),
-            );
-          }),
+              );
+            },
+          ),
           const SizedBox(width: 20),
           Expanded(
             child: Column(
@@ -380,9 +401,10 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                 Text(
                   studentDetails['fullName'] ?? 'N/A',
                   style: TextStyle(
-                      color: textColor,
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold),
+                    color: textColor,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -391,8 +413,10 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: kAccentRed.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(8),
@@ -401,9 +425,10 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                   child: Text(
                     'COV: ${studentDetails['cov'] ?? 'N/A'}',
                     style: const TextStyle(
-                        color: kAccentRed,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold),
+                      color: kAccentRed,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -435,20 +460,52 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Personal Info',
-                style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16)),
+            Text(
+              'Personal Info',
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
             const SizedBox(height: 12),
-            _buildInfoRow('Name', studentDetails['fullName'] ?? 'N/A',
-                textColor, subTextColor),
-            _buildInfoRow('Guardian', studentDetails['guardianName'] ?? 'N/A',
-                textColor, subTextColor),
             _buildInfoRow(
-                'DOB', studentDetails['dob'] ?? 'N/A', textColor, subTextColor),
-            _buildInfoRow('Mobile', studentDetails['mobileNumber'] ?? 'N/A',
-                textColor, subTextColor),
+              'Name',
+              studentDetails['fullName'] ?? 'N/A',
+              textColor,
+              subTextColor,
+            ),
+            _buildInfoRow(
+              'Guardian',
+              studentDetails['guardianName'] ?? 'N/A',
+              textColor,
+              subTextColor,
+            ),
+            _buildInfoRow(
+              'DOB',
+              formatDisplayDate(studentDetails['dob']),
+              textColor,
+              subTextColor,
+            ),
+            // ── Tappable mobile number ──
+            _buildMobileRow(
+              studentDetails['mobileNumber'] ?? 'N/A',
+              textColor,
+              subTextColor,
+              context,
+            ),
+            _buildInfoRow(
+              'Emergency',
+              studentDetails['emergencyNumber'] ?? 'N/A',
+              textColor,
+              subTextColor,
+            ),
+            _buildInfoRow(
+              'Blood Group',
+              studentDetails['bloodGroup'] ?? 'N/A',
+              textColor,
+              subTextColor,
+            ),
           ],
         ),
       ),
@@ -470,22 +527,45 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Address',
-                style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16)),
+            Text(
+              'Address',
+              style: TextStyle(
+                color: textColor,
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
             const SizedBox(height: 12),
-            _buildInfoRow('House', studentDetails['house'] ?? '', textColor,
-                subTextColor),
-            _buildInfoRow('Place', studentDetails['place'] ?? '', textColor,
-                subTextColor),
             _buildInfoRow(
-                'Post', studentDetails['post'] ?? '', textColor, subTextColor),
-            _buildInfoRow('District', studentDetails['district'] ?? '',
-                textColor, subTextColor),
-            _buildInfoRow('PIN Code', studentDetails['pin'] ?? '', textColor,
-                subTextColor),
+              'House',
+              studentDetails['house'] ?? '',
+              textColor,
+              subTextColor,
+            ),
+            _buildInfoRow(
+              'Place',
+              studentDetails['place'] ?? '',
+              textColor,
+              subTextColor,
+            ),
+            _buildInfoRow(
+              'Post',
+              studentDetails['post'] ?? '',
+              textColor,
+              subTextColor,
+            ),
+            _buildInfoRow(
+              'District',
+              studentDetails['district'] ?? '',
+              textColor,
+              subTextColor,
+            ),
+            _buildInfoRow(
+              'PIN Code',
+              studentDetails['pin'] ?? '',
+              textColor,
+              subTextColor,
+            ),
           ],
         ),
       ),
@@ -520,11 +600,14 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Payment Overview',
-                  style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16)),
+              Text(
+                'Payment Overview',
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
               Row(
                 children: [
                   if (_selectedTransactionIds.isNotEmpty)
@@ -544,8 +627,10 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                       return Row(
                         children: [
                           IconButton(
-                            icon:
-                                const Icon(Icons.post_add, color: Colors.blue),
+                            icon: const Icon(
+                              Icons.post_add,
+                              color: Colors.blue,
+                            ),
                             onPressed: () {
                               if (snapshot.hasData) {
                                 PaymentUtils.showAddExtraFeeDialog(
@@ -562,8 +647,10 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                             tooltip: 'Add Extra Fee',
                           ),
                           IconButton(
-                            icon: const Icon(Icons.add_circle,
-                                color: Colors.green),
+                            icon: const Icon(
+                              Icons.add_circle,
+                              color: Colors.green,
+                            ),
                             onPressed: () {
                               if (snapshot.hasData) {
                                 PaymentUtils.showAddPaymentDialog(
@@ -594,25 +681,35 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Total Fee:',
-                      style: TextStyle(color: subTextColor, fontSize: 12)),
-                  Text('Rs. $total',
-                      style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16)),
+                  Text(
+                    'Total Fee:',
+                    style: TextStyle(color: subTextColor, fontSize: 12),
+                  ),
+                  Text(
+                    'Rs. $total',
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                 ],
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('Paid Amount',
-                      style: TextStyle(color: subTextColor, fontSize: 12)),
-                  Text('Rs. $paidAmount',
-                      style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16)),
+                  Text(
+                    'Paid Amount',
+                    style: TextStyle(color: subTextColor, fontSize: 12),
+                  ),
+                  Text(
+                    'Rs. $paidAmount',
+                    style: TextStyle(
+                      color: textColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                 ],
               ),
             ],
@@ -639,11 +736,14 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Transaction History',
-                  style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14)),
+              Text(
+                'Transaction History',
+                style: TextStyle(
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+              ),
               if (_selectedTransactionIds.isNotEmpty)
                 IconButton(
                   icon: const Icon(Icons.receipt_long, color: kAccentRed),
@@ -663,7 +763,6 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
 
               final docs = snapshot.data?.docs ?? [];
 
-              // Show only original transactions from payments subcollection
               List<Map<String, dynamic>> combinedDocs = docs.map((d) {
                 final map = d.data() as Map<String, dynamic>;
                 map['id'] = d.id;
@@ -671,15 +770,15 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                 return map;
               }).toList();
 
-              // For old records: show legacy advance if no payments exist yet
               if (combinedDocs.isEmpty) {
                 final advAmt = double.tryParse(
-                        studentDetails['advanceAmount']?.toString() ?? '0') ??
+                      studentDetails['advanceAmount']?.toString() ?? '0',
+                    ) ??
                     0;
                 if (advAmt > 0) {
                   final regDate = DateTime.tryParse(
-                          studentDetails['registrationDate']?.toString() ??
-                              '') ??
+                        studentDetails['registrationDate']?.toString() ?? '',
+                      ) ??
                       DateTime(2000);
                   combinedDocs.add({
                     'id': 'legacy_adv',
@@ -692,106 +791,151 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                 }
               }
 
-              combinedDocs.sort((a, b) =>
-                  (b['date'] as Timestamp).compareTo(a['date'] as Timestamp));
+              combinedDocs.sort(
+                (a, b) =>
+                    (b['date'] as Timestamp).compareTo(a['date'] as Timestamp),
+              );
 
               if (combinedDocs.isEmpty) {
                 return Center(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: Text('No transactions yet',
-                        style: TextStyle(color: subTextColor, fontSize: 12)),
+                    child: Text(
+                      'No transactions yet',
+                      style: TextStyle(color: subTextColor, fontSize: 12),
+                    ),
                   ),
                 );
               }
 
-              return Column(
-                children: combinedDocs.map((data) {
-                  final date = (data['date'] as Timestamp).toDate();
-                  final isSelected =
-                      _selectedTransactionIds.contains(data['id']);
+              // Show only 2 items by default, expand to show all
+              final displayDocs = _isTransactionHistoryExpanded
+                  ? combinedDocs
+                  : combinedDocs.take(2).toList();
+              final hasMore = combinedDocs.length > 2;
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[900] : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                      border: isSelected
-                          ? Border.all(color: kAccentRed, width: 1)
-                          : null,
-                    ),
-                    child: CheckboxListTile(
-                      value: isSelected,
-                      activeColor: kAccentRed,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      onChanged: (val) {
+              return Column(
+                children: [
+                  ...displayDocs.map((data) {
+                    final date = (data['date'] as Timestamp).toDate();
+                    final isSelected = _selectedTransactionIds.contains(
+                      data['id'],
+                    );
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey[900] : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: isSelected
+                            ? Border.all(color: kAccentRed, width: 1)
+                            : null,
+                      ),
+                      child: CheckboxListTile(
+                        value: isSelected,
+                        activeColor: kAccentRed,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selectedTransactionIds.add(data['id']);
+                            } else {
+                              _selectedTransactionIds.remove(data['id']);
+                            }
+                          });
+                        },
+                        title: Text(
+                          'Rs. ${data['amount']}',
+                          style: TextStyle(
+                            color: textColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}${data['note'] != null && data['note'].toString().trim().isNotEmpty ? '\nNote: ${data['note']}' : (data['description'] != null && data['description'].toString().trim().isNotEmpty ? '\n${data['description']}' : '')}',
+                          style: TextStyle(color: subTextColor, fontSize: 11),
+                        ),
+                        secondary: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(
+                                Icons.edit_outlined,
+                                size: 20,
+                                color: Colors.blue,
+                              ),
+                              onPressed: () {
+                                PaymentUtils.showEditPaymentDialog(
+                                  context: context,
+                                  docRef: FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(targetId)
+                                      .collection('students')
+                                      .doc(
+                                        studentDetails['studentId'].toString(),
+                                      ),
+                                  paymentDoc: data['docRef'],
+                                  targetId: targetId.toString(),
+                                  category: 'students',
+                                );
+                              },
+                              tooltip: 'Edit Payment',
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.delete_outline,
+                                size: 20,
+                                color: Colors.red,
+                              ),
+                              onPressed: () {
+                                PaymentUtils.deletePayment(
+                                  context: context,
+                                  studentRef: FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(targetId)
+                                      .collection('students')
+                                      .doc(
+                                        studentDetails['studentId'].toString(),
+                                      ),
+                                  paymentDoc: data['docRef'],
+                                  targetId: targetId.toString(),
+                                );
+                              },
+                              tooltip: 'Delete Payment',
+                            ),
+                          ],
+                        ),
+                        isThreeLine: true,
+                      ),
+                    );
+                  }).toList(),
+                  if (hasMore)
+                    TextButton.icon(
+                      onPressed: () {
                         setState(() {
-                          if (val == true) {
-                            _selectedTransactionIds.add(data['id']);
-                          } else {
-                            _selectedTransactionIds.remove(data['id']);
-                          }
+                          _isTransactionHistoryExpanded =
+                              !_isTransactionHistoryExpanded;
                         });
                       },
-                      title: Text('Rs. ${data['amount']}',
-                          style: TextStyle(
-                              color: textColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14)),
-                      subtitle: Text(
-                        '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}${data['note'] != null && data['note'].toString().trim().isNotEmpty ? '\nNote: ${data['note']}' : (data['description'] != null && data['description'].toString().trim().isNotEmpty ? '\n${data['description']}' : '')}',
-                        style: TextStyle(color: subTextColor, fontSize: 11),
+                      icon: Icon(
+                        _isTransactionHistoryExpanded
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        color: kAccentRed,
                       ),
-                      secondary: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined,
-                                size: 20, color: Colors.blue),
-                            onPressed: () {
-                              PaymentUtils.showEditPaymentDialog(
-                                context: context,
-                                docRef: FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(targetId)
-                                    .collection('students')
-                                    .doc(
-                                        studentDetails['studentId'].toString()),
-                                paymentDoc: data['docRef'],
-                                targetId: targetId.toString(),
-                                category: 'students',
-                              );
-                            },
-                            tooltip: 'Edit Payment',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline,
-                                size: 20, color: Colors.red),
-                            onPressed: () {
-                              PaymentUtils.deletePayment(
-                                context: context,
-                                studentRef: FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(targetId)
-                                    .collection('students')
-                                    .doc(
-                                        studentDetails['studentId'].toString()),
-                                paymentDoc: data['docRef'],
-                                targetId: targetId.toString(),
-                              );
-                            },
-                            tooltip: 'Delete Payment',
-                          ),
-                        ],
+                      label: Text(
+                        _isTransactionHistoryExpanded
+                            ? 'Show Less'
+                            : 'Show ${combinedDocs.length - 2} More',
+                        style: const TextStyle(color: kAccentRed),
                       ),
-                      isThreeLine: true,
                     ),
-                  );
-                }).toList(),
+                ],
               );
             },
           ),
-          // ── Additional Fees (inline) ────────────────────────────────────
+          // ── Additional Fees ─────────────────────────────────────────────
           StreamBuilder<QuerySnapshot>(
             stream: _extraFeesStream,
             builder: (context, feesSnapshot) {
@@ -812,15 +956,20 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text('Additional Fees',
-                          style: TextStyle(
-                              color: textColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14)),
+                      Text(
+                        'Additional Fees',
+                        style: TextStyle(
+                          color: textColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
                       if (_selectedTransactionIds.isNotEmpty)
                         IconButton(
-                          icon:
-                              const Icon(Icons.receipt_long, color: kAccentRed),
+                          icon: const Icon(
+                            Icons.receipt_long,
+                            color: kAccentRed,
+                          ),
                           onPressed: _generateSelectedReceipts,
                           tooltip: 'Generate Receipt for Selected',
                           visualDensity: VisualDensity.compact,
@@ -863,32 +1012,47 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                           ),
                           Expanded(
                             child: Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 8.0),
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 8.0,
+                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(data['description'] ?? 'N/A',
-                                      style: TextStyle(
-                                          color: textColor,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 14)),
+                                  Text(
+                                    data['description'] ?? 'N/A',
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14,
+                                    ),
+                                  ),
                                   const SizedBox(height: 2),
-                                  Text('Rs. ${data['amount']}',
-                                      style: TextStyle(
-                                          color: textColor,
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13)),
+                                  Text(
+                                    'Rs. ${data['amount']}',
+                                    style: TextStyle(
+                                      color: textColor,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                    ),
+                                  ),
                                   const SizedBox(height: 2),
-                                  Text(DateFormat('dd MMM yyyy').format(date),
-                                      style: TextStyle(
-                                          color: subTextColor, fontSize: 11)),
+                                  Text(
+                                    DateFormat('dd MMM yyyy').format(date),
+                                    style: TextStyle(
+                                      color: subTextColor,
+                                      fontSize: 11,
+                                    ),
+                                  ),
                                   if (isPaid &&
                                       data['paymentMode'] != null) ...[
                                     const SizedBox(height: 2),
-                                    Text('Mode: ${data['paymentMode']}',
-                                        style: TextStyle(
-                                            color: subTextColor, fontSize: 11)),
+                                    Text(
+                                      'Mode: ${data['paymentMode']}',
+                                      style: TextStyle(
+                                        color: subTextColor,
+                                        fontSize: 11,
+                                      ),
+                                    ),
                                   ],
                                   if (data['note'] != null &&
                                       data['note']
@@ -896,11 +1060,15 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                                           .trim()
                                           .isNotEmpty) ...[
                                     const SizedBox(height: 2),
-                                    Text('Note: ${data['note']}',
-                                        style: TextStyle(
-                                            color: subTextColor, fontSize: 11),
-                                        maxLines: 2,
-                                        overflow: TextOverflow.ellipsis),
+                                    Text(
+                                      'Note: ${data['note']}',
+                                      style: TextStyle(
+                                        color: subTextColor,
+                                        fontSize: 11,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
                                   ],
                                 ],
                               ),
@@ -913,9 +1081,13 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                                 const Padding(
                                   padding: EdgeInsets.only(right: 8.0),
                                   child: Chip(
-                                    label: Text('Paid',
-                                        style: TextStyle(
-                                            color: Colors.white, fontSize: 11)),
+                                    label: Text(
+                                      'Paid',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                      ),
+                                    ),
                                     backgroundColor: Colors.green,
                                     visualDensity: VisualDensity.compact,
                                     padding: EdgeInsets.zero,
@@ -933,15 +1105,21 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                                         .currentBranchId.value,
                                   ),
                                   style: TextButton.styleFrom(
-                                      foregroundColor: Colors.redAccent),
-                                  child: const Text('Collect',
-                                      style: TextStyle(fontSize: 12)),
+                                    foregroundColor: Colors.redAccent,
+                                  ),
+                                  child: const Text(
+                                    'Collect',
+                                    style: TextStyle(fontSize: 12),
+                                  ),
                                 ),
                               Row(
                                 children: [
                                   IconButton(
-                                    icon: const Icon(Icons.edit_outlined,
-                                        size: 18, color: Colors.blue),
+                                    icon: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 18,
+                                      color: Colors.blue,
+                                    ),
                                     onPressed: () =>
                                         PaymentUtils.showEditExtraFeeDialog(
                                       context: context,
@@ -953,8 +1131,11 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                                     tooltip: 'Edit',
                                   ),
                                   IconButton(
-                                    icon: const Icon(Icons.delete_outline,
-                                        size: 18, color: Colors.red),
+                                    icon: const Icon(
+                                      Icons.delete_outline,
+                                      size: 18,
+                                      color: Colors.red,
+                                    ),
                                     onPressed: () =>
                                         PaymentUtils.deleteExtraFee(
                                       context: context,
@@ -981,7 +1162,24 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     );
   }
 
-  // ── Lesson status card ──────────────────────────────────────────────────────
+  // ── Lesson control button for AppBar ───────────────────────────────────────
+
+  Widget _buildLessonControlButton(String targetId) {
+    final lessonStatus = studentDetails['lessonStatus'] ?? 'none';
+    final isLessonActive = lessonStatus == 'started';
+
+    return IconButton(
+      icon: Icon(
+        isLessonActive ? Icons.stop_circle : Icons.play_circle,
+        color: isLessonActive ? Colors.red : Colors.green,
+        size: 28,
+      ),
+      onPressed: () => _toggleLessonStatus(targetId, isLessonActive),
+      tooltip: isLessonActive ? 'End Lesson' : 'Start Lesson',
+    );
+  }
+
+  // ── Lesson status card (DEPRECATED - now in AppBar) ─────────────────────────
 
   Widget _buildLessonStatusCard(BuildContext context, String targetId) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1010,13 +1208,17 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
               Text(
                 'Lesson Control',
                 style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16),
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
               if (isLessonActive)
-                const Icon(Icons.emergency_recording,
-                    color: Colors.green, size: 20),
+                const Icon(
+                  Icons.emergency_recording,
+                  color: Colors.green,
+                  size: 20,
+                ),
             ],
           ),
           const SizedBox(height: 12),
@@ -1035,12 +1237,15 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                 backgroundColor: isLessonActive ? Colors.red : Colors.green,
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               child: Text(
                 isLessonActive ? 'End Lesson' : 'Start Lesson',
                 style: const TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold),
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ),
@@ -1068,25 +1273,33 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
               Text(
                 'Attendance Logs',
                 style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16),
+                  color: textColor,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
               ),
               Row(
                 children: [
-                  // ✅ PDF download
                   IconButton(
-                    icon: const Icon(Icons.picture_as_pdf,
-                        color: kAccentRed, size: 20),
+                    icon: const Icon(
+                      Icons.picture_as_pdf,
+                      color: kAccentRed,
+                      size: 20,
+                    ),
                     tooltip: 'Download PDF',
                     onPressed: () => _downloadAttendancePdf(context, targetId),
                   ),
                   TextButton.icon(
                     onPressed: () => _showAttendanceLogs(context, targetId),
-                    icon:
-                        const Icon(Icons.history, size: 18, color: kAccentRed),
-                    label: const Text('View All',
-                        style: TextStyle(color: kAccentRed)),
+                    icon: const Icon(
+                      Icons.history,
+                      size: 18,
+                      color: kAccentRed,
+                    ),
+                    label: const Text(
+                      'View All',
+                      style: TextStyle(color: kAccentRed),
+                    ),
                   ),
                 ],
               ),
@@ -1100,7 +1313,9 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                 return Text(
                   'No classes recorded yet.',
                   style: TextStyle(
-                      color: textColor.withOpacity(0.5), fontSize: 13),
+                    color: textColor.withOpacity(0.5),
+                    fontSize: 13,
+                  ),
                 );
               }
 
@@ -1111,13 +1326,11 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                       (data['date'] as Timestamp?)?.toDate() ?? DateTime.now();
                   final startTime = (data['startTime'] as Timestamp?)?.toDate();
                   final endTime = (data['endTime'] as Timestamp?)?.toDate();
-
                   String timeRange = 'N/A';
                   if (startTime != null && endTime != null) {
                     timeRange =
                         '${DateFormat('hh:mm a').format(startTime)} - ${DateFormat('hh:mm a').format(endTime)}';
                   }
-
                   return Padding(
                     padding: const EdgeInsets.only(bottom: 12.0),
                     child: Row(
@@ -1130,18 +1343,25 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                               Text(
                                 DateFormat('dd MMM yyyy').format(date),
                                 style: TextStyle(
-                                    color: textColor,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13),
+                                  color: textColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
                               ),
-                              Text(timeRange,
-                                  style: TextStyle(
-                                      color: textColor.withOpacity(0.6),
-                                      fontSize: 11)),
-                              Text(data['instructorName'] ?? 'Unknown',
-                                  style: TextStyle(
-                                      color: textColor.withOpacity(0.6),
-                                      fontSize: 11)),
+                              Text(
+                                timeRange,
+                                style: TextStyle(
+                                  color: textColor.withOpacity(0.6),
+                                  fontSize: 11,
+                                ),
+                              ),
+                              Text(
+                                data['instructorName'] ?? 'Unknown',
+                                style: TextStyle(
+                                  color: textColor.withOpacity(0.6),
+                                  fontSize: 11,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -1151,15 +1371,17 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                             Text(
                               data['duration'] ?? 'N/A',
                               style: const TextStyle(
-                                  color: kAccentRed,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13),
+                                color: kAccentRed,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
                             ),
                             Text(
                               data['distance'] ?? '0 KM',
                               style: TextStyle(
-                                  color: textColor.withOpacity(0.6),
-                                  fontSize: 11),
+                                color: textColor.withOpacity(0.6),
+                                fontSize: 11,
+                              ),
                             ),
                           ],
                         ),
@@ -1175,10 +1397,12 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     );
   }
 
-  // ── Attendance PDF download ─────────────────────────────────────────────────
+  // ── Attendance PDF ──────────────────────────────────────────────────────────
 
   Future<void> _downloadAttendancePdf(
-      BuildContext context, String targetId) async {
+    BuildContext context,
+    String targetId,
+  ) async {
     Uint8List? pdfBytes;
     try {
       pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
@@ -1192,7 +1416,6 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
             .get();
 
         final records = snap.docs.map((d) => d.data()).toList();
-
         if (records.isEmpty) throw 'No attendance records found';
 
         final workspace = Get.find<WorkspaceController>();
@@ -1200,8 +1423,9 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         Uint8List? logoBytes;
         if (companyData['companyLogo'] != null &&
             companyData['companyLogo'].toString().isNotEmpty) {
-          logoBytes = await ImageCacheService()
-              .fetchAndCache(companyData['companyLogo']);
+          logoBytes = await ImageCacheService().fetchAndCache(
+            companyData['companyLogo'],
+          );
         }
 
         return await AttendancePdfService.generate(
@@ -1215,8 +1439,9 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       });
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
       }
       return;
     }
@@ -1225,12 +1450,13 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-            builder: (_) => PdfPreviewScreen(pdfBytes: pdfBytes!)),
+          builder: (_) => PdfPreviewScreen(pdfBytes: pdfBytes!),
+        ),
       );
     }
   }
 
-  // ── Full attendance history bottom sheet ────────────────────────────────────
+  // ── Attendance logs bottom sheet ────────────────────────────────────────────
 
   void _showAttendanceLogs(BuildContext context, String targetId) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -1248,7 +1474,6 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         ),
         child: Column(
           children: [
-            // Handle
             Container(
               margin: const EdgeInsets.only(top: 8),
               width: 40,
@@ -1258,8 +1483,6 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-
-            // Title + export button
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 12, 4),
               child: Row(
@@ -1268,9 +1491,10 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                     child: Text(
                       'Attendance History',
                       style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 18),
+                        color: textColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
                     ),
                   ),
                   TextButton.icon(
@@ -1278,19 +1502,23 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                       Navigator.pop(context);
                       _downloadAttendancePdf(context, targetId);
                     },
-                    icon: const Icon(Icons.picture_as_pdf,
-                        color: kAccentRed, size: 18),
-                    label: const Text('Export PDF',
-                        style: TextStyle(
-                            color: kAccentRed, fontWeight: FontWeight.w600)),
+                    icon: const Icon(
+                      Icons.picture_as_pdf,
+                      color: kAccentRed,
+                      size: 18,
+                    ),
+                    label: const Text(
+                      'Export PDF',
+                      style: TextStyle(
+                        color: kAccentRed,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-
             const Divider(height: 1),
-
-            // List
             Expanded(
               child: StreamBuilder<QuerySnapshot>(
                 stream: _attendanceHistoryStream,
@@ -1303,20 +1531,25 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.history_edu_outlined,
-                              size: 48, color: textColor.withOpacity(0.2)),
+                          Icon(
+                            Icons.history_edu_outlined,
+                            size: 48,
+                            color: textColor.withOpacity(0.2),
+                          ),
                           const SizedBox(height: 12),
-                          Text('No attendance history found.',
-                              style:
-                                  TextStyle(color: textColor.withOpacity(0.5))),
+                          Text(
+                            'No attendance history found.',
+                            style: TextStyle(color: textColor.withOpacity(0.5)),
+                          ),
                         ],
                       ),
                     );
                   }
-
                   return ListView.separated(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 10),
+                      horizontal: 20,
+                      vertical: 10,
+                    ),
                     itemCount: snapshot.data!.docs.length,
                     separatorBuilder: (_, __) => const Divider(height: 1),
                     itemBuilder: (context, index) {
@@ -1327,19 +1560,16 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                       final startTime =
                           (data['startTime'] as Timestamp?)?.toDate();
                       final endTime = (data['endTime'] as Timestamp?)?.toDate();
-
                       String timeRange = 'N/A';
                       if (startTime != null && endTime != null) {
                         timeRange =
                             '${DateFormat('hh:mm a').format(startTime)} – ${DateFormat('hh:mm a').format(endTime)}';
                       }
-
                       return Padding(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Date block
                             Container(
                               width: 46,
                               padding: const EdgeInsets.symmetric(vertical: 6),
@@ -1352,44 +1582,51 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                                   Text(
                                     DateFormat('dd').format(date),
                                     style: const TextStyle(
-                                        color: kAccentRed,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 18),
+                                      color: kAccentRed,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 18,
+                                    ),
                                   ),
                                   Text(
                                     DateFormat('MMM').format(date),
                                     style: TextStyle(
-                                        color: textColor.withOpacity(0.5),
-                                        fontSize: 11),
+                                      color: textColor.withOpacity(0.5),
+                                      fontSize: 11,
+                                    ),
                                   ),
                                 ],
                               ),
                             ),
                             const SizedBox(width: 12),
-
-                            // Details
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    DateFormat('EEEE, dd MMM yyyy')
-                                        .format(date),
+                                    DateFormat(
+                                      'EEEE, dd MMM yyyy',
+                                    ).format(date),
                                     style: TextStyle(
-                                        color: textColor,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13),
+                                      color: textColor,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                   const SizedBox(height: 3),
-                                  Text('⏱ $timeRange',
-                                      style: TextStyle(
-                                          color: textColor.withOpacity(0.6),
-                                          fontSize: 12)),
                                   Text(
-                                      '👤 ${data['instructorName'] ?? 'Unknown'}',
-                                      style: TextStyle(
-                                          color: textColor.withOpacity(0.6),
-                                          fontSize: 12)),
+                                    '⏱ $timeRange',
+                                    style: TextStyle(
+                                      color: textColor.withOpacity(0.6),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                  Text(
+                                    '👤 ${data['instructorName'] ?? 'Unknown'}',
+                                    style: TextStyle(
+                                      color: textColor.withOpacity(0.6),
+                                      fontSize: 12,
+                                    ),
+                                  ),
                                   const SizedBox(height: 6),
                                   Row(
                                     children: [
@@ -1409,11 +1646,11 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                                 ],
                               ),
                             ),
-
-                            // Status
                             Container(
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 8, vertical: 4),
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.green.withOpacity(0.1),
                                 borderRadius: BorderRadius.circular(6),
@@ -1421,9 +1658,10 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                               child: const Text(
                                 'DONE',
                                 style: TextStyle(
-                                    color: Colors.green,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 10),
+                                  color: Colors.green,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 10,
+                                ),
                               ),
                             ),
                           ],
@@ -1440,7 +1678,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     );
   }
 
-  // ── Toggle lesson status ────────────────────────────────────────────────────
+  // ── Toggle lesson ───────────────────────────────────────────────────────────
 
   Future<void> _toggleLessonStatus(String targetId, bool isLessonActive) async {
     try {
@@ -1454,7 +1692,6 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           .collection('students');
 
       if (!isLessonActive) {
-        // Start Lesson
         await collection.doc(studentId).update({
           'lessonStatus': 'started',
           'assignedDriver': user.uid,
@@ -1464,9 +1701,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           'lessonStartTime': FieldValue.serverTimestamp(),
           'lessonDistanceKm': 0.0,
         });
-
         await BackgroundService.start();
-
         Get.snackbar(
           'Lesson Started',
           'Real-time tracking is now active for this session.',
@@ -1474,13 +1709,11 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           colorText: Colors.white,
         );
       } else {
-        // End Lesson
         final snapshot = await collection.doc(studentId).get();
         final data = snapshot.data();
         final startTime = (data?['lessonStartTime'] as Timestamp?)?.toDate();
         final now = DateTime.now();
 
-        // Duration
         String durationStr = 'N/A';
         if (startTime != null) {
           final diff = now.difference(startTime);
@@ -1489,10 +1722,8 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           durationStr = hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
         }
 
-        // ✅ Read lesson-specific distance — quadruple fallback
         double lessonDistanceMeters = 0.0;
 
-        // 1. Try to get from lesson_paths collection (most reliable)
         try {
           final lessonPathDoc = await FirebaseFirestore.instance
               .collection('lesson_paths')
@@ -1502,54 +1733,40 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
             final pathData = lessonPathDoc.data();
             final finalDistanceKm =
                 (pathData?['finalDistanceKm'] as num?)?.toDouble() ?? 0.0;
-            if (finalDistanceKm > 0) {
+            if (finalDistanceKm > 0)
               lessonDistanceMeters = finalDistanceKm * 1000;
-              print('Got distance from lesson_paths: $finalDistanceKm km');
-            }
           }
         } catch (e) {
           print('Error reading lesson_paths: $e');
         }
 
-        // 2. Try to get from RTDB via tracking repository
         if (lessonDistanceMeters <= 0) {
           try {
             final trackingRepo = Get.find<TrackingRepository>();
-            lessonDistanceMeters =
-                await trackingRepo.getDriverLessonDistance(user.uid);
+            lessonDistanceMeters = await trackingRepo.getDriverLessonDistance(
+              user.uid,
+            );
           } catch (e) {
             print('Error getting distance from RTDB: $e');
           }
         }
 
-        // 3. Try to get from student's lessonDistanceKm field
         if (lessonDistanceMeters <= 0) {
           final savedKm =
               (data?['lessonDistanceKm'] as num?)?.toDouble() ?? 0.0;
           lessonDistanceMeters = savedKm * 1000;
-          if (savedKm > 0) {
-            print('Got distance from student record: $savedKm km');
-          }
         }
 
-        // 4. Try to get from LocationTrackingService directly
         if (lessonDistanceMeters <= 0) {
           try {
             final ts = Get.find<LocationTrackingService>();
             lessonDistanceMeters = ts.lessonDistance;
-            if (lessonDistanceMeters > 0) {
-              print(
-                  'Got distance from tracking service: ${lessonDistanceMeters / 1000} km');
-            }
           } catch (_) {}
         }
 
-        // Ensure we have at least 0 distance
         lessonDistanceMeters = lessonDistanceMeters.clamp(0.0, double.infinity);
-
         final distanceKm = (lessonDistanceMeters / 1000).toStringAsFixed(2);
 
-        // Record attendance
         await collection.doc(studentId).collection('attendance').add({
           'instructorName': _workspaceController.userProfileData['name'] ??
               user.displayName ??
@@ -1583,10 +1800,6 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
 
   // ── Receipts ────────────────────────────────────────────────────────────────
 
-  Future<void> _generateSingleReceipt(Map<String, dynamic> transaction) async {
-    _generateReceipts([transaction]);
-  }
-
   Future<void> _generateSelectedReceipts() async {
     if (_selectedTransactionIds.isEmpty) return;
     final user = FirebaseAuth.instance.currentUser;
@@ -1594,10 +1807,8 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
 
     final targetId = _workspaceController.targetId;
     final studentId = studentDetails['studentId'].toString();
-
     final List<Map<String, dynamic>> allTransactions = [];
 
-    // Check payments collection
     final paymentsQuery = await FirebaseFirestore.instance
         .collection('users')
         .doc(targetId)
@@ -1608,7 +1819,6 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         .get();
     allTransactions.addAll(paymentsQuery.docs.map((d) => d.data()));
 
-    // Check extra_fees collection
     final feesQuery = await FirebaseFirestore.instance
         .collection('users')
         .doc(targetId)
@@ -1618,21 +1828,21 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         .where(FieldPath.documentId, whereIn: _selectedTransactionIds)
         .get();
 
-    allTransactions.addAll(feesQuery.docs.map((d) {
-      final data = d.data();
-      // Map extra fee data to receipt format
-      return {
-        'amount': data['amount'],
-        'description': data['description'] ?? 'Additional Fee',
-        'mode': data['paymentMode'] ?? 'Cash',
-        'date': data['paymentDate'] ?? data['date'],
-        'note': data['paymentNote'] ?? data['note'],
-      };
-    }));
+    allTransactions.addAll(
+      feesQuery.docs.map((d) {
+        final data = d.data();
+        return {
+          'amount': data['amount'],
+          'description': data['description'] ?? 'Additional Fee',
+          'mode': data['paymentMode'] ?? 'Cash',
+          'date': data['paymentDate'] ?? data['date'],
+          'note': data['paymentNote'] ?? data['note'],
+        };
+      }),
+    );
 
     if (allTransactions.isEmpty) return;
 
-    // Sort by date descending
     allTransactions.sort((a, b) {
       final dateA =
           a['date'] is DateTime ? a['date'] : (a['date'] as Timestamp).toDate();
@@ -1645,7 +1855,8 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   }
 
   Future<void> _generateReceipts(
-      List<Map<String, dynamic>> transactions) async {
+    List<Map<String, dynamic>> transactions,
+  ) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
@@ -1662,8 +1873,9 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         Uint8List? logoBytes;
         if (companyData['companyLogo'] != null &&
             companyData['companyLogo'].toString().isNotEmpty) {
-          logoBytes = await ImageCacheService()
-              .fetchAndCache(companyData['companyLogo']);
+          logoBytes = await ImageCacheService().fetchAndCache(
+            companyData['companyLogo'],
+          );
         }
 
         return await PdfService.generateReceipt(
@@ -1675,8 +1887,9 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
       return;
     }
@@ -1694,64 +1907,70 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     final bool? shouldGenerate = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
-        return StatefulBuilder(builder: (context, setState) {
-          return Dialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 30),
-              decoration:
-                  BoxDecoration(borderRadius: BorderRadius.circular(20)),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    'Share PDF',
-                    style: TextStyle(
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  vertical: 48,
+                  horizontal: 30,
+                ),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'Share PDF',
+                      style: TextStyle(
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w600,
-                        fontSize: 18.0),
-                  ),
-                  const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Include Payment Overview'),
-                    value: includePayment,
-                    onChanged: (bool? value) {
-                      setState(() {
-                        includePayment = value ?? false;
-                      });
-                    },
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: ActionButton(
-                          text: 'Cancel',
-                          backgroundColor: const Color(0xFFFFF1F1),
-                          textColor: const Color(0xFFFF0000),
-                          onPressed: () => Navigator.of(context).pop(false),
-                        ),
+                        fontSize: 18.0,
                       ),
-                      const SizedBox(width: 16),
-                      Expanded(
-                        child: ActionButton(
-                          text: 'Generate',
-                          backgroundColor: const Color(0xFFF6FFF0),
-                          textColor: Colors.black,
-                          onPressed: () => Navigator.of(context).pop(true),
+                    ),
+                    const SizedBox(height: 16),
+                    CheckboxListTile(
+                      title: const Text('Include Payment Overview'),
+                      value: includePayment,
+                      onChanged: (bool? value) {
+                        setState(() => includePayment = value ?? false);
+                      },
+                      controlAffinity: ListTileControlAffinity.leading,
+                      contentPadding: EdgeInsets.zero,
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Expanded(
+                          child: ActionButton(
+                            text: 'Cancel',
+                            backgroundColor: const Color(0xFFFFF1F1),
+                            textColor: const Color(0xFFFF0000),
+                            onPressed: () => Navigator.of(context).pop(false),
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
-                ],
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: ActionButton(
+                            text: 'Generate',
+                            backgroundColor: const Color(0xFFF6FFF0),
+                            textColor: Colors.black,
+                            onPressed: () => Navigator.of(context).pop(true),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-          );
-        });
+            );
+          },
+        );
       },
     );
 
@@ -1766,16 +1985,18 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         Uint8List? studentImageBytes;
         if (studentDetails['image'] != null &&
             studentDetails['image'].isNotEmpty) {
-          studentImageBytes =
-              await ImageCacheService().fetchAndCache(studentDetails['image']);
+          studentImageBytes = await ImageCacheService().fetchAndCache(
+            studentDetails['image'],
+          );
         }
 
         Uint8List? logoBytes;
         if (companyData['hasCompanyProfile'] == true &&
             companyData['companyLogo'] != null &&
             companyData['companyLogo'].toString().isNotEmpty) {
-          logoBytes = await ImageCacheService()
-              .fetchAndCache(companyData['companyLogo']);
+          logoBytes = await ImageCacheService().fetchAndCache(
+            companyData['companyLogo'],
+          );
         }
 
         return await PdfService.generatePdf(
@@ -1789,8 +2010,9 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       });
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
       return;
     }
@@ -1799,15 +2021,194 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       Navigator.push(
         context,
         MaterialPageRoute(
-            builder: (_) => PdfPreviewScreen(pdfBytes: pdfBytes!)),
+          builder: (_) => PdfPreviewScreen(pdfBytes: pdfBytes!),
+        ),
       );
     }
   }
 
+  // ── Show PDF preview with WhatsApp FAB ─────────────────────────────────────
+
   void _showPdfPreview(BuildContext context, Uint8List pdfBytes) {
+    final phone = studentDetails['mobileNumber'] ?? '';
+    final studentName = studentDetails['fullName'] ?? 'Student';
+
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => PdfPreviewScreen(pdfBytes: pdfBytes)),
+      MaterialPageRoute(
+        builder: (_) => PdfPreviewScreen(
+          pdfBytes: pdfBytes,
+          studentName: studentDetails['fullName'],
+          studentPhone: studentDetails['mobileNumber'],
+          fileName: 'receipt_${studentDetails['fullName']}.pdf',
+        ),
+      ),
+    );
+  }
+  // ── Send PDF directly to student's WhatsApp using jid ──────────────────────
+
+  Future<void> sendReceiptWhatsApp({
+    required String phone,
+    required String studentName,
+    required Uint8List pdfBytes,
+  }) async {
+    try {
+      // 1️⃣ Save PDF to temp directory
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/receipt_$studentName.pdf');
+      await file.writeAsBytes(pdfBytes);
+
+      // 2️⃣ Clean phone number
+      String cleaned = phone.replaceAll(RegExp(r'[^0-9]'), '');
+      if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
+
+      // ⚠️ Change country code if needed
+      final internationalNumber = '91$cleaned';
+
+      // 3️⃣ Prefilled message
+      final message = 'Hello $studentName, here is your fee receipt.';
+
+      // 4️⃣ Android Intent to open WhatsApp with PDF and message
+      final whatsappUrl = Uri.parse(
+          'whatsapp://send?phone=$internationalNumber&text=${Uri.encodeComponent(message)}');
+
+      if (await canLaunchUrl(whatsappUrl)) {
+        await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
+
+        // Wait a short moment before opening attachment to ensure chat is loaded
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // Open PDF file using default share intent
+        await launchUrl(
+          Uri.file(file.path),
+          mode: LaunchMode.externalApplication,
+        );
+      } else {
+        throw 'WhatsApp is not installed.';
+      }
+    } catch (e) {
+      print('Error sharing to WhatsApp: $e');
+    }
+  }
+
+  // ── Tappable mobile row ─────────────────────────────────────────────────────
+
+  Widget _buildMobileRow(
+    String phone,
+    Color textColor,
+    Color subTextColor,
+    BuildContext context,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: GestureDetector(
+        onTap: () => _showContactOptions(context, phone),
+        child: RichText(
+          text: TextSpan(
+            style: TextStyle(
+              fontSize: 13,
+              fontFamily: 'Inter',
+              color: textColor,
+            ),
+            children: [
+              TextSpan(
+                text: 'Mobile: ',
+                style: TextStyle(color: subTextColor),
+              ),
+              TextSpan(
+                text: phone,
+                style: const TextStyle(
+                  color: kAccentRed,
+                  decoration: TextDecoration.underline,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Call / WhatsApp bottom sheet ────────────────────────────────────────────
+
+  void _showContactOptions(BuildContext context, String phone) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey.withOpacity(0.3),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              phone,
+              style: TextStyle(
+                color: isDark ? Colors.white54 : Colors.black54,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              tileColor: Colors.green.withOpacity(0.08),
+              leading: const Icon(Icons.phone_rounded, color: Colors.green),
+              title: Text(
+                'Call',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                final uri = Uri(scheme: 'tel', path: phone);
+                if (await canLaunchUrl(uri)) launchUrl(uri);
+              },
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              tileColor: const Color(0xFF25D366).withOpacity(0.08),
+              leading: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
+              title: Text(
+                'WhatsApp',
+                style: TextStyle(
+                  color: isDark ? Colors.white : Colors.black,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onTap: () async {
+                Navigator.pop(context);
+                final cleaned =
+                    phone.startsWith('0') ? phone.substring(1) : phone;
+                final uri = Uri.parse('https://wa.me/91$cleaned');
+                if (await canLaunchUrl(uri)) {
+                  launchUrl(uri, mode: LaunchMode.externalApplication);
+                }
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1832,15 +2233,25 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   }
 
   Widget _buildInfoRow(
-      String label, String value, Color textColor, Color subTextColor) {
+    String label,
+    String value,
+    Color textColor,
+    Color subTextColor,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: RichText(
         text: TextSpan(
           style: TextStyle(fontSize: 13, fontFamily: 'Inter', color: textColor),
           children: [
-            TextSpan(text: '$label: ', style: TextStyle(color: subTextColor)),
-            TextSpan(text: value, style: TextStyle(color: textColor)),
+            TextSpan(
+              text: '$label: ',
+              style: TextStyle(color: subTextColor),
+            ),
+            TextSpan(
+              text: value,
+              style: TextStyle(color: textColor),
+            ),
           ],
         ),
       ),
@@ -1852,12 +2263,12 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       studentDetails['house'],
       studentDetails['post'],
       studentDetails['district'],
-      studentDetails['pin']
+      studentDetails['pin'],
     ].where((e) => e != null && e.isNotEmpty).join(', ');
   }
 }
 
-// ── Attendance badge widget ───────────────────────────────────────────────────
+// ── Attendance badge ──────────────────────────────────────────────────────────
 
 class _AttendanceBadge extends StatelessWidget {
   final IconData icon;
@@ -1887,7 +2298,10 @@ class _AttendanceBadge extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-                color: color, fontSize: 11, fontWeight: FontWeight.w600),
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),

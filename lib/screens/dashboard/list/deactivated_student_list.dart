@@ -64,7 +64,7 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
 
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _filteredStudents(
       String query) {
-    return _allDeactivatedStudents.where((doc) {
+    final filtered = _allDeactivatedStudents.where((doc) {
       final data = doc.data();
       final fullName = data['fullName']?.toString().toLowerCase() ?? '';
       final mobileNumber = data['mobileNumber']?.toString().toLowerCase() ?? '';
@@ -72,6 +72,15 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
       return fullName.contains(searchQuery) ||
           mobileNumber.contains(searchQuery);
     }).toList();
+
+    // Sort by newest to oldest (registrationDate)
+    filtered.sort((a, b) {
+      final aDate = a.data()['registrationDate'] as String? ?? '';
+      final bDate = b.data()['registrationDate'] as String? ?? '';
+      return bDate.compareTo(aDate);
+    });
+
+    return filtered;
   }
 
   @override
@@ -122,12 +131,14 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
                     ? _filteredStudents(_searchController.text)
                     : snapshot.data?.docs ?? [];
 
-                // Safely sort the documents
-                docs.sort((a, b) {
-                  final aName = a.data()['fullName']?.toString() ?? '';
-                  final bName = b.data()['fullName']?.toString() ?? '';
-                  return aName.compareTo(bName);
-                });
+                // Sort by newest to oldest (registrationDate) when not searching
+                if (_searchController.text.isEmpty) {
+                  docs.sort((a, b) {
+                    final aDate = a.data()['registrationDate'] as String? ?? '';
+                    final bDate = b.data()['registrationDate'] as String? ?? '';
+                    return bDate.compareTo(aDate);
+                  });
+                }
 
                 if (docs.isEmpty) {
                   return const Center(
@@ -162,6 +173,7 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
           'COV: ${data['cov'] ?? 'N/A'}\nMobile: ${data['mobileNumber'] ?? 'N/A'}',
       imageUrl: data['image'],
       isDark: isDark,
+      status: data['testStatus'],
       onTap: () {
         Navigator.push(
           context,

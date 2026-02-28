@@ -10,6 +10,7 @@ class ListItemCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onMenuPressed;
   final bool isDark;
+  final String? status; // 'passed', 'failed', or null
 
   const ListItemCard({
     super.key,
@@ -19,6 +20,7 @@ class ListItemCard extends StatelessWidget {
     required this.onTap,
     required this.onMenuPressed,
     this.isDark = false,
+    this.status,
   });
 
   @override
@@ -67,15 +69,22 @@ class ListItemCard extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  title,
-                                  style: TextStyle(
-                                    color: textColor,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        title,
+                                        style: TextStyle(
+                                          color: textColor,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (status != null) _buildStatusBadge(),
+                                  ],
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
@@ -159,6 +168,36 @@ class ListItemCard extends StatelessWidget {
           color: kPrimaryColor,
         ),
         textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildStatusBadge() {
+    final isPassed = status == 'passed';
+    final isFailed = status == 'failed';
+
+    if (!isPassed && !isFailed) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(left: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: isPassed
+            ? Colors.green.withOpacity(0.1)
+            : Colors.red.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isPassed ? Colors.green : Colors.red,
+          width: 1,
+        ),
+      ),
+      child: Text(
+        isPassed ? 'PASSED' : 'FAILED',
+        style: TextStyle(
+          color: isPassed ? Colors.green : Colors.red,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
       ),
     );
   }

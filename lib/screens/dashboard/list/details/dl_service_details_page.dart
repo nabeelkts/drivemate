@@ -10,6 +10,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:intl/intl.dart';
+import 'package:mds/screens/widget/utils.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'package:mds/screens/dashboard/form/edit_forms/edit_dl_service_form.dart';
@@ -39,6 +40,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
   static const Color kAccentRed = Color.fromRGBO(241, 135, 71, 1);
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
+  bool _isTransactionHistoryExpanded = false;
 
   @override
   void initState() {
@@ -359,8 +361,8 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
                 serviceDetails['guardianName'] ?? 'N/A',
                 textColor,
                 subTextColor),
-            _buildInfoRow(
-                'DOB', serviceDetails['dob'] ?? 'N/A', textColor, subTextColor),
+            _buildInfoRow('DOB', formatDisplayDate(serviceDetails['dob']),
+                textColor, subTextColor),
             _buildInfoRow('Mobile', serviceDetails['mobileNumber'] ?? 'N/A',
                 textColor, subTextColor),
             _buildInfoRow(
@@ -664,97 +666,128 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
                 );
               }
 
-              return Column(
-                children: combinedDocs.map((data) {
-                  final date = (data['date'] as Timestamp).toDate();
-                  final isSelected =
-                      _selectedTransactionIds.contains(data['id']);
+              // Show only 2 items by default, expand to show all
+              final displayDocs = _isTransactionHistoryExpanded
+                  ? combinedDocs
+                  : combinedDocs.take(2).toList();
+              final hasMore = combinedDocs.length > 2;
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[900] : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                      border: isSelected
-                          ? Border.all(color: kAccentRed, width: 1)
-                          : null,
-                    ),
-                    child: CheckboxListTile(
-                      value: isSelected,
-                      activeColor: kAccentRed,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      onChanged: (val) {
+              return Column(
+                children: [
+                  ...displayDocs.map((data) {
+                    final date = (data['date'] as Timestamp).toDate();
+                    final isSelected =
+                        _selectedTransactionIds.contains(data['id']);
+
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey[900] : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: isSelected
+                            ? Border.all(color: kAccentRed, width: 1)
+                            : null,
+                      ),
+                      child: CheckboxListTile(
+                        value: isSelected,
+                        activeColor: kAccentRed,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true) {
+                              _selectedTransactionIds.add(data['id']);
+                            } else {
+                              _selectedTransactionIds.remove(data['id']);
+                            }
+                          });
+                        },
+                        title: Text('Rs. ${data['amount']}',
+                            style: TextStyle(
+                                color: textColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14)),
+                        subtitle: Text(
+                          '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}${data['note'] != null && data['note'].toString().trim().isNotEmpty ? '\nNote: ${data['note']}' : (data['description'] != null && data['description'].toString().trim().isNotEmpty ? '\n${data['description']}' : '')}',
+                          style: TextStyle(color: subTextColor, fontSize: 11),
+                        ),
+                        secondary: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined,
+                                  size: 20, color: Colors.blue),
+                              onPressed: () {
+                                PaymentUtils.showEditPaymentDialog(
+                                  context: context,
+                                  docRef: FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(targetId)
+                                      .collection('dl_services')
+                                      .doc(_docId),
+                                  paymentDoc: data['docRef'],
+                                  targetId: targetId,
+                                  category: 'dl_services',
+                                );
+                              },
+                              tooltip: 'Edit Payment',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline,
+                                  size: 20, color: Colors.red),
+                              onPressed: () {
+                                PaymentUtils.deletePayment(
+                                  context: context,
+                                  studentRef: FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(_workspaceController
+                                              .currentSchoolId.value.isNotEmpty
+                                          ? _workspaceController
+                                              .currentSchoolId.value
+                                          : (FirebaseAuth
+                                                  .instance.currentUser?.uid ??
+                                              ''))
+                                      .collection('dl_services')
+                                      .doc(_docId),
+                                  paymentDoc: data['docRef'],
+                                  targetId: _workspaceController
+                                          .currentSchoolId.value.isNotEmpty
+                                      ? _workspaceController
+                                          .currentSchoolId.value
+                                      : (FirebaseAuth
+                                              .instance.currentUser?.uid ??
+                                          ''),
+                                );
+                              },
+                              tooltip: 'Delete Payment',
+                            ),
+                          ],
+                        ),
+                        isThreeLine: true,
+                      ),
+                    );
+                  }).toList(),
+                  if (hasMore)
+                    TextButton.icon(
+                      onPressed: () {
                         setState(() {
-                          if (val == true) {
-                            _selectedTransactionIds.add(data['id']);
-                          } else {
-                            _selectedTransactionIds.remove(data['id']);
-                          }
+                          _isTransactionHistoryExpanded =
+                              !_isTransactionHistoryExpanded;
                         });
                       },
-                      title: Text('Rs. ${data['amount']}',
-                          style: TextStyle(
-                              color: textColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14)),
-                      subtitle: Text(
-                        '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}${data['note'] != null && data['note'].toString().trim().isNotEmpty ? '\nNote: ${data['note']}' : (data['description'] != null && data['description'].toString().trim().isNotEmpty ? '\n${data['description']}' : '')}',
-                        style: TextStyle(color: subTextColor, fontSize: 11),
+                      icon: Icon(
+                        _isTransactionHistoryExpanded
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        color: kAccentRed,
                       ),
-                      secondary: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined,
-                                size: 20, color: Colors.blue),
-                            onPressed: () {
-                              PaymentUtils.showEditPaymentDialog(
-                                context: context,
-                                docRef: FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(targetId)
-                                    .collection('dl_services')
-                                    .doc(_docId),
-                                paymentDoc: data['docRef'],
-                                targetId: targetId,
-                                category: 'dl_services',
-                              );
-                            },
-                            tooltip: 'Edit Payment',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline,
-                                size: 20, color: Colors.red),
-                            onPressed: () {
-                              PaymentUtils.deletePayment(
-                                context: context,
-                                studentRef: FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(_workspaceController
-                                            .currentSchoolId.value.isNotEmpty
-                                        ? _workspaceController
-                                            .currentSchoolId.value
-                                        : (FirebaseAuth
-                                                .instance.currentUser?.uid ??
-                                            ''))
-                                    .collection('dl_services')
-                                    .doc(_docId),
-                                paymentDoc: data['docRef'],
-                                targetId: _workspaceController
-                                        .currentSchoolId.value.isNotEmpty
-                                    ? _workspaceController.currentSchoolId.value
-                                    : (FirebaseAuth.instance.currentUser?.uid ??
-                                        ''),
-                              );
-                            },
-                            tooltip: 'Delete Payment',
-                          ),
-                        ],
+                      label: Text(
+                        _isTransactionHistoryExpanded
+                            ? 'Show Less'
+                            : 'Show ${combinedDocs.length - 2} More',
+                        style: const TextStyle(color: kAccentRed),
                       ),
-                      isThreeLine: true,
                     ),
-                  );
-                }).toList(),
+                ],
               );
             },
           ),

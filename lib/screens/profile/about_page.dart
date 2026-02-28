@@ -5,6 +5,7 @@ import 'package:mds/controller/app_controller.dart';
 import 'package:mds/screens/legal/privacy_policy_screen.dart';
 import 'package:mds/screens/legal/terms_of_service_screen.dart';
 import 'package:mds/screens/profile/contact_us_screen.dart';
+import 'package:mds/screens/profile/invite_page.dart';
 import 'package:mds/screens/widget/custom_back_button.dart';
 
 class AboutPage extends StatelessWidget {
@@ -92,6 +93,37 @@ class AboutPage extends StatelessWidget {
                 ],
               ),
             ),
+
+            // ── Invite Friends ───────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 10),
+              child: Text(
+                'SHARE',
+                style: TextStyle(
+                  color: subColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+            _SectionCard(
+              cardColor: cardColor,
+              borderColor: borderColor,
+              children: [
+                _MenuRow(
+                  icon: Icons.card_giftcard,
+                  iconColor: kPrimaryColor,
+                  label: 'Invite Now',
+                  subtitle: 'Share Drivemate with friends',
+                  textColor: textColor,
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const InvitePage())),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
 
             // ── Legal & updates ───────────────────────────────────────────
             Padding(

@@ -51,6 +51,7 @@ class EndorsementList extends StatelessWidget {
               'COV: ${data['cov'] ?? 'N/A'}\nMobile: ${data['mobileNumber'] ?? 'N/A'}',
           imageUrl: data['image'],
           isDark: isDark,
+          status: data['testStatus'],
           onTap: () {
             Navigator.push(
               context,
@@ -82,14 +83,32 @@ class EndorsementList extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  'Student Status',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
               ListTile(
-                leading: const Icon(Icons.check_circle_outline,
-                    color: kPrimaryColor),
-                title: const Text('Course Completed'),
+                leading: const Icon(Icons.check_circle, color: Colors.green),
+                title: const Text('Test Passed'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _showDeleteConfirmationDialog(
-                      context, doc.id, doc.data());
+                  await _showStatusConfirmationDialog(
+                      context, doc.id, doc.data(), 'passed');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel, color: Colors.red),
+                title: const Text('Test Failed'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _showStatusConfirmationDialog(
+                      context, doc.id, doc.data(), 'failed');
                 },
               ),
             ],
@@ -115,46 +134,72 @@ class EndorsementList extends StatelessWidget {
     );
   }
 
-  Future<void> _showDeleteConfirmationDialog(BuildContext context,
-      String documentId, Map<String, dynamic> endorsementData) async {
-    showCustomConfirmationDialog(
-      context,
-      'Confirm Course Completion',
-      'Are you sure ?',
-      () async {
-        await _deleteData(documentId, endorsementData);
-        Navigator.of(context).pop();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const DeactivatedEndorsementList(),
-          ),
-        );
-      },
-    );
-  }
-
-  Future<void> _deleteData(
-      String endorsementId, Map<String, dynamic> endorsementData) async {
+  Future<void> _updateEndorsementStatus(String endorsementId,
+      Map<String, dynamic> endorsementData, String status) async {
     final WorkspaceController workspaceController =
         Get.find<WorkspaceController>();
     final schoolId = workspaceController.currentSchoolId.value;
     final targetId = schoolId.isNotEmpty ? schoolId : userId;
 
     if (endorsementId.isNotEmpty && endorsementData.isNotEmpty) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('deactivated_endorsement')
-          .doc(endorsementId)
-          .set(endorsementData);
+      // Add status to endorsement data
+      endorsementData['testStatus'] = status;
+      endorsementData['testDate'] = DateTime.now().toIso8601String();
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('endorsement')
-          .doc(endorsementId)
-          .delete();
+      if (status == 'passed') {
+        // Move to course completed (deactivated_endorsement)
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('deactivated_endorsement')
+            .doc(endorsementId)
+            .set(endorsementData);
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('endorsement')
+            .doc(endorsementId)
+            .delete();
+      } else {
+        // Just update the status in place for failed
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('endorsement')
+            .doc(endorsementId)
+            .update({
+          'testStatus': status,
+          'testDate': DateTime.now().toIso8601String(),
+        });
+      }
     }
+  }
+
+  Future<void> _showStatusConfirmationDialog(
+      BuildContext context,
+      String documentId,
+      Map<String, dynamic> endorsementData,
+      String status) async {
+    final isPassed = status == 'passed';
+    showCustomConfirmationDialog(
+      context,
+      isPassed ? 'Confirm Test Passed' : 'Confirm Test Failed',
+      isPassed
+          ? 'Are you sure the student passed the test? This will move them to Course Completed.'
+          : 'Are you sure the student failed the test? A failed badge will be shown.',
+      () async {
+        await _updateEndorsementStatus(documentId, endorsementData, status);
+        Navigator.of(context).pop();
+        if (isPassed) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DeactivatedEndorsementList(),
+            ),
+          );
+        }
+      },
+    );
   }
 }

@@ -5,62 +5,155 @@ class OCRService {
   final TextRecognizer _textRecognizer =
       TextRecognizer(script: TextRecognitionScript.latin);
 
-  /// Processes an image and extracts document details.
   Future<Map<String, String>> parseDocument(XFile image) async {
-    try {
-      final inputImage = InputImage.fromFilePath(image.path);
-      final RecognizedText recognizedText =
-          await _textRecognizer.processImage(inputImage);
+  final inputImage = InputImage.fromFilePath(image.path);
+  final textRecognizer = TextRecognizer(script: TextRecognitionScript.latin);
 
-      String fullText = recognizedText.text;
-      final lines = fullText.split('\n');
+  final RecognizedText recognizedText =
+      await textRecognizer.processImage(inputImage);
 
-      Map<String, String> results = {};
+  final text = recognizedText.text.toLowerCase();
 
-      for (var line in lines) {
-        final lower = line.toLowerCase();
+  Map<String, String> data = {};
 
-        if (lower.contains('name') && !lower.contains('guardian')) {
-          results['fullName'] = _extractValue(line, 'name');
-        } else if (lower.contains('guardian') || lower.contains('father')) {
-          results['guardianName'] = _extractValue(
-              line, lower.contains('guardian') ? 'guardian' : 'father');
-        } else if (lower.contains('dob') || lower.contains('birth')) {
-          final dob = _extractDate(line);
-          if (dob.isNotEmpty) results['dob'] = dob;
-        } else if (lower.contains('pin')) {
-          final pin = RegExp(r'\d{6}').stringMatch(line);
-          if (pin != null) results['pin'] = pin;
-        } else if (lower.contains('house') || lower.contains('no:')) {
-          results['house'] = _extractValue(line, 'house');
-        } else if (lower.contains('place') || lower.contains('at:')) {
-          results['place'] = _extractValue(line, 'place');
-        } else if (lower.contains('post')) {
-          results['post'] = _extractValue(line, 'post');
-        } else if (lower.contains('district')) {
-          results['district'] = _extractValue(line, 'district');
-        }
+  // ---------- Detect Document Type ----------
+  bool isAadhaar = text.contains('government of india') ||
+      text.contains('aadhaar');
+  bool isPassport = text.contains('passport') ||
+      text.contains('republic of india');
+  bool isSSLC = text.contains('secondary school') ||
+      text.contains('sslc');
+
+  // ---------- COMMON DOB ----------
+  final dobMatch =
+      RegExp(r'(\d{2}/\d{2}/\d{4}|\d{2}-\d{2}-\d{4})').firstMatch(text);
+  if (dobMatch != null) {
+    data['dob'] = dobMatch.group(0)!;
+  }
+
+  // ============================================================
+  // 🟠 AADHAAR PARSER
+  // ============================================================
+  if (isAadhaar) {
+    final lines = recognizedText.blocks
+        .expand((b) => b.lines)
+        .map((l) => l.text.trim())
+        .toList();
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i].toLowerCase();
+
+      // Name usually before DOB
+      if (line.contains('dob') && i > 0) {
+        data['fullName'] = lines[i - 1];
       }
 
-      return results;
-    } catch (e) {
-      throw Exception('OCR Parsing failed: $e');
+      // Father/Guardian
+      if (line.contains('s/o') ||
+          line.contains('d/o') ||
+          line.contains('c/o')) {
+        data['guardianName'] =
+            lines[i].replaceAll(RegExp(r'(s/o|d/o|c/o)'), '').trim();
+      }
+
+      // Address starts after "Address"
+      if (line.contains('address')) {
+        final addressLines = lines.sublist(i + 1, i + 6);
+
+        if (addressLines.length >= 4) {
+          data['house'] = addressLines[0];
+          data['place'] = addressLines[1];
+          data['post'] = addressLines[2];
+          data['district'] = addressLines[3];
+
+          final pinMatch =
+              RegExp(r'\b\d{6}\b').firstMatch(addressLines.join(' '));
+          if (pinMatch != null) data['pin'] = pinMatch.group(0)!;
+        }
+        break;
+      }
     }
   }
 
-  String _extractValue(String line, String key) {
-    final parts = line.split(RegExp(r'[:\-]'));
-    if (parts.length > 1) {
-      return parts.sublist(1).join(' ').trim();
+  // ============================================================
+  // 🔵 PASSPORT PARSER
+  // ============================================================
+  if (isPassport) {
+    final lines = recognizedText.blocks
+        .expand((b) => b.lines)
+        .map((l) => l.text.trim())
+        .toList();
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i].toLowerCase();
+
+      if (line.contains('name')) {
+        data['fullName'] = lines[i + 1];
+      }
+
+      if (line.contains('father')) {
+        data['guardianName'] = lines[i + 1];
+      }
+
+      if (line.contains('address')) {
+        final addr = lines.sublist(i + 1, i + 6);
+
+        if (addr.length >= 4) {
+          data['house'] = addr[0];
+          data['place'] = addr[1];
+          data['post'] = addr[2];
+          data['district'] = addr[3];
+
+          final pinMatch =
+              RegExp(r'\b\d{6}\b').firstMatch(addr.join(' '));
+          if (pinMatch != null) data['pin'] = pinMatch.group(0)!;
+        }
+        break;
+      }
     }
-    return line.replaceAll(RegExp(key, caseSensitive: false), '').trim();
   }
 
-  String _extractDate(String line) {
-    final match = RegExp(r'\d{2}[\-/]\d{2}[\-/]\d{4}').stringMatch(line);
-    if (match != null) return match.replaceAll('/', '-');
-    return '';
+  // ============================================================
+  // 🟢 SSLC PARSER
+  // ============================================================
+  if (isSSLC) {
+    final lines = recognizedText.blocks
+        .expand((b) => b.lines)
+        .map((l) => l.text.trim())
+        .toList();
+
+    for (int i = 0; i < lines.length; i++) {
+      final line = lines[i].toLowerCase();
+
+      if (line.contains('name')) {
+        data['fullName'] = lines[i + 1];
+      }
+
+      if (line.contains('father')) {
+        data['guardianName'] = lines[i + 1];
+      }
+
+      if (line.contains('address')) {
+        final addr = lines.sublist(i + 1, i + 6);
+
+        if (addr.length >= 4) {
+          data['house'] = addr[0];
+          data['place'] = addr[1];
+          data['post'] = addr[2];
+          data['district'] = addr[3];
+
+          final pinMatch =
+              RegExp(r'\b\d{6}\b').firstMatch(addr.join(' '));
+          if (pinMatch != null) data['pin'] = pinMatch.group(0)!;
+        }
+        break;
+      }
+    }
   }
+
+  textRecognizer.close();
+  return data;
+}
 
   void dispose() {
     _textRecognizer.close();

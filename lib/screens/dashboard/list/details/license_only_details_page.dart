@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:android_intent_plus/android_intent.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +16,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
+import 'package:mds/screens/widget/utils.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
@@ -24,6 +27,8 @@ import 'dart:async';
 import 'package:mds/utils/payment_utils.dart';
 import 'package:mds/utils/date_utils.dart';
 import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class LicenseOnlyDetailsPage extends StatefulWidget {
   final Map<String, dynamic> licenseDetails;
@@ -40,6 +45,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
   static const Color kAccentRed = Color.fromRGBO(241, 135, 71, 1);
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
+  bool _isTransactionHistoryExpanded = false;
 
   @override
   void initState() {
@@ -187,10 +193,9 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
             ? null
             : [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5))
               ],
       ),
       child: Column(
@@ -199,13 +204,8 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Test Dates',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              const Text('Test Dates',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               IconButton(
                 icon: const Icon(IconlyLight.edit, color: kAccentRed, size: 20),
                 onPressed: () => TestUtils.showUpdateTestDateDialog(
@@ -236,29 +236,22 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
+              color: iconColor.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8)),
           child: Icon(icon, color: iconColor, size: 20),
         ),
         const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: (isDark ? Colors.white : Colors.black).withOpacity(0.5),
-              ),
-            ),
-            Text(
-              date.isEmpty ? 'Pick test date' : date,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12,
+                    color: (isDark ? Colors.white : Colors.black)
+                        .withOpacity(0.5))),
+            Text(date.isEmpty ? 'Pick test date' : date,
+                style:
+                    const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
           ],
         ),
       ],
@@ -268,9 +261,9 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
   Widget _buildProfileHeader(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
-    Timer? holdTimer;
     final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     final cardColor = Theme.of(context).cardColor;
+    Timer? holdTimer;
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
@@ -282,10 +275,9 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
             ? null
             : [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5))
               ],
       ),
       child: Row(
@@ -300,12 +292,8 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                 });
               }
             },
-            onTapUp: (_) {
-              holdTimer?.cancel();
-            },
-            onTapCancel: () {
-              holdTimer?.cancel();
-            },
+            onTapUp: (_) => holdTimer?.cancel(),
+            onTapCancel: () => holdTimer?.cancel(),
             child: Container(
               width: 100,
               height: 100,
@@ -313,9 +301,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                 color: kAccentRed,
                 shape: BoxShape.circle,
                 border: Border.all(
-                  color: Theme.of(context).scaffoldBackgroundColor,
-                  width: 3,
-                ),
+                    color: Theme.of(context).scaffoldBackgroundColor, width: 3),
               ),
               child: ClipOval(
                 child: licenseDetails['image'] != null &&
@@ -340,10 +326,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                                 ? licenseDetails['fullName'][0].toUpperCase()
                                 : '',
                             style: TextStyle(
-                              fontSize: 40,
-                              color: textColor,
-                              height: 1.0,
-                            ),
+                                fontSize: 40, color: textColor, height: 1.0),
                             textAlign: TextAlign.center,
                           ),
                         ),
@@ -358,10 +341,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                               ? licenseDetails['fullName'][0].toUpperCase()
                               : '',
                           style: TextStyle(
-                            fontSize: 40,
-                            color: textColor,
-                            height: 1.0,
-                          ),
+                              fontSize: 40, color: textColor, height: 1.0),
                           textAlign: TextAlign.center,
                         ),
                       ),
@@ -373,22 +353,14 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  licenseDetails['fullName'] ?? 'N/A',
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                Text(licenseDetails['fullName'] ?? 'N/A',
+                    style: TextStyle(
+                        color: textColor,
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
-                Text(
-                  'ID: ${licenseDetails['studentId'] ?? 'N/A'}',
-                  style: TextStyle(
-                    color: subTextColor,
-                    fontSize: 14,
-                  ),
-                ),
+                Text('ID: ${licenseDetails['studentId'] ?? 'N/A'}',
+                    style: TextStyle(color: subTextColor, fontSize: 14)),
                 const SizedBox(height: 8),
                 if (licenseDetails['cov'] != null &&
                     licenseDetails['cov'].toString().isNotEmpty)
@@ -400,14 +372,11 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: kAccentRed),
                     ),
-                    child: Text(
-                      'COV: ${licenseDetails['cov']}',
-                      style: const TextStyle(
-                        color: kAccentRed,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                    child: Text('COV: ${licenseDetails['cov']}',
+                        style: const TextStyle(
+                            color: kAccentRed,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold)),
                   ),
               ],
             ),
@@ -434,10 +403,9 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
             ? null
             : [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5))
               ],
       ),
       child: SingleChildScrollView(
@@ -457,10 +425,11 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                 licenseDetails['guardianName'] ?? 'N/A',
                 textColor,
                 subTextColor),
-            _buildInfoRow(
-                'DOB', licenseDetails['dob'] ?? 'N/A', textColor, subTextColor),
-            _buildInfoRow('Mobile', licenseDetails['mobileNumber'] ?? 'N/A',
+            _buildInfoRow('DOB', formatDisplayDate(licenseDetails['dob']),
                 textColor, subTextColor),
+            // ── Tappable mobile number ──
+            _buildMobileRow(licenseDetails['mobileNumber'] ?? 'N/A', textColor,
+                subTextColor, context),
             _buildInfoRow(
                 'Emergency',
                 licenseDetails['emergencyNumber'] ?? 'N/A',
@@ -491,10 +460,9 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
             ? null
             : [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5))
               ],
       ),
       child: SingleChildScrollView(
@@ -548,10 +516,9 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
             ? null
             : [
                 BoxShadow(
-                  color: Colors.grey.withOpacity(0.1),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
-                ),
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5))
               ],
       ),
       child: Column(
@@ -569,22 +536,21 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                 children: [
                   if (_selectedTransactionIds.isNotEmpty)
                     IconButton(
-                      icon: const Icon(Icons.receipt_long, color: kAccentRed),
-                      onPressed: _generateSelectedReceipts,
-                      tooltip: 'Generate Receipt for Selected',
-                    ),
+                        icon: const Icon(Icons.receipt_long, color: kAccentRed),
+                        onPressed: _generateSelectedReceipts,
+                        tooltip: 'Generate Receipt for Selected'),
                   IconButton(
                     icon: const Icon(Icons.post_add, color: Colors.blue),
                     onPressed: () {
                       if (snapshot.hasData) {
                         PaymentUtils.showAddExtraFeeDialog(
-                          context: context,
-                          doc: snapshot.data!
-                              as DocumentSnapshot<Map<String, dynamic>>,
-                          targetId: targetId,
-                          branchId: _workspaceController.currentBranchId.value,
-                          category: 'licenseonly',
-                        );
+                            context: context,
+                            doc: snapshot.data!
+                                as DocumentSnapshot<Map<String, dynamic>>,
+                            targetId: targetId,
+                            branchId:
+                                _workspaceController.currentBranchId.value,
+                            category: 'licenseonly');
                       }
                     },
                     tooltip: 'Add Extra Fee',
@@ -594,13 +560,13 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                     onPressed: () {
                       if (snapshot.hasData) {
                         PaymentUtils.showAddPaymentDialog(
-                          context: context,
-                          doc: snapshot.data!
-                              as DocumentSnapshot<Map<String, dynamic>>,
-                          targetId: targetId,
-                          branchId: _workspaceController.currentBranchId.value,
-                          category: 'licenseonly',
-                        );
+                            context: context,
+                            doc: snapshot.data!
+                                as DocumentSnapshot<Map<String, dynamic>>,
+                            targetId: targetId,
+                            branchId:
+                                _workspaceController.currentBranchId.value,
+                            category: 'licenseonly');
                       }
                     },
                     tooltip: 'Add Payment',
@@ -613,30 +579,24 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Total Fee:',
-                      style: TextStyle(color: subTextColor, fontSize: 12)),
-                  Text('Rs. $total',
-                      style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16)),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text('Paid Amount',
-                      style: TextStyle(color: subTextColor, fontSize: 12)),
-                  Text('Rs. $paidAmount',
-                      style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16)),
-                ],
-              ),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Total Fee:',
+                    style: TextStyle(color: subTextColor, fontSize: 12)),
+                Text('Rs. $total',
+                    style: TextStyle(
+                        color: textColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
+              ]),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text('Paid Amount',
+                    style: TextStyle(color: subTextColor, fontSize: 12)),
+                Text('Rs. $paidAmount',
+                    style: TextStyle(
+                        color: textColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16)),
+              ]),
             ],
           ),
           const SizedBox(height: 12),
@@ -649,12 +609,9 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
           ),
           const SizedBox(height: 8),
           Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              'Outstanding Balance: Rs. $balance',
-              style: TextStyle(color: subTextColor, fontSize: 12),
-            ),
-          ),
+              alignment: Alignment.centerRight,
+              child: Text('Outstanding Balance: Rs. $balance',
+                  style: TextStyle(color: subTextColor, fontSize: 12))),
           const SizedBox(height: 16),
           const Divider(),
           const SizedBox(height: 8),
@@ -668,24 +625,20 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                       fontSize: 14)),
               if (_selectedTransactionIds.isNotEmpty)
                 IconButton(
-                  icon: const Icon(Icons.receipt_long, color: kAccentRed),
-                  onPressed: _generateSelectedReceipts,
-                  tooltip: 'Generate Receipt for Selected',
-                  visualDensity: VisualDensity.compact,
-                ),
+                    icon: const Icon(Icons.receipt_long, color: kAccentRed),
+                    onPressed: _generateSelectedReceipts,
+                    tooltip: 'Generate Receipt for Selected',
+                    visualDensity: VisualDensity.compact),
             ],
           ),
           const SizedBox(height: 8),
           StreamBuilder<QuerySnapshot>(
             stream: _paymentsStream,
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
+              if (snapshot.connectionState == ConnectionState.waiting)
                 return const ShimmerLoadingList();
-              }
 
               final docs = snapshot.data?.docs ?? [];
-
-              // Show only original transactions from payments subcollection
               List<Map<String, dynamic>> combinedDocs = docs.map((d) {
                 final map = d.data() as Map<String, dynamic>;
                 map['id'] = d.id;
@@ -693,7 +646,6 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                 return map;
               }).toList();
 
-              // For old records: show legacy advance if no payments exist yet
               if (combinedDocs.isEmpty) {
                 final advAmt = double.tryParse(
                         licenseDetails['advanceAmount']?.toString() ?? '0') ??
@@ -709,7 +661,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                     'date': Timestamp.fromDate(regDate),
                     'mode': licenseDetails['paymentMode'] ?? 'Cash',
                     'description': 'Initial Advance',
-                    'isLegacy': true,
+                    'isLegacy': true
                   });
                 }
               }
@@ -719,105 +671,124 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
 
               if (combinedDocs.isEmpty) {
                 return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text('No transactions yet',
-                        style: TextStyle(color: subTextColor, fontSize: 12)),
-                  ),
-                );
+                    child: Padding(
+                        padding: const EdgeInsets.all(16.0),
+                        child: Text('No transactions yet',
+                            style:
+                                TextStyle(color: subTextColor, fontSize: 12))));
               }
 
-              return Column(
-                children: combinedDocs.map((data) {
-                  final date = (data['date'] as Timestamp).toDate();
-                  final isSelected =
-                      _selectedTransactionIds.contains(data['id']);
+              // Show only 2 items by default, expand to show all
+              final displayDocs = _isTransactionHistoryExpanded
+                  ? combinedDocs
+                  : combinedDocs.take(2).toList();
+              final hasMore = combinedDocs.length > 2;
 
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: isDark ? Colors.grey[900] : Colors.grey[100],
-                      borderRadius: BorderRadius.circular(8),
-                      border: isSelected
-                          ? Border.all(color: kAccentRed, width: 1)
-                          : null,
-                    ),
-                    child: CheckboxListTile(
-                      value: isSelected,
-                      activeColor: kAccentRed,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      onChanged: (val) {
+              return Column(
+                children: [
+                  ...displayDocs.map((data) {
+                    final date = (data['date'] as Timestamp).toDate();
+                    final isSelected =
+                        _selectedTransactionIds.contains(data['id']);
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.grey[900] : Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: isSelected
+                            ? Border.all(color: kAccentRed, width: 1)
+                            : null,
+                      ),
+                      child: CheckboxListTile(
+                        value: isSelected,
+                        activeColor: kAccentRed,
+                        controlAffinity: ListTileControlAffinity.leading,
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true)
+                              _selectedTransactionIds.add(data['id']);
+                            else
+                              _selectedTransactionIds.remove(data['id']);
+                          });
+                        },
+                        title: Text('Rs. ${data['amount']}',
+                            style: TextStyle(
+                                color: textColor,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14)),
+                        subtitle: Text(
+                          '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}${data['note'] != null && data['note'].toString().trim().isNotEmpty ? '\nNote: ${data['note']}' : (data['description'] != null && data['description'].toString().trim().isNotEmpty ? '\n${data['description']}' : '')}',
+                          style: TextStyle(color: subTextColor, fontSize: 11),
+                        ),
+                        secondary: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit_outlined,
+                                  size: 20, color: Colors.blue),
+                              onPressed: () =>
+                                  PaymentUtils.showEditPaymentDialog(
+                                      context: context,
+                                      docRef: FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(targetId)
+                                          .collection('licenseonly')
+                                          .doc(_docId),
+                                      paymentDoc: data['docRef'],
+                                      targetId: targetId,
+                                      category: 'licenseonly'),
+                              tooltip: 'Edit Payment',
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline,
+                                  size: 20, color: Colors.red),
+                              onPressed: () => PaymentUtils.deletePayment(
+                                  context: context,
+                                  studentRef: FirebaseFirestore.instance
+                                      .collection('users')
+                                      .doc(targetId)
+                                      .collection('licenseonly')
+                                      .doc(_docId),
+                                  paymentDoc: data['docRef'],
+                                  targetId: targetId),
+                              tooltip: 'Delete Payment',
+                            ),
+                          ],
+                        ),
+                        isThreeLine: true,
+                      ),
+                    );
+                  }).toList(),
+                  if (hasMore)
+                    TextButton.icon(
+                      onPressed: () {
                         setState(() {
-                          if (val == true) {
-                            _selectedTransactionIds.add(data['id']);
-                          } else {
-                            _selectedTransactionIds.remove(data['id']);
-                          }
+                          _isTransactionHistoryExpanded =
+                              !_isTransactionHistoryExpanded;
                         });
                       },
-                      title: Text('Rs. ${data['amount']}',
-                          style: TextStyle(
-                              color: textColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14)),
-                      subtitle: Text(
-                        '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}${data['note'] != null && data['note'].toString().trim().isNotEmpty ? '\nNote: ${data['note']}' : (data['description'] != null && data['description'].toString().trim().isNotEmpty ? '\n${data['description']}' : '')}',
-                        style: TextStyle(color: subTextColor, fontSize: 11),
+                      icon: Icon(
+                        _isTransactionHistoryExpanded
+                            ? Icons.expand_less
+                            : Icons.expand_more,
+                        color: kAccentRed,
                       ),
-                      secondary: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            icon: const Icon(Icons.edit_outlined,
-                                size: 20, color: Colors.blue),
-                            onPressed: () {
-                              PaymentUtils.showEditPaymentDialog(
-                                context: context,
-                                docRef: FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(targetId)
-                                    .collection('licenseonly')
-                                    .doc(_docId),
-                                paymentDoc: data['docRef'],
-                                targetId: targetId,
-                                category: 'licenseonly',
-                              );
-                            },
-                            tooltip: 'Edit Payment',
-                          ),
-                          IconButton(
-                            icon: const Icon(Icons.delete_outline,
-                                size: 20, color: Colors.red),
-                            onPressed: () {
-                              PaymentUtils.deletePayment(
-                                context: context,
-                                studentRef: FirebaseFirestore.instance
-                                    .collection('users')
-                                    .doc(targetId)
-                                    .collection('licenseonly')
-                                    .doc(_docId),
-                                paymentDoc: data['docRef'],
-                                targetId: targetId,
-                              );
-                            },
-                            tooltip: 'Delete Payment',
-                          ),
-                        ],
+                      label: Text(
+                        _isTransactionHistoryExpanded
+                            ? 'Show Less'
+                            : 'Show ${combinedDocs.length - 2} More',
+                        style: const TextStyle(color: kAccentRed),
                       ),
-                      isThreeLine: true,
                     ),
-                  );
-                }).toList(),
+                ],
               );
             },
           ),
-          // ── Additional Fees (inline) ─────────────────────────────────────────
           StreamBuilder<QuerySnapshot>(
             stream: _extraFeesStream,
             builder: (context, feesSnapshot) {
-              if (!feesSnapshot.hasData || feesSnapshot.data!.docs.isEmpty) {
+              if (!feesSnapshot.hasData || feesSnapshot.data!.docs.isEmpty)
                 return const SizedBox.shrink();
-              }
               final feeDocs = feesSnapshot.data!.docs;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -834,12 +805,11 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                               fontSize: 14)),
                       if (_selectedTransactionIds.isNotEmpty)
                         IconButton(
-                          icon:
-                              const Icon(Icons.receipt_long, color: kAccentRed),
-                          onPressed: _generateSelectedReceipts,
-                          tooltip: 'Generate Receipt for Selected',
-                          visualDensity: VisualDensity.compact,
-                        ),
+                            icon: const Icon(Icons.receipt_long,
+                                color: kAccentRed),
+                            onPressed: _generateSelectedReceipts,
+                            tooltip: 'Generate Receipt for Selected',
+                            visualDensity: VisualDensity.compact),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -867,11 +837,10 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                             onChanged: isPaid
                                 ? (val) {
                                     setState(() {
-                                      if (val == true) {
+                                      if (val == true)
                                         _selectedTransactionIds.add(doc.id);
-                                      } else {
+                                      else
                                         _selectedTransactionIds.remove(doc.id);
-                                      }
                                     });
                                   }
                                 : null,
@@ -924,82 +893,69 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                           Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  if (isPaid)
-                                    const Padding(
+                              Row(mainAxisSize: MainAxisSize.min, children: [
+                                if (isPaid)
+                                  const Padding(
                                       padding: EdgeInsets.only(right: 8.0),
                                       child: Chip(
-                                        label: Text('Paid',
-                                            style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 11)),
-                                        backgroundColor: Colors.green,
-                                        visualDensity: VisualDensity.compact,
-                                        padding: EdgeInsets.zero,
-                                      ),
-                                    )
-                                  else
-                                    TextButton(
-                                      onPressed: () => PaymentUtils
-                                          .showCollectExtraFeeDialog(
-                                        context: context,
-                                        docRef: FirebaseFirestore.instance
-                                            .collection('users')
-                                            .doc(targetId)
-                                            .collection('licenceOnly')
-                                            .doc(_docId),
-                                        feeDoc: doc,
-                                        targetId: targetId.toString(),
-                                        branchId: _workspaceController
-                                            .currentBranchId.value,
-                                      ),
-                                      style: TextButton.styleFrom(
-                                          foregroundColor: Colors.green),
-                                      child: const Text('Collect',
-                                          style: TextStyle(fontSize: 12)),
-                                    ),
-                                ],
-                              ),
-                              Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
+                                          label: Text('Paid',
+                                              style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 11)),
+                                          backgroundColor: Colors.green,
+                                          visualDensity: VisualDensity.compact,
+                                          padding: EdgeInsets.zero))
+                                else
+                                  TextButton(
+                                    onPressed: () =>
+                                        PaymentUtils.showCollectExtraFeeDialog(
+                                            context: context,
+                                            docRef: FirebaseFirestore.instance
+                                                .collection('users')
+                                                .doc(targetId)
+                                                .collection('licenseonly')
+                                                .doc(_docId),
+                                            feeDoc: doc,
+                                            targetId: targetId.toString(),
+                                            branchId: _workspaceController
+                                                .currentBranchId.value),
+                                    style: TextButton.styleFrom(
+                                        foregroundColor: Colors.green),
+                                    child: const Text('Collect',
+                                        style: TextStyle(fontSize: 12)),
+                                  ),
+                              ]),
+                              Row(mainAxisSize: MainAxisSize.min, children: [
+                                IconButton(
                                     icon: const Icon(Icons.edit_outlined,
                                         size: 18, color: Colors.blue),
                                     onPressed: () =>
                                         PaymentUtils.showEditExtraFeeDialog(
-                                      context: context,
-                                      docRef: FirebaseFirestore.instance
-                                          .collection('users')
-                                          .doc(targetId)
-                                          .collection('licenceOnly')
-                                          .doc(_docId),
-                                      feeDoc: doc,
-                                      targetId: targetId.toString(),
-                                      category: 'licenceOnly',
-                                    ),
-                                    tooltip: 'Edit',
-                                  ),
-                                  IconButton(
+                                            context: context,
+                                            docRef: FirebaseFirestore.instance
+                                                .collection('users')
+                                                .doc(targetId)
+                                                .collection('licenseonly')
+                                                .doc(_docId),
+                                            feeDoc: doc,
+                                            targetId: targetId.toString(),
+                                            category: 'licenceOnly'),
+                                    tooltip: 'Edit'),
+                                IconButton(
                                     icon: const Icon(Icons.delete_outline,
                                         size: 18, color: Colors.red),
                                     onPressed: () =>
                                         PaymentUtils.deleteExtraFee(
-                                      context: context,
-                                      docRef: FirebaseFirestore.instance
-                                          .collection('users')
-                                          .doc(targetId)
-                                          .collection('licenceOnly')
-                                          .doc(_docId),
-                                      feeDoc: doc,
-                                      targetId: targetId.toString(),
-                                    ),
-                                    tooltip: 'Delete',
-                                  ),
-                                ],
-                              ),
+                                            context: context,
+                                            docRef: FirebaseFirestore.instance
+                                                .collection('users')
+                                                .doc(targetId)
+                                                .collection('licenseonly')
+                                                .doc(_docId),
+                                            feeDoc: doc,
+                                            targetId: targetId.toString()),
+                                    tooltip: 'Delete'),
+                              ]),
                             ],
                           ),
                         ],
@@ -1015,28 +971,19 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
     );
   }
 
-  // Removed manual payment logic as it's now handled by PaymentUtils
-
   Future<void> _generateSingleReceipt(Map<String, dynamic> transaction) async {
     _generateReceipts([transaction]);
   }
 
   Future<void> _generateSelectedReceipts() async {
     if (_selectedTransactionIds.isEmpty) return;
-
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
 
     final targetId = _workspaceController.targetId;
     final studentId = licenseDetails['studentId'].toString();
-
-    // Separate IDs into payments and extra_fees
-    // In a real app, you'd know which is which, but here we can check both collections
-    // and combine them into a single list for PdfService.
-
     final List<Map<String, dynamic>> allTransactions = [];
 
-    // Check payments collection
     final paymentsQuery = await FirebaseFirestore.instance
         .collection('users')
         .doc(targetId)
@@ -1047,7 +994,6 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
         .get();
     allTransactions.addAll(paymentsQuery.docs.map((d) => d.data()));
 
-    // Check extra_fees collection
     final feesQuery = await FirebaseFirestore.instance
         .collection('users')
         .doc(targetId)
@@ -1056,22 +1002,19 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
         .collection('extra_fees')
         .where(FieldPath.documentId, whereIn: _selectedTransactionIds)
         .get();
-
     allTransactions.addAll(feesQuery.docs.map((d) {
       final data = d.data();
-      // Map extra fee data to receipt format
       return {
         'amount': data['amount'],
         'description': data['description'] ?? 'Additional Fee',
         'mode': data['paymentMode'] ?? 'Cash',
         'date': data['paymentDate'] ?? data['date'],
-        'note': data['paymentNote'] ?? data['note'],
+        'note': data['paymentNote'] ?? data['note']
       };
     }));
 
     if (allTransactions.isEmpty) return;
 
-    // Sort by date descending
     allTransactions.sort((a, b) {
       final dateA =
           a['date'] is DateTime ? a['date'] : (a['date'] as Timestamp).toDate();
@@ -1093,36 +1036,28 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
       pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
         final workspace = Get.find<WorkspaceController>();
         final companyData = workspace.companyData;
-
-        if (companyData['hasCompanyProfile'] != true) {
+        if (companyData['hasCompanyProfile'] != true)
           throw 'Please set up your Company Profile first';
-        }
-
         Uint8List? logoBytes;
         if (companyData['companyLogo'] != null &&
             companyData['companyLogo'].toString().isNotEmpty) {
           logoBytes = await ImageCacheService()
               .fetchAndCache(companyData['companyLogo']);
         }
-
         return await PdfService.generateReceipt(
-          companyData: companyData,
-          studentDetails: licenseDetails,
-          transactions: transactions,
-          companyLogoBytes: logoBytes,
-        );
+            companyData: companyData,
+            studentDetails: licenseDetails,
+            transactions: transactions,
+            companyLogoBytes: logoBytes);
       });
     } catch (e) {
-      if (mounted) {
+      if (mounted)
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
       return;
     }
 
-    if (pdfBytes != null && mounted) {
-      _showPdfPreview(context, pdfBytes);
-    }
+    if (pdfBytes != null && mounted) _showPdfPreview(context, pdfBytes);
   }
 
   Widget _buildInfoRow(
@@ -1141,6 +1076,156 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
     );
   }
 
+  // ── Tappable mobile row ─────────────────────────────────────────────────────
+
+  Widget _buildMobileRow(
+      String phone, Color textColor, Color subTextColor, BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: GestureDetector(
+        onTap: () => _showContactOptions(context, phone),
+        child: RichText(
+          text: TextSpan(
+            style:
+                TextStyle(fontSize: 13, fontFamily: 'Inter', color: textColor),
+            children: [
+              TextSpan(text: 'Mobile: ', style: TextStyle(color: subTextColor)),
+              TextSpan(
+                  text: phone,
+                  style: const TextStyle(
+                      color: kAccentRed,
+                      decoration: TextDecoration.underline,
+                      fontWeight: FontWeight.w600)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Call / WhatsApp bottom sheet ────────────────────────────────────────────
+
+  void _showContactOptions(BuildContext context, String phone) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            Text(phone,
+                style: TextStyle(
+                    color: isDark ? Colors.white54 : Colors.black54,
+                    fontSize: 13)),
+            const SizedBox(height: 16),
+            ListTile(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              tileColor: Colors.green.withOpacity(0.08),
+              leading: const Icon(Icons.phone_rounded, color: Colors.green),
+              title: Text('Call',
+                  style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontWeight: FontWeight.w600)),
+              onTap: () async {
+                Navigator.pop(context);
+                final uri = Uri(scheme: 'tel', path: phone);
+                if (await canLaunchUrl(uri)) launchUrl(uri);
+              },
+            ),
+            const SizedBox(height: 10),
+            ListTile(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              tileColor: const Color(0xFF25D366).withOpacity(0.08),
+              leading: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
+              title: Text('WhatsApp',
+                  style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontWeight: FontWeight.w600)),
+              onTap: () async {
+                Navigator.pop(context);
+                final cleaned =
+                    phone.startsWith('0') ? phone.substring(1) : phone;
+                final uri = Uri.parse('https://wa.me/91$cleaned');
+                if (await canLaunchUrl(uri))
+                  launchUrl(uri, mode: LaunchMode.externalApplication);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Send PDF directly to WhatsApp using jid ─────────────────────────────────
+
+  Future<void> _shareReceiptToWhatsApp(String phone, Uint8List pdfBytes) async {
+    try {
+      final dir = await getTemporaryDirectory();
+      final name = (licenseDetails['fullName'] ?? 'license')
+          .toString()
+          .replaceAll(' ', '_');
+      final file = File('${dir.path}/receipt_$name.pdf');
+      await file.writeAsBytes(pdfBytes);
+
+      final cleaned = phone.startsWith('0') ? phone.substring(1) : phone;
+      final jid = '91$cleaned@s.whatsapp.net';
+
+      if (Platform.isAndroid) {
+        final intent = AndroidIntent(
+          action: 'android.intent.action.SEND',
+          package: 'com.whatsapp',
+          type: 'application/pdf',
+          arguments: {
+            'android.intent.extra.STREAM': file.absolute.path,
+            'jid': jid
+          },
+          flags: [0x00000001],
+        );
+        await intent.launch();
+      } else {
+        await Share.shareXFiles([XFile(file.path, mimeType: 'application/pdf')],
+            text:
+                'Fee Receipt for ${licenseDetails['fullName'] ?? 'Customer'}');
+      }
+    } catch (e) {
+      if (mounted)
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error sending to WhatsApp: $e')));
+    }
+  }
+
+  // ── PDF Preview ─────────────────────────────────────────────────────────────
+
+  void _showPdfPreview(BuildContext context, Uint8List pdfBytes) {
+    final phone = licenseDetails['mobileNumber'] ?? '';
+    final studentName = licenseDetails['fullName'] ?? 'Student';
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfPreviewScreen(
+          pdfBytes: pdfBytes,
+          studentName: licenseDetails['fullName'],
+          studentPhone: licenseDetails['mobileNumber'],
+          fileName: 'receipt_${licenseDetails['fullName']}.pdf',
+        ),
+      ),
+    );
+  }
+
   Future<void> _shareLicenseDetails(BuildContext context) async {
     bool includePayment = false;
 
@@ -1149,34 +1234,26 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
       builder: (BuildContext context) {
         return StatefulBuilder(builder: (context, setState) {
           return Dialog(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(20),
-            ),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
             child: Container(
               padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 30),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(20),
-              ),
+              decoration:
+                  BoxDecoration(borderRadius: BorderRadius.circular(20)),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Text(
-                    'Share PDF',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w600,
-                      fontSize: 18.0,
-                    ),
-                  ),
+                  const Text('Share PDF',
+                      style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w600,
+                          fontSize: 18.0)),
                   const SizedBox(height: 16),
                   CheckboxListTile(
                     title: const Text('Include Payment Overview'),
                     value: includePayment,
-                    onChanged: (bool? value) {
-                      setState(() {
-                        includePayment = value ?? false;
-                      });
-                    },
+                    onChanged: (bool? value) =>
+                        setState(() => includePayment = value ?? false),
                     controlAffinity: ListTileControlAffinity.leading,
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -1185,22 +1262,20 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       Expanded(
-                        child: ActionButton(
-                          text: 'Cancel',
-                          backgroundColor: const Color(0xFFFFF1F1),
-                          textColor: const Color(0xFFFF0000),
-                          onPressed: () => Navigator.of(context).pop(false),
-                        ),
-                      ),
+                          child: ActionButton(
+                              text: 'Cancel',
+                              backgroundColor: const Color(0xFFFFF1F1),
+                              textColor: const Color(0xFFFF0000),
+                              onPressed: () =>
+                                  Navigator.of(context).pop(false))),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: ActionButton(
-                          text: 'Generate',
-                          backgroundColor: const Color(0xFFF6FFF0),
-                          textColor: Colors.black,
-                          onPressed: () => Navigator.of(context).pop(true),
-                        ),
-                      ),
+                          child: ActionButton(
+                              text: 'Generate',
+                              backgroundColor: const Color(0xFFF6FFF0),
+                              textColor: Colors.black,
+                              onPressed: () =>
+                                  Navigator.of(context).pop(true))),
                     ],
                   ),
                 ],
@@ -1218,55 +1293,36 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
       pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
         final workspace = Get.find<WorkspaceController>();
         final companyData = workspace.companyData;
-
-        if (companyData['hasCompanyProfile'] != true) {
+        if (companyData['hasCompanyProfile'] != true)
           throw 'Please set up your Company Profile first';
-        }
 
-        // Fetch student image
         Uint8List? studentImage;
         if (licenseDetails['image'] != null &&
             licenseDetails['image'].toString().isNotEmpty) {
           studentImage =
               await ImageCacheService().fetchAndCache(licenseDetails['image']);
         }
-
-        // Fetch company logo
         Uint8List? logoBytes;
         if (companyData['companyLogo'] != null &&
             companyData['companyLogo'].toString().isNotEmpty) {
           logoBytes = await ImageCacheService()
               .fetchAndCache(companyData['companyLogo']);
         }
-
         return await PdfService.generatePdf(
-          title: 'License Only Details',
-          data: licenseDetails,
-          includePayment: includePayment,
-          imageBytes: studentImage,
-          companyData: companyData,
-          companyLogoBytes: logoBytes,
-        );
+            title: 'License Only Details',
+            data: licenseDetails,
+            includePayment: includePayment,
+            imageBytes: studentImage,
+            companyData: companyData,
+            companyLogoBytes: logoBytes);
       });
     } catch (e) {
-      if (mounted) {
+      if (mounted)
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
       return;
     }
 
-    if (pdfBytes != null && mounted) {
-      _showPdfPreview(context, pdfBytes);
-    }
-  }
-
-  void _showPdfPreview(BuildContext context, Uint8List pdfBytes) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PdfPreviewScreen(pdfBytes: pdfBytes),
-      ),
-    );
+    if (pdfBytes != null && mounted) _showPdfPreview(context, pdfBytes);
   }
 }

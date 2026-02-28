@@ -69,11 +69,20 @@ class _StudentListState extends State<StudentList> {
 
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _filteredStudents(
       String query) {
-    return _allStudents
+    final filtered = _allStudents
         .where((doc) =>
             doc['fullName'].toLowerCase().contains(query.toLowerCase()) ||
             doc['mobileNumber'].toLowerCase().contains(query.toLowerCase()))
         .toList();
+
+    // Sort by newest to oldest (registrationDate)
+    filtered.sort((a, b) {
+      final aDate = a.data()['registrationDate'] as String? ?? '';
+      final bDate = b.data()['registrationDate'] as String? ?? '';
+      return bDate.compareTo(aDate);
+    });
+
+    return filtered;
   }
 
   @override
@@ -158,6 +167,15 @@ class _StudentListState extends State<StudentList> {
                     ? _filteredStudents(_searchController.text)
                     : (snapshot.data?.docs ?? []).map((doc) => doc).toList();
 
+                // Sort by newest to oldest (registrationDate) when not searching
+                if (_searchController.text.isEmpty) {
+                  docs.sort((a, b) {
+                    final aDate = a.data()['registrationDate'] as String? ?? '';
+                    final bDate = b.data()['registrationDate'] as String? ?? '';
+                    return bDate.compareTo(aDate);
+                  });
+                }
+
                 if (docs.isEmpty) {
                   return const Center(
                     child: Text(
@@ -183,6 +201,7 @@ class _StudentListState extends State<StudentList> {
                           'COV: ${data['cov'] ?? 'N/A'}\nMobile: ${data['mobileNumber'] ?? 'N/A'}',
                       imageUrl: data['image'],
                       isDark: isDark,
+                      status: data['testStatus'],
                       onTap: () {
                         Navigator.push(
                           context,
@@ -205,19 +224,19 @@ class _StudentListState extends State<StudentList> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
-  onPressed: () {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const NewStudent()),
-    );
-  },
-  backgroundColor: kPrimaryColor,
-  icon: const Icon(Icons.add, color: Colors.white),
-  label: const Text(
-    'New Student',
-    style: TextStyle(color: Colors.white),
-  ),
-),
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const NewStudent()),
+          );
+        },
+        backgroundColor: kPrimaryColor,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text(
+          'New Student',
+          style: TextStyle(color: Colors.white),
+        ),
+      ),
     );
   }
 
@@ -234,14 +253,32 @@ class _StudentListState extends State<StudentList> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  'Student Status',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
               ListTile(
-                leading: const Icon(Icons.check_circle_outline,
-                    color: kPrimaryColor),
-                title: const Text('Course Completed'),
+                leading: const Icon(Icons.check_circle, color: Colors.green),
+                title: const Text('Test Passed'),
                 onTap: () async {
                   Navigator.pop(context);
-                  await _showDeleteConfirmationDialog(doc.id, doc.data());
-                  setState(() {});
+                  await _showStatusConfirmationDialog(
+                      doc.id, doc.data(), 'passed');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel, color: Colors.red),
+                title: const Text('Test Failed'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _showStatusConfirmationDialog(
+                      doc.id, doc.data(), 'failed');
                 },
               ),
             ],
@@ -251,43 +288,68 @@ class _StudentListState extends State<StudentList> {
     );
   }
 
-  Future<void> _deleteData(
-      String studentId, Map<String, dynamic> studentData) async {
+  Future<void> _updateStudentStatus(
+      String studentId, Map<String, dynamic> studentData, String status) async {
     final schoolId = _workspaceController.currentSchoolId.value;
     final targetId = schoolId.isNotEmpty ? schoolId : widget.userId;
 
     if (studentId.isNotEmpty && studentData.isNotEmpty) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('deactivated_students')
-          .doc(studentId)
-          .set(studentData);
+      // Add status to student data
+      studentData['testStatus'] = status;
+      studentData['testDate'] = DateTime.now().toIso8601String();
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('students')
-          .doc(studentId)
-          .delete();
+      if (status == 'passed') {
+        // Move to course completed (deactivated_students)
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('deactivated_students')
+            .doc(studentId)
+            .set(studentData);
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('students')
+            .doc(studentId)
+            .delete();
+      } else {
+        // Just update the status in place for failed students
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('students')
+            .doc(studentId)
+            .update({
+          'testStatus': status,
+          'testDate': DateTime.now().toIso8601String(),
+        });
+      }
     }
   }
 
-  Future<void> _showDeleteConfirmationDialog(
-      String documentId, Map<String, dynamic> studentData) async {
+  Future<void> _showStatusConfirmationDialog(String documentId,
+      Map<String, dynamic> studentData, String status) async {
+    final isPassed = status == 'passed';
     showCustomConfirmationDialog(
       context,
-      'Confirm Course Completion',
-      'Are you sure ?',
+      isPassed ? 'Confirm Test Passed' : 'Confirm Test Failed',
+      isPassed
+          ? 'Are you sure the student passed the test? This will move them to Course Completed.'
+          : 'Are you sure the student failed the test? A failed badge will be shown.',
       () async {
-        await _deleteData(documentId, studentData);
+        await _updateStudentStatus(documentId, studentData, status);
         Navigator.of(context).pop();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const DeactivatedStudentList(),
-          ),
-        );
+        if (isPassed) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DeactivatedStudentList(),
+            ),
+          );
+        } else {
+          setState(() {});
+        }
       },
     );
   }

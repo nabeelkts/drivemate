@@ -1,9 +1,8 @@
-/* lib/screens/widget/common_form.dart */
 import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
-
+import 'package:mds/services/ai_document_scanner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
@@ -50,6 +49,7 @@ class CommonForm extends StatefulWidget {
 }
 
 class CommonFormState extends State<CommonForm> {
+  final SmartDocumentScanner _scanner = SmartDocumentScanner();
   final formKey = GlobalKey<FormState>();
   late TextEditingController studentIdController;
   late TextEditingController fullNameController;
@@ -80,7 +80,6 @@ class CommonFormState extends State<CommonForm> {
   List<String> _studySelectedItems = [];
 
   final StorageService _storageService = StorageService();
-  final OCRService _ocrService = OCRService();
   final List<String> _bloodGroups = [
     'A+',
     'A-',
@@ -290,81 +289,102 @@ class CommonFormState extends State<CommonForm> {
   }
 
   Future<void> smartFill() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await showDialog<XFile?>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Smart Fill'),
-        content: const Text('Choose a document image to auto-fill details'),
-        actions: [
-          TextButton(
-            child: const Text('Gallery'),
-            onPressed: () async {
-              final XFile? img = await picker.pickImage(
-                  source: ImageSource.gallery, imageQuality: 50);
-              if (context.mounted) Navigator.pop(context, img);
-            },
-          ),
-          TextButton(
-            child: const Text('Camera'),
-            onPressed: () async {
-              final XFile? img = await picker.pickImage(
-                  source: ImageSource.camera, imageQuality: 50);
-              if (context.mounted) Navigator.pop(context, img);
-            },
-          ),
-        ],
-      ),
-    );
+  final ImagePicker picker = ImagePicker();
 
-    if (image == null) return;
+  final XFile? pickedImage = await showDialog<XFile?>(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: const Text('Smart AI Scan'),
+      content: const Text('Choose a document to auto-fill details'),
+      actions: [
+        TextButton(
+          child: const Text('Gallery'),
+          onPressed: () async {
+            final XFile? img = await picker.pickImage(
+                source: ImageSource.gallery, imageQuality: 80);
+            if (context.mounted) Navigator.pop(context, img);
+          },
+        ),
+        TextButton(
+          child: const Text('Camera'),
+          onPressed: () async {
+            final XFile? img = await picker.pickImage(
+                source: ImageSource.camera, imageQuality: 80);
+            if (context.mounted) Navigator.pop(context, img);
+          },
+        ),
+      ],
+    ),
+  );
 
-    setState(() => isLoading = true);
+  if (pickedImage == null) return;
 
-    try {
-      final results = await _ocrService.parseDocument(image);
+  setState(() => isLoading = true);
 
-      if (results.containsKey('fullName'))
-        fullNameController.text = results['fullName']!;
-      if (results.containsKey('guardianName'))
-        guardianNameController.text = results['guardianName']!;
-      if (results.containsKey('dob')) dobController.text = results['dob']!;
-      if (results.containsKey('pin')) pinController.text = results['pin']!;
-      if (results.containsKey('house'))
-        houseNameController.text = results['house']!;
-      if (results.containsKey('place'))
-        placeController.text = results['place']!;
-      if (results.containsKey('post')) postController.text = results['post']!;
-      if (results.containsKey('district'))
-        districtController.text = results['district']!;
+  try {
+    File file = File(pickedImage.path);
 
-      if (mounted) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Verify Details'),
-            content: const Text(
-                'Details have been auto-filled from the document. Please verify and correct if necessary.'),
-            actions: [
-              TextButton(
-                child: const Text('OK'),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      if (kDebugMode) print('OCR Error: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to parse document: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => isLoading = false);
+    // 🔥 AI SCAN HERE
+    Map<String, String> data = await _scanner.scan(file);
+
+    if (data["name"] != null && data["name"]!.isNotEmpty) {
+      fullNameController.text = data["name"]!;
     }
+
+    if (data["guardian"] != null && data["guardian"]!.isNotEmpty) {
+      guardianNameController.text = data["guardian"]!;
+    }
+
+    if (data["dob"] != null && data["dob"]!.isNotEmpty) {
+      // convert 12/08/2003 -> 12-08-2003
+      dobController.text =
+          data["dob"]!.replaceAll("/", "-");
+    }
+
+    if (data["house"] != null) {
+      houseNameController.text = data["house"]!;
+    }
+
+    if (data["place"] != null) {
+      placeController.text = data["place"]!;
+    }
+
+    if (data["post"] != null) {
+      postController.text = data["post"]!;
+    }
+
+    if (data["district"] != null) {
+      districtController.text = data["district"]!;
+    }
+
+    if (data["pin"] != null) {
+      pinController.text = data["pin"]!;
+    }
+
+    if (mounted) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Verify Details'),
+          content: const Text(
+              'Details were auto-filled using AI. Please verify and correct if needed.'),
+          actions: [
+            TextButton(
+              child: const Text('OK'),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      );
+    }
+  } catch (e) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('AI Scan failed: $e')),
+    );
+  } finally {
+    if (mounted) setState(() => isLoading = false);
   }
+}
 
   Future<String> uploadImage() async {
     if (_pickedFile == null) {
@@ -394,7 +414,6 @@ class CommonFormState extends State<CommonForm> {
     covController.dispose();
     otherServiceController.dispose();
     scrollController.dispose();
-    _ocrService.dispose();
     super.dispose();
   }
 
@@ -521,6 +540,7 @@ class CommonFormState extends State<CommonForm> {
             widget.showServiceType && _selectedItems.contains('Other')
                 ? otherServiceController.text
                 : null,
+        'image': uploadedImageUrl,
         'createdAt': widget.initialValues?['createdAt'] ??
             DateTime.now().millisecondsSinceEpoch,
       };

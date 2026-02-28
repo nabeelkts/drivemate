@@ -64,7 +64,7 @@ class _DeactivatedVehicleListState extends State<DeactivatedVehicleList> {
 
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _filteredVehicles(
       String query) {
-    return _allDeactivatedVehicles.where((doc) {
+    final filtered = _allDeactivatedVehicles.where((doc) {
       final data = doc.data();
       final vehicleNumber =
           data['vehicleNumber']?.toString().toLowerCase() ?? '';
@@ -73,6 +73,15 @@ class _DeactivatedVehicleListState extends State<DeactivatedVehicleList> {
       return vehicleNumber.contains(searchQuery) ||
           mobileNumber.contains(searchQuery);
     }).toList();
+
+    // Sort by newest to oldest (registrationDate)
+    filtered.sort((a, b) {
+      final aDate = a.data()['registrationDate'] as String? ?? '';
+      final bDate = b.data()['registrationDate'] as String? ?? '';
+      return bDate.compareTo(aDate);
+    });
+
+    return filtered;
   }
 
   @override
@@ -123,12 +132,14 @@ class _DeactivatedVehicleListState extends State<DeactivatedVehicleList> {
                     ? _filteredVehicles(_searchController.text)
                     : snapshot.data?.docs ?? [];
 
-                // Safely sort the documents
-                docs.sort((a, b) {
-                  final aNumber = a.data()['vehicleNumber']?.toString() ?? '';
-                  final bNumber = b.data()['vehicleNumber']?.toString() ?? '';
-                  return aNumber.compareTo(bNumber);
-                });
+                // Sort by newest to oldest (registrationDate) when not searching
+                if (_searchController.text.isEmpty) {
+                  docs.sort((a, b) {
+                    final aDate = a.data()['registrationDate'] as String? ?? '';
+                    final bDate = b.data()['registrationDate'] as String? ?? '';
+                    return bDate.compareTo(aDate);
+                  });
+                }
 
                 if (docs.isEmpty) {
                   return const Center(

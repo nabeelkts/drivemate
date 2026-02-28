@@ -51,6 +51,7 @@ class LicenseOnlyList extends StatelessWidget {
               'COV: ${data['cov'] ?? 'N/A'}\nMobile: ${data['mobileNumber'] ?? 'N/A'}',
           imageUrl: data['image'],
           isDark: isDark,
+          status: data['testStatus'],
           onTap: () {
             Navigator.push(
               context,
@@ -82,13 +83,32 @@ class LicenseOnlyList extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8.0),
+                child: Text(
+                  'Student Status',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
               ListTile(
-                leading: const Icon(Icons.check_circle_outline,
-                    color: kPrimaryColor),
-                title: const Text('Course Completed'),
+                leading: const Icon(Icons.check_circle, color: Colors.green),
+                title: const Text('Test Passed'),
                 onTap: () async {
                   Navigator.pop(context);
-                  _showDeleteConfirmationDialog(context, doc.id, doc.data());
+                  await _showStatusConfirmationDialog(
+                      context, doc.id, doc.data(), 'passed');
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.cancel, color: Colors.red),
+                title: const Text('Test Failed'),
+                onTap: () async {
+                  Navigator.pop(context);
+                  await _showStatusConfirmationDialog(
+                      context, doc.id, doc.data(), 'failed');
                 },
               ),
             ],
@@ -98,45 +118,71 @@ class LicenseOnlyList extends StatelessWidget {
     );
   }
 
-  Future<void> _deactivateLicense(
-      String licenseId, Map<String, dynamic> licenseData) async {
+  Future<void> _updateLicenseStatus(
+      String licenseId, Map<String, dynamic> licenseData, String status) async {
     final WorkspaceController workspaceController =
         Get.find<WorkspaceController>();
     final schoolId = workspaceController.currentSchoolId.value;
     final targetId = schoolId.isNotEmpty ? schoolId : userId;
 
     if (licenseId.isNotEmpty && licenseData.isNotEmpty) {
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('deactivated_licenseOnly')
-          .doc(licenseId)
-          .set(licenseData);
+      // Add status to license data
+      licenseData['testStatus'] = status;
+      licenseData['testDate'] = DateTime.now().toIso8601String();
 
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('licenseonly')
-          .doc(licenseId)
-          .delete();
+      if (status == 'passed') {
+        // Move to course completed (deactivated_licenseOnly)
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('deactivated_licenseOnly')
+            .doc(licenseId)
+            .set(licenseData);
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('licenseonly')
+            .doc(licenseId)
+            .delete();
+      } else {
+        // Just update the status in place for failed
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('licenseonly')
+            .doc(licenseId)
+            .update({
+          'testStatus': status,
+          'testDate': DateTime.now().toIso8601String(),
+        });
+      }
     }
   }
 
-  Future<void> _showDeleteConfirmationDialog(BuildContext context,
-      String documentId, Map<String, dynamic> licenseData) async {
+  Future<void> _showStatusConfirmationDialog(
+      BuildContext context,
+      String documentId,
+      Map<String, dynamic> licenseData,
+      String status) async {
+    final isPassed = status == 'passed';
     showCustomConfirmationDialog(
       context,
-      'Confirm Course Completion',
-      'Are you sure ?',
+      isPassed ? 'Confirm Test Passed' : 'Confirm Test Failed',
+      isPassed
+          ? 'Are you sure the student passed the test? This will move them to Course Completed.'
+          : 'Are you sure the student failed the test? A failed badge will be shown.',
       () async {
-        await _deactivateLicense(documentId, licenseData);
+        await _updateLicenseStatus(documentId, licenseData, status);
         Navigator.of(context).pop();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const DeactivatedLicenseOnlyList(),
-          ),
-        );
+        if (isPassed) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DeactivatedLicenseOnlyList(),
+            ),
+          );
+        }
       },
     );
   }

@@ -291,7 +291,9 @@ class _EditEndorsementDetailsFormState
 
     final schoolId = workspaceController.currentSchoolId.value;
     final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
-
+     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     // Get the index, defaulting to 0 if not found
     final int selectedIndex =
         widget.items.contains(widget.initialValues['cov'] ?? '')
@@ -304,7 +306,7 @@ class _EditEndorsementDetailsFormState
       actions: [
         IconButton(
           onPressed: () => formKey.currentState?.submitForm(),
-          icon: const Icon(Icons.check, color: Colors.white),
+          icon:  Icon(Icons.check, color: subTextColor),
         ),
       ],
       children: [

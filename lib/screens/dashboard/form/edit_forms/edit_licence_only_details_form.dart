@@ -193,14 +193,16 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
 
     final schoolId = workspaceController.currentSchoolId.value;
     final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
-
+     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     return BaseFormWidget(
       title: 'Edit License Only Details',
       onBack: () => Navigator.pop(context),
       actions: [
         IconButton(
           onPressed: () => formKey.currentState?.submitForm(),
-          icon: const Icon(Icons.check, color: Colors.white),
+          icon:  Icon(Icons.check, color: subTextColor),
         ),
       ],
       children: [
