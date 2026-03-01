@@ -6,7 +6,7 @@ import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/dashboard/list/widgets/search_widget.dart';
+import 'package:mds/screens/dashboard/list/widgets/animated_search_widget.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'package:mds/screens/dashboard/list/widgets/summary_header.dart';
 
@@ -16,6 +16,7 @@ class BaseListWidget extends StatefulWidget {
   final String title;
   final String collectionName;
   final String searchField;
+  final String? secondarySearchField; // New field for mobile number search
   final Widget Function(
       BuildContext, QueryDocumentSnapshot<Map<String, dynamic>>) itemBuilder;
   final VoidCallback? onAddNew;
@@ -27,6 +28,7 @@ class BaseListWidget extends StatefulWidget {
     required this.title,
     required this.collectionName,
     required this.searchField,
+    this.secondarySearchField, // Make it optional
     required this.itemBuilder,
     this.onAddNew,
     this.onViewDeactivated,
@@ -95,9 +97,24 @@ class _BaseListWidgetState extends State<BaseListWidget> {
         _filteredItems = _allItems;
       } else {
         _filteredItems = _allItems.where((doc) {
-          final fieldValue =
+          final primaryFieldValue =
               doc.data()[widget.searchField]?.toString().toLowerCase() ?? '';
-          return fieldValue.contains(query.toLowerCase());
+          final matchesPrimary =
+              primaryFieldValue.contains(query.toLowerCase());
+
+          // Check secondary field if provided
+          bool matchesSecondary = false;
+          if (widget.secondarySearchField != null) {
+            final secondaryFieldValue = doc
+                    .data()[widget.secondarySearchField]
+                    ?.toString()
+                    .toLowerCase() ??
+                '';
+            matchesSecondary =
+                secondaryFieldValue.contains(query.toLowerCase());
+          }
+
+          return matchesPrimary || matchesSecondary;
         }).toList();
       }
       _sortItems();
@@ -261,8 +278,11 @@ class _BaseListWidgetState extends State<BaseListWidget> {
             },
           ),
 
-          SearchWidget(
-            placeholder: 'Search by ${widget.searchField}',
+          AnimatedSearchWidget(
+            primaryPlaceholder: 'Search by ${widget.searchField}',
+            secondaryPlaceholder: widget.secondarySearchField != null
+                ? 'Search by ${widget.secondarySearchField}'
+                : 'Search by ${widget.searchField}',
             controller: _searchController,
             onChanged: _filterItems,
           ),

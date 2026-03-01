@@ -1189,6 +1189,11 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         studentDetails['additionalInfo'] as Map<String, dynamic>?;
     final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
 
+    // Determine the correct collection based on student status
+    final isDeactivated = studentDetails['status'] == 'passed' ||
+        studentDetails['deactivated'] == true;
+    final collectionName = isDeactivated ? 'deactivated_students' : 'students';
+
     return IconButton(
       icon: Icon(
         hasData ? Icons.info : Icons.info_outline,
@@ -1198,7 +1203,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         final result = await showAdditionalInfoSheet(
           context: context,
           type: AdditionalInfoType.student,
-          collection: 'students',
+          collection: collectionName,
           documentId: _docId,
           existingData: additionalInfo,
         );

@@ -75,11 +75,12 @@ class _EditDlServiceFormState extends State<EditDlServiceForm> {
         initialValues: widget.initialValues,
         onFormSubmit: (serviceData) async {
           try {
-            await usersCollection
-                .doc(targetId)
-                .collection('dl_services')
-                .doc(serviceData['studentId'])
-                .update(serviceData);
+            // Use the WorkspaceController to handle collection separation based on status
+            await workspaceController.updateDocumentWithStatus(
+              'dl_services',
+              serviceData['studentId'],
+              serviceData,
+            );
 
             Fluttertoast.showToast(
               msg: 'Service Details Updated Successfully',

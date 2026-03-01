@@ -104,10 +104,28 @@ class _UrgentTasksListPageState extends State<UrgentTasksListPage>
           ? 'users/$schoolId'
           : 'users/${FirebaseAuth.instance.currentUser?.uid ?? ''}';
 
-      // Fetch full document from Firestore with correct path
-      final doc = await FirebaseFirestore.instance
+      // Try to fetch from the collection specified in the task first
+      // This is the actual collection where the document was found
+      var doc = await FirebaseFirestore.instance
           .doc('$basePath/${task.collection}/${task.documentId}')
           .get();
+
+      // If not found in the specified collection, try the opposite (active/deactivated)
+      if (!doc.exists) {
+        String alternateCollection;
+        if (task.collection.startsWith('deactivated_')) {
+          // If it was in a deactivated collection, try the active one
+          alternateCollection =
+              task.collection.substring(12); // Remove 'deactivated_' prefix
+        } else {
+          // If it was in an active collection, try the deactivated one
+          alternateCollection = 'deactivated_${task.collection}';
+        }
+
+        doc = await FirebaseFirestore.instance
+            .doc('$basePath/$alternateCollection/${task.documentId}')
+            .get();
+      }
 
       if (!doc.exists) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -121,7 +139,14 @@ class _UrgentTasksListPageState extends State<UrgentTasksListPage>
 
       Widget? detailPage;
 
-      switch (task.collection) {
+      // Handle both active and deactivated collection names
+      String collectionType = task.collection;
+      if (collectionType.startsWith('deactivated_')) {
+        collectionType =
+            collectionType.substring(12); // Remove 'deactivated_' prefix
+      }
+
+      switch (collectionType) {
         case 'students':
           detailPage = StudentDetailsPage(studentDetails: data);
           break;
@@ -154,6 +179,7 @@ class _UrgentTasksListPageState extends State<UrgentTasksListPage>
         }
       }
     } catch (e) {
+      print('Navigation error: $e'); // Print to console for debugging
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error opening details: $e')),
       );

@@ -3,6 +3,17 @@ import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:flutter/services.dart';
 import 'package:mds/constants/colors.dart';
 
+class UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+      TextEditingValue oldValue, TextEditingValue newValue) {
+    return TextEditingValue(
+      text: newValue.text.toUpperCase(),
+      selection: newValue.selection,
+    );
+  }
+}
+
 class BaseFormWidget extends StatelessWidget {
   final String title;
   final List<Widget> children;
@@ -110,6 +121,7 @@ class FormTextField extends StatelessWidget {
   final int maxLines;
   final String? Function(String?)? validator;
   final void Function(String)? onChanged;
+  final bool forceUppercase;
 
   const FormTextField({
     required this.label,
@@ -121,6 +133,7 @@ class FormTextField extends StatelessWidget {
     this.maxLines = 1,
     this.validator,
     this.onChanged,
+    this.forceUppercase = false,
     super.key,
   });
 
@@ -142,7 +155,15 @@ class FormTextField extends StatelessWidget {
       actualKeyboardType = TextInputType.number;
       formatters.add(LengthLimitingTextInputFormatter(6));
     } else if (actualKeyboardType == TextInputType.text) {
-      capitalization = TextCapitalization.words;
+      if (forceUppercase) {
+        capitalization =
+            TextCapitalization.sentences; // Will be overridden by formatter
+        formatters.add(UpperCaseTextFormatter());
+      } else {
+        capitalization = TextCapitalization.words;
+      }
+    } else if (forceUppercase) {
+      formatters.add(UpperCaseTextFormatter());
     }
 
     final theme = Theme.of(context);

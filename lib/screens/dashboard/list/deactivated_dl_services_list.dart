@@ -7,6 +7,7 @@ import 'package:mds/screens/widget/base_list_widget.dart';
 import 'package:mds/screens/profile/dialog_box.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:math' as math;
 
 class DeactivatedDlServicesList extends StatelessWidget {
   const DeactivatedDlServicesList({super.key});
@@ -23,6 +24,7 @@ class DeactivatedDlServicesList extends StatelessWidget {
       title: 'Completed DL Services',
       collectionName: 'deactivated_dl_services',
       searchField: 'fullName',
+      secondarySearchField: 'mobileNumber', // Add mobile number search
       // No add button for deactivated list
       itemBuilder: (context, doc) {
         final data = doc.data();

@@ -24,7 +24,8 @@ class LicenseOnlyList extends StatelessWidget {
     return BaseListWidget(
       title: 'License Only List',
       collectionName: 'licenseonly',
-      searchField: 'fullName',
+      searchField: 'Name',
+      secondarySearchField: 'Mobile Number', // Add mobile number search
       addButtonText: 'Create New License Only',
       onAddNew: () {
         Navigator.push(

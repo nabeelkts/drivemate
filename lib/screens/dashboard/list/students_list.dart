@@ -1,6 +1,5 @@
-// ignore_for_file: use_build_context_synchronously, use_super_parameters
-
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -16,7 +15,7 @@ import 'package:mds/screens/dashboard/form/edit_forms/edit_student_details_form.
 import 'package:mds/screens/dashboard/form/new_forms/new_student_form.dart';
 import 'package:mds/screens/dashboard/list/deactivated_student_list.dart';
 import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
-import 'package:mds/screens/dashboard/list/widgets/search_widget.dart';
+import 'package:mds/screens/dashboard/list/widgets/animated_search_widget.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'package:mds/screens/dashboard/list/widgets/summary_header.dart';
 import 'package:mds/screens/dashboard/list/widgets/list_item_card.dart';
@@ -54,8 +53,19 @@ class _StudentListState extends State<StudentList> {
       if (mounted) {
         _userStreamController.add(snapshot);
         setState(() {
-          _allStudents = snapshot.docs;
+          // Filter out documents that don't have required fields
+          _allStudents = snapshot.docs.where((doc) {
+            // Only include documents with basic required fields
+            final data = doc.data();
+            return data.containsKey('fullName') ||
+                data.containsKey('name') ||
+                data.containsKey('mobileNumber');
+          }).toList();
         });
+      }
+    }, onError: (error) {
+      if (mounted) {
+        print('Firestore error in student list: $error');
       }
     });
   }
@@ -69,11 +79,17 @@ class _StudentListState extends State<StudentList> {
 
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _filteredStudents(
       String query) {
-    final filtered = _allStudents
-        .where((doc) =>
-            doc['fullName'].toLowerCase().contains(query.toLowerCase()) ||
-            doc['mobileNumber'].toLowerCase().contains(query.toLowerCase()))
-        .toList();
+    final filtered = _allStudents.where((doc) {
+      // Check for both possible field names
+      final fullName = doc['fullName']?.toString().toLowerCase() ??
+          doc['name']?.toString().toLowerCase() ??
+          '';
+      final mobileNumber = doc['mobileNumber']?.toString().toLowerCase() ?? '';
+      final searchQuery = query.toLowerCase();
+
+      return fullName.contains(searchQuery) ||
+          mobileNumber.contains(searchQuery);
+    }).toList();
 
     // Sort by newest to oldest (registrationDate)
     filtered.sort((a, b) {
@@ -141,8 +157,9 @@ class _StudentListState extends State<StudentList> {
             },
           ),
 
-          SearchWidget(
-            placeholder: 'Search by Name or Mobile Number',
+          AnimatedSearchWidget(
+            primaryPlaceholder: 'Search by Name',
+            secondaryPlaceholder: 'Search by Mobile Number',
             controller: _searchController,
             onChanged: (value) {
               setState(() {});
@@ -196,7 +213,7 @@ class _StudentListState extends State<StudentList> {
                   itemBuilder: (context, index) {
                     final data = docs[index].data();
                     return ListItemCard(
-                      title: data['fullName'] ?? 'N/A',
+                      title: data['fullName'] ?? data['name'] ?? 'N/A',
                       subTitle:
                           'COV: ${data['cov'] ?? 'N/A'}\nMobile: ${data['mobileNumber'] ?? 'N/A'}',
                       imageUrl: data['image'],

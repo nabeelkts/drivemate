@@ -8,6 +8,8 @@ import 'package:get/get.dart';
 import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:mds/screens/dashboard/list/widgets/animated_search_widget.dart';
+import 'package:mds/screens/dashboard/list/widgets/list_item_card.dart';
 
 class TestDateUpdaterScreen extends StatefulWidget {
   const TestDateUpdaterScreen({super.key});
@@ -54,8 +56,10 @@ class _TestDateUpdaterScreenState extends State<TestDateUpdaterScreen> {
             ...map,
             'docId': doc.id,
             'collection': col,
-            'fullName': map['fullName'] ?? 'N/A',
+            'fullName': map['fullName'] ?? map['name'] ?? 'N/A',
+            'mobileNumber': map['mobileNumber'] ?? 'N/A',
             'studentId': map['studentId'] ?? 'N/A',
+            'image': map['image'],
           };
         }).toList();
 
@@ -86,9 +90,9 @@ class _TestDateUpdaterScreenState extends State<TestDateUpdaterScreen> {
     final lowercaseQuery = query.toLowerCase();
     setState(() {
       _filteredResults = _allData.where((item) {
-        final name = item['fullName'].toString().toLowerCase();
-        final id = item['studentId'].toString().toLowerCase();
-        return name.contains(lowercaseQuery) || id.contains(lowercaseQuery);
+        final name = (item['fullName'] ?? '').toString().toLowerCase();
+        final mobile = (item['mobileNumber'] ?? '').toString().toLowerCase();
+        return name.contains(lowercaseQuery) || mobile.contains(lowercaseQuery);
       }).toList();
     });
   }
@@ -103,24 +107,12 @@ class _TestDateUpdaterScreenState extends State<TestDateUpdaterScreen> {
         title: const Text('Update Test Dates'),
         leading: const CustomBackButton(),
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(60),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: TextField(
-              controller: _searchController,
-              onChanged: _filterResults,
-              decoration: InputDecoration(
-                hintText: 'Search by Name or ID...',
-                prefixIcon: const Icon(IconlyLight.search),
-                filled: true,
-                fillColor: isDark ? Colors.grey[900] : Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(vertical: 0),
-              ),
-            ),
+          preferredSize: const Size.fromHeight(70),
+          child: AnimatedSearchWidget(
+            primaryPlaceholder: 'Search by Name',
+            secondaryPlaceholder: 'Search by Mobile Number',
+            controller: _searchController,
+            onChanged: _filterResults,
           ),
         ),
       ),
@@ -141,62 +133,29 @@ class _TestDateUpdaterScreenState extends State<TestDateUpdaterScreen> {
 
   Widget _buildStudentTile(BuildContext context, Map<String, dynamic> item) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color textColor = isDark ? Colors.white : Colors.black;
-    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
 
     final llDate =
         AppDateUtils.formatDateForDisplay(item['learnersTestDate']?.toString());
     final dlDate =
         AppDateUtils.formatDateForDisplay(item['drivingTestDate']?.toString());
 
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      elevation: 2,
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        title: Text(item['fullName'],
-            style: TextStyle(fontWeight: FontWeight.bold, color: textColor)),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-                'ID: ${item['studentId']} | ${item['collection'].toUpperCase()}',
-                style: TextStyle(color: subTextColor, fontSize: 12)),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                _buildDateBadge('LL: ${llDate.isNotEmpty ? llDate : "N/A"}',
-                    llDate.isNotEmpty),
-                const SizedBox(width: 8),
-                _buildDateBadge('DL: ${dlDate.isNotEmpty ? dlDate : "N/A"}',
-                    dlDate.isNotEmpty),
-              ],
-            ),
-          ],
-        ),
-        trailing: Icon(IconlyLight.edit, color: Theme.of(context).primaryColor),
-        onTap: () => _showUpdateDialog(context, item),
-      ),
-    );
-  }
+    // Create subtitle with collection and mobile number on first line, test dates on second line
+    final collectionName =
+        item['collection']?.toString().toUpperCase() ?? 'N/A';
+    final mobileNumber = item['mobileNumber'] ?? 'N/A';
+    final testInfo =
+        'LL: ${llDate.isNotEmpty ? llDate : "N/A"} | DL: ${dlDate.isNotEmpty ? dlDate : "N/A"}';
 
-  Widget _buildDateBadge(String text, bool hasDate) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: hasDate
-            ? Colors.green.withOpacity(0.1)
-            : Colors.grey.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
-        border:
-            Border.all(color: hasDate ? Colors.green : Colors.grey, width: 0.5),
-      ),
-      child: Text(text,
-          style: TextStyle(
-              fontSize: 10,
-              color: hasDate ? Colors.green : Colors.grey,
-              fontWeight: FontWeight.bold)),
+    final subTitle = '$collectionName | $mobileNumber\n$testInfo';
+
+    return ListItemCard(
+      title: item['fullName'] ?? 'N/A',
+      subTitle: subTitle,
+      imageUrl: item['image'],
+      isDark: isDark,
+      status: null, // No status badge needed
+      onTap: () => _showUpdateDialog(context, item),
+      onMenuPressed: () => _showUpdateDialog(context, item),
     );
   }
 

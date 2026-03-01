@@ -8,6 +8,7 @@ import 'package:mds/screens/dashboard/list/widgets/list_item_card.dart';
 import 'package:mds/screens/widget/base_list_widget.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
+import 'dart:math' as math;
 
 class DeactivatedVehicleDetailsList extends StatelessWidget {
   const DeactivatedVehicleDetailsList({super.key});
@@ -18,6 +19,7 @@ class DeactivatedVehicleDetailsList extends StatelessWidget {
       title: 'Services Completed Vehicles',
       collectionName: 'deactivated_vehicleDetails',
       searchField: 'fullName',
+      secondarySearchField: 'mobileNumber', // Add mobile number search
       onAddNew: null,
       onViewDeactivated: null,
       itemBuilder: (context, doc) {

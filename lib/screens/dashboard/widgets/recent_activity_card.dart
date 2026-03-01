@@ -216,7 +216,7 @@ class RecentActivityCard extends StatelessWidget {
                   physics: const NeverScrollableScrollPhysics(),
                   itemCount: activities.length > 2 ? 2 : activities.length,
                   separatorBuilder: (context, index) =>
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 24),
                   itemBuilder: (context, index) {
                     final activity = activities[index];
                     return _ActivityRow(

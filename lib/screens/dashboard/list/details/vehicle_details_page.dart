@@ -24,6 +24,8 @@ import 'package:mds/utils/loading_utils.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mds/widgets/additional_info_sheet.dart';
+import 'package:mds/services/additional_info_service.dart';
 
 class VehicleDetailsPage extends StatefulWidget {
   final Map<String, dynamic> vehicleDetails;
@@ -42,10 +44,49 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
       Get.find<WorkspaceController>();
   bool _isTransactionHistoryExpanded = false;
 
+  late final String _docId = (widget.vehicleDetails['studentId'] ??
+          widget.vehicleDetails['id'] ??
+          widget.vehicleDetails['recordId'])
+      .toString();
+
   @override
   void initState() {
     super.initState();
     vehicleDetails = Map.from(widget.vehicleDetails);
+  }
+
+  // ── Additional Info button for AppBar ──────────────────────────────────────
+
+  Widget _buildAdditionalInfoButton() {
+    final additionalInfo =
+        vehicleDetails['additionalInfo'] as Map<String, dynamic>?;
+    final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
+
+    // Determine the correct collection based on record status
+    final isDeactivated = vehicleDetails['status'] == 'passed' ||
+        vehicleDetails['deactivated'] == true;
+    final collectionName =
+        isDeactivated ? 'deactivated_vehicleDetails' : 'vehicleDetails';
+
+    return IconButton(
+      icon: Icon(
+        hasData ? Icons.info : Icons.info_outline,
+        color: hasData ? kPrimaryColor : Colors.grey,
+      ),
+      onPressed: () async {
+        final result = await showAdditionalInfoSheet(
+          context: context,
+          type: AdditionalInfoType.rcService,
+          collection: collectionName,
+          documentId: _docId,
+          existingData: additionalInfo,
+        );
+        if (result == true) {
+          setState(() {});
+        }
+      },
+      tooltip: 'Additional Information',
+    );
   }
 
   @override
@@ -69,6 +110,7 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
           title: 'Vehicle Details',
           onBack: () => Navigator.pop(context),
           actions: [
+            _buildAdditionalInfoButton(),
             IconButton(
               icon: const Icon(Icons.picture_as_pdf, color: kPrimaryColor),
               onPressed: () => _shareVehicleDetails(context),

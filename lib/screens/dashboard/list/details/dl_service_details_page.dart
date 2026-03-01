@@ -182,6 +182,12 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
         serviceDetails['additionalInfo'] as Map<String, dynamic>?;
     final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
 
+    // Determine the correct collection based on record status
+    final isDeactivated = serviceDetails['status'] == 'passed' ||
+        serviceDetails['deactivated'] == true;
+    final collectionName =
+        isDeactivated ? 'deactivated_dl_services' : 'dl_services';
+
     return IconButton(
       icon: Icon(
         hasData ? Icons.info : Icons.info_outline,
@@ -191,7 +197,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
         final result = await showAdditionalInfoSheet(
           context: context,
           type: AdditionalInfoType.dlService,
-          collection: 'dl_services',
+          collection: collectionName,
           documentId: _docId,
           existingData: additionalInfo,
         );

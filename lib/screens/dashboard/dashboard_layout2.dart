@@ -68,9 +68,9 @@ class DashboardLayout2 extends StatelessWidget {
                             textColor, targetId),
                       ],
                       const SizedBox(height: 12),
-                      _buildRevenue(context, workspaceController, isDark,
-                          textColor, targetId),
-                      const SizedBox(height: 12),
+                      // _buildRevenue(context, workspaceController, isDark,
+                      //     textColor, targetId),
+                      // const SizedBox(height: 12),
                       _buildRecentActivity(context, workspaceController, isDark,
                           textColor, targetId),
                       const SizedBox(height: 12),
@@ -806,7 +806,7 @@ class DashboardLayout2 extends StatelessWidget {
         .doc(targetId)
         .collection('recentActivity')
         .orderBy('timestamp', descending: true)
-        .limit(20); // Increased limit to allow for client-side filtering
+        .limit(2); // Limit to 2 most recent activities
 
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: query.snapshots(),
@@ -818,7 +818,7 @@ class DashboardLayout2 extends StatelessWidget {
 
           if (isOrg || branchId.isEmpty) {
             // In org mode or no branch selected, show all activities
-            activities = allActivities.take(5).toList();
+            activities = allActivities.take(2).toList();
           } else {
             // In branch mode, filter by branchId or include records without branchId
             activities = allActivities
@@ -829,7 +829,7 @@ class DashboardLayout2 extends StatelessWidget {
                       activityBranchId == null ||
                       activityBranchId == '';
                 })
-                .take(5)
+                .take(2)
                 .toList();
           }
         }
@@ -839,14 +839,79 @@ class DashboardLayout2 extends StatelessWidget {
     );
   }
 
-  Widget _buildActivityCard(
-    BuildContext context,
-    WorkspaceController controller,
-    bool isDark,
-    Color textColor,
-    List<Map<String, dynamic>> activities,
-  ) {
+  Widget _buildActivityRow(Map<String, dynamic> activity, Color textColor,
+      WorkspaceController controller) {
     final isOrg = controller.isOrganizationMode.value;
+    final name = _extractName(
+        activity['details'] ?? '', activity['title'] ?? 'Activity');
+    final title = activity['title'] ?? 'Activity';
+
+    return Row(
+      children: [
+        CircleAvatar(
+          radius: 20,
+          backgroundColor: Colors.blueGrey.shade700,
+          backgroundImage: (activity['imageUrl'] != null &&
+                  activity['imageUrl'].toString().isNotEmpty)
+              ? CachedNetworkImageProvider(activity['imageUrl'])
+              : null,
+          child: (activity['imageUrl'] == null ||
+                  activity['imageUrl'].toString().isEmpty)
+              ? Text(
+                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                )
+              : null,
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Text(
+                isOrg && activity['branchName'] != null
+                    ? '${activity['branchName']} • $title'
+                    : title,
+                style: TextStyle(
+                  color: textColor.withOpacity(0.6),
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          width: 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: Colors.green,
+            shape: BoxShape.circle,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildActivityCard(
+      BuildContext context,
+      WorkspaceController controller,
+      bool isDark,
+      Color textColor,
+      List<Map<String, dynamic>> activities) {
+    final isOrg = controller.isOrganizationMode.value;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -909,67 +974,14 @@ class DashboardLayout2 extends StatelessWidget {
               ),
             )
           else
-            ...activities.map((activity) {
-              final name = _extractName(
-                  activity['details'] ?? '', activity['title'] ?? 'Activity');
-              final title = activity['title'] ?? 'Activity';
-              return Row(
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Colors.blueGrey.shade700,
-                    backgroundImage: (activity['imageUrl'] != null &&
-                            activity['imageUrl'].toString().isNotEmpty)
-                        ? CachedNetworkImageProvider(activity['imageUrl'])
-                        : null,
-                    child: (activity['imageUrl'] == null ||
-                            activity['imageUrl'].toString().isEmpty)
-                        ? Text(
-                            name.isNotEmpty ? name[0].toUpperCase() : '?',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          )
-                        : null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          name,
-                          style: TextStyle(
-                            color: textColor,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          isOrg && activity['branchName'] != null
-                              ? '${activity['branchName']} • $title'
-                              : title,
-                          style: TextStyle(
-                            color: textColor.withOpacity(0.6),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: Colors.green,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
+            Column(
+              children: [
+                for (var i = 0; i < activities.length; i++) ...[
+                  if (i > 0) const SizedBox(height:16 ),
+                  _buildActivityRow(activities[i], textColor, controller),
                 ],
-              );
-            }),
+              ],
+            )
         ],
       ),
     );
@@ -1288,63 +1300,30 @@ class _TodayScheduleWidgetState extends State<_TodayScheduleWidget> {
               ),
             ),
             const SizedBox(height: 4),
-            Text(
-              _learnersCount == 0 && _drivingCount == 0
-                  ? 'No sessions today'
-                  : '${_learnersCount > 0 ? '$_learnersCount LL' : ''}${_learnersCount > 0 && _drivingCount > 0 ? ', ' : ''}${_drivingCount > 0 ? '$_drivingCount DL' : ''} test${(_learnersCount + _drivingCount) > 1 ? 's' : ''} today',
-              style: TextStyle(
-                color: widget.textColor.withOpacity(0.5),
-                fontSize: 12,
-              ),
-            ),
-            const SizedBox(height: 10),
-            if (displayItems.isEmpty)
-              Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Center(
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
                   child: Text(
-                    'No sessions scheduled',
+                    _learnersCount + _drivingCount == 0
+                        ? 'No sessions today'
+                        : '${_learnersCount + _drivingCount} session${(_learnersCount + _drivingCount) != 1 ? 's' : ''} scheduled',
                     style: TextStyle(
-                      color: widget.textColor.withOpacity(0.4),
-                      fontSize: 13,
+                      color: widget.textColor.withOpacity(0.8),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              )
-            else
-              ...displayItems.map((item) => Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          decoration: BoxDecoration(
-                            color: kOrange,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            '${item['name']} — ${item['role']}',
-                            style: TextStyle(
-                              color: widget.textColor,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          item['time'] as String,
-                          style: TextStyle(
-                            color: widget.textColor.withOpacity(0.6),
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )),
+                Icon(
+                  Icons.chevron_right,
+                  color: widget.textColor.withOpacity(0.3),
+                  size: 20,
+                ),
+              ],
+            ),
           ],
         ),
       ),

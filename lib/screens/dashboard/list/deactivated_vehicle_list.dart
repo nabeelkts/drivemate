@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -9,7 +10,7 @@ import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:mds/screens/dashboard/list/details/rc_details_page.dart';
-import 'package:mds/screens/dashboard/list/widgets/search_widget.dart';
+import 'package:mds/screens/dashboard/list/widgets/animated_search_widget.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'package:mds/screens/dashboard/list/widgets/list_item_card.dart';
 import 'package:mds/screens/profile/dialog_box.dart';
@@ -103,8 +104,9 @@ class _DeactivatedVehicleListState extends State<DeactivatedVehicleList> {
       ),
       body: Column(
         children: [
-          SearchWidget(
-            placeholder: 'Search by Vehicle Number or Mobile Number',
+          AnimatedSearchWidget(
+            primaryPlaceholder: 'Search by Vehicle Number',
+            secondaryPlaceholder: 'Search by Mobile Number',
             controller: _searchController,
             onChanged: (value) {
               setState(() {});

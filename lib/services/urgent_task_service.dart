@@ -57,107 +57,148 @@ class UrgentTaskService {
 
     try {
       final basePath = _getBasePath(userId, schoolId);
-      Query query = _firestore.collection('$basePath/$collection');
 
-      // Apply workspace filters
-      if (schoolId.isEmpty && branchId.isNotEmpty) {
-        query = query.where('branchId', isEqualTo: branchId);
-      }
+      // Fetch from both active and deactivated collections
+      final collectionsToCheck = [collection, 'deactivated_$collection'];
 
-      final snapshot = await query.get();
+      for (final col in collectionsToCheck) {
+        Query query = _firestore.collection('$basePath/$col');
 
-      for (var doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final additionalInfo = data['additionalInfo'] as Map<String, dynamic>?;
-        print(
-            'URGENT TASK DEBUG: Doc ${doc.id}, additionalInfo: $additionalInfo');
-        if (additionalInfo == null) continue;
+        // Apply workspace filters
+        if (schoolId.isEmpty && branchId.isNotEmpty) {
+          query = query.where('branchId', isEqualTo: branchId);
+        }
 
-        final docId = doc.id;
-        final name = data['fullName'] ?? data['name'] ?? 'Unknown';
-        final photoUrl =
-            data['image'] as String? ?? data['photoUrl'] as String?;
+        final snapshot = await query.get();
 
-        // Check collection type and extract relevant expiry fields
-        if (collection == 'students' ||
-            collection == 'licenseonly' ||
-            collection == 'endorsement') {
-          // Check learners license expiry
-          final learnersExpiry =
-              _parseDate(additionalInfo['learnersLicenseExpiry']);
-          if (_isUrgent(learnersExpiry)) {
-            tasks.add(UrgentTaskModel(
-              id: '${docId}_learners',
-              name: name,
-              photoUrl: photoUrl,
-              expiryType: ExpiryTypes.learnersLicense,
-              expiryDate: additionalInfo['learnersLicenseExpiry'] ?? '',
-              expiryDateTime: learnersExpiry!,
-              collection: collection,
-              documentId: docId,
-              daysRemaining: _calculateDaysRemaining(learnersExpiry),
-            ));
-          }
+        for (var doc in snapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final additionalInfo =
+              data['additionalInfo'] as Map<String, dynamic>?;
+          print(
+              'URGENT TASK DEBUG: Doc ${doc.id}, collection: $col, additionalInfo: $additionalInfo');
+          if (additionalInfo == null) continue;
 
-          // Check driving license expiry
-          final drivingExpiry =
-              _parseDate(additionalInfo['drivingLicenseExpiry']);
-          if (_isUrgent(drivingExpiry)) {
-            tasks.add(UrgentTaskModel(
-              id: '${docId}_driving',
-              name: name,
-              photoUrl: photoUrl,
-              expiryType: ExpiryTypes.drivingLicense,
-              expiryDate: additionalInfo['drivingLicenseExpiry'] ?? '',
-              expiryDateTime: drivingExpiry!,
-              collection: collection,
-              documentId: docId,
-              daysRemaining: _calculateDaysRemaining(drivingExpiry),
-            ));
-          }
-        } else if (collection == 'dl_services') {
-          // Check license expiry
-          final licenseExpiry = _parseDate(additionalInfo['licenseExpiry']);
-          if (_isUrgent(licenseExpiry)) {
-            tasks.add(UrgentTaskModel(
-              id: '${docId}_license',
-              name: name,
-              photoUrl: photoUrl,
-              expiryType: ExpiryTypes.license,
-              expiryDate: additionalInfo['licenseExpiry'] ?? '',
-              expiryDateTime: licenseExpiry!,
-              collection: collection,
-              documentId: docId,
-              daysRemaining: _calculateDaysRemaining(licenseExpiry),
-            ));
-          }
-        } else if (collection == 'vehicleDetails') {
-          // Check all RC service expiries
-          final expiries = [
-            {
-              'field': 'registrationRenewalOrFitnessExpiry',
-              'type': ExpiryTypes.registrationFitness
-            },
-            {'field': 'insuranceExpiry', 'type': ExpiryTypes.insurance},
-            {'field': 'taxExpiry', 'type': ExpiryTypes.tax},
-            {'field': 'pollutionExpiry', 'type': ExpiryTypes.pollution},
-            {'field': 'permitExpiry', 'type': ExpiryTypes.permit},
-          ];
+          // Check if student has passed (course completed) or is deactivated
+          final status = data['status'] as String?;
+          final deactivated = data['deactivated'] as bool?;
+          final isPassed = status == 'passed' || deactivated == true;
 
-          for (var expiry in expiries) {
-            final date = _parseDate(additionalInfo[expiry['field']]);
-            if (_isUrgent(date)) {
+          final docId = doc.id;
+          final name = data['fullName'] ?? data['name'] ?? 'Unknown';
+          final photoUrl =
+              data['image'] as String? ?? data['photoUrl'] as String?;
+
+          // Check collection type and extract relevant expiry fields
+          if (collection == 'students' ||
+              collection == 'licenseonly' ||
+              collection == 'endorsement') {
+            // For active students (in non-deactivated collections): show ALL expiries
+            if (!col.startsWith('deactivated_')) {
+              // Show learners license expiry for active students
+              final learnersExpiry =
+                  _parseDate(additionalInfo['learnersLicenseExpiry']);
+              if (_isUrgent(learnersExpiry)) {
+                tasks.add(UrgentTaskModel(
+                  id: '${docId}_learners',
+                  name: name,
+                  photoUrl: photoUrl,
+                  expiryType: ExpiryTypes.learnersLicense,
+                  expiryDate: additionalInfo['learnersLicenseExpiry'] ?? '',
+                  expiryDateTime: learnersExpiry!,
+                  collection:
+                      col, // Use the actual collection where the doc was found
+                  documentId: docId,
+                  daysRemaining: _calculateDaysRemaining(learnersExpiry),
+                ));
+              }
+
+              // Show driving license expiry for active students
+              final drivingExpiry =
+                  _parseDate(additionalInfo['drivingLicenseExpiry']);
+              if (_isUrgent(drivingExpiry)) {
+                tasks.add(UrgentTaskModel(
+                  id: '${docId}_driving',
+                  name: name,
+                  photoUrl: photoUrl,
+                  expiryType: ExpiryTypes.drivingLicense,
+                  expiryDate: additionalInfo['drivingLicenseExpiry'] ?? '',
+                  expiryDateTime: drivingExpiry!,
+                  collection:
+                      col, // Use the actual collection where the doc was found
+                  documentId: docId,
+                  daysRemaining: _calculateDaysRemaining(drivingExpiry),
+                ));
+              }
+            }
+            // For deactivated students (in deactivated collections): show only driving license expiry
+            else {
+              // DO NOT show learners license expiry for deactivated students
+
+              // Show driving license expiry for deactivated students
+              final drivingExpiry =
+                  _parseDate(additionalInfo['drivingLicenseExpiry']);
+              if (_isUrgent(drivingExpiry)) {
+                tasks.add(UrgentTaskModel(
+                  id: '${docId}_driving',
+                  name: name,
+                  photoUrl: photoUrl,
+                  expiryType: ExpiryTypes.drivingLicense,
+                  expiryDate: additionalInfo['drivingLicenseExpiry'] ?? '',
+                  expiryDateTime: drivingExpiry!,
+                  collection:
+                      col, // Use the actual collection where the doc was found
+                  documentId: docId,
+                  daysRemaining: _calculateDaysRemaining(drivingExpiry),
+                ));
+              }
+            }
+          } else if (collection == 'dl_services') {
+            // Check license expiry
+            final licenseExpiry = _parseDate(additionalInfo['licenseExpiry']);
+            if (_isUrgent(licenseExpiry)) {
               tasks.add(UrgentTaskModel(
-                id: '${docId}_${expiry['field']}',
+                id: '${docId}_license',
                 name: name,
                 photoUrl: photoUrl,
-                expiryType: expiry['type']!,
-                expiryDate: additionalInfo[expiry['field']] ?? '',
-                expiryDateTime: date!,
-                collection: collection,
+                expiryType: ExpiryTypes.license,
+                expiryDate: additionalInfo['licenseExpiry'] ?? '',
+                expiryDateTime: licenseExpiry!,
+                collection:
+                    col, // Use the actual collection where the doc was found
                 documentId: docId,
-                daysRemaining: _calculateDaysRemaining(date),
+                daysRemaining: _calculateDaysRemaining(licenseExpiry),
               ));
+            }
+          } else if (collection == 'vehicleDetails') {
+            // Check all RC service expiries
+            final expiries = [
+              {
+                'field': 'registrationRenewalOrFitnessExpiry',
+                'type': ExpiryTypes.registrationFitness
+              },
+              {'field': 'insuranceExpiry', 'type': ExpiryTypes.insurance},
+              {'field': 'taxExpiry', 'type': ExpiryTypes.tax},
+              {'field': 'pollutionExpiry', 'type': ExpiryTypes.pollution},
+              {'field': 'permitExpiry', 'type': ExpiryTypes.permit},
+            ];
+
+            for (var expiry in expiries) {
+              final date = _parseDate(additionalInfo[expiry['field']]);
+              if (_isUrgent(date)) {
+                tasks.add(UrgentTaskModel(
+                  id: '${docId}_${expiry['field']}',
+                  name: name,
+                  photoUrl: photoUrl,
+                  expiryType: expiry['type']!,
+                  expiryDate: additionalInfo[expiry['field']] ?? '',
+                  expiryDateTime: date!,
+                  collection:
+                      col, // Use the actual collection where the doc was found
+                  documentId: docId,
+                  daysRemaining: _calculateDaysRemaining(date),
+                ));
+              }
             }
           }
         }

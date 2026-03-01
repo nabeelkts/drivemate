@@ -43,8 +43,25 @@ class AdditionalInfoService {
     };
 
     final basePath = _getBasePath();
+
+    // First, get the main document to determine its status
+    var doc = await _firestore.doc('$basePath/$collection/$documentId').get();
+
+    // If not found in active collection, check deactivated collection
+    String targetCollection = collection;
+    if (!doc.exists) {
+      final deactivatedCollection = 'deactivated_$collection';
+      doc = await _firestore
+          .doc('$basePath/$deactivatedCollection/$documentId')
+          .get();
+      if (doc.exists) {
+        targetCollection = deactivatedCollection;
+      }
+    }
+
+    // Save to the appropriate collection based on where the main document exists
     await _firestore
-        .doc('$basePath/$collection/$documentId')
+        .doc('$basePath/$targetCollection/$documentId')
         .set({'additionalInfo': data}, SetOptions(merge: true));
   }
 
@@ -54,7 +71,18 @@ class AdditionalInfoService {
     required String documentId,
   }) async {
     final basePath = _getBasePath();
-    final doc = await _firestore.doc('$basePath/$collection/$documentId').get();
+
+    // Try active collection first
+    var doc = await _firestore.doc('$basePath/$collection/$documentId').get();
+
+    // If not found in active collection, try deactivated collection
+    if (!doc.exists) {
+      final deactivatedCollection = 'deactivated_$collection';
+      doc = await _firestore
+          .doc('$basePath/$deactivatedCollection/$documentId')
+          .get();
+    }
+
     if (!doc.exists) return null;
 
     final data = doc.data();
@@ -80,8 +108,24 @@ class AdditionalInfoService {
     };
 
     final basePath = _getBasePath();
+
+    // First, get the main document to determine its status
+    var doc = await _firestore.doc('$basePath/dl_services/$documentId').get();
+
+    // If not found in active collection, check deactivated collection
+    String targetCollection = 'dl_services';
+    if (!doc.exists) {
+      doc = await _firestore
+          .doc('$basePath/deactivated_dl_services/$documentId')
+          .get();
+      if (doc.exists) {
+        targetCollection = 'deactivated_dl_services';
+      }
+    }
+
+    // Save to the appropriate collection based on where the main document exists
     await _firestore
-        .doc('$basePath/dl_services/$documentId')
+        .doc('$basePath/$targetCollection/$documentId')
         .set({'additionalInfo': data}, SetOptions(merge: true));
   }
 
@@ -90,7 +134,17 @@ class AdditionalInfoService {
     required String documentId,
   }) async {
     final basePath = _getBasePath();
-    final doc = await _firestore.doc('$basePath/dl_services/$documentId').get();
+
+    // Try active collection first
+    var doc = await _firestore.doc('$basePath/dl_services/$documentId').get();
+
+    // If not found in active collection, try deactivated collection
+    if (!doc.exists) {
+      doc = await _firestore
+          .doc('$basePath/deactivated_dl_services/$documentId')
+          .get();
+    }
+
     if (!doc.exists) return null;
 
     final data = doc.data();
@@ -121,8 +175,25 @@ class AdditionalInfoService {
     };
 
     final basePath = _getBasePath();
+
+    // First, get the main document to determine its status
+    var doc =
+        await _firestore.doc('$basePath/vehicleDetails/$documentId').get();
+
+    // If not found in active collection, check deactivated collection
+    String targetCollection = 'vehicleDetails';
+    if (!doc.exists) {
+      doc = await _firestore
+          .doc('$basePath/deactivated_vehicleDetails/$documentId')
+          .get();
+      if (doc.exists) {
+        targetCollection = 'deactivated_vehicleDetails';
+      }
+    }
+
+    // Save to the appropriate collection based on where the main document exists
     await _firestore
-        .doc('$basePath/vehicleDetails/$documentId')
+        .doc('$basePath/$targetCollection/$documentId')
         .set({'additionalInfo': data}, SetOptions(merge: true));
   }
 
@@ -131,8 +202,18 @@ class AdditionalInfoService {
     required String documentId,
   }) async {
     final basePath = _getBasePath();
-    final doc =
+
+    // Try active collection first
+    var doc =
         await _firestore.doc('$basePath/vehicleDetails/$documentId').get();
+
+    // If not found, try deactivated collection
+    if (!doc.exists) {
+      doc = await _firestore
+          .doc('$basePath/deactivated_vehicleDetails/$documentId')
+          .get();
+    }
+
     if (!doc.exists) return null;
 
     final data = doc.data();

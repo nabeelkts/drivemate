@@ -291,7 +291,7 @@ class _EditEndorsementDetailsFormState
 
     final schoolId = workspaceController.currentSchoolId.value;
     final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
-     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     // Get the index, defaulting to 0 if not found
@@ -306,7 +306,7 @@ class _EditEndorsementDetailsFormState
       actions: [
         IconButton(
           onPressed: () => formKey.currentState?.submitForm(),
-          icon:  Icon(Icons.check, color: subTextColor),
+          icon: Icon(Icons.check, color: subTextColor),
         ),
       ],
       children: [
@@ -319,11 +319,12 @@ class _EditEndorsementDetailsFormState
           initialValues: widget.initialValues,
           onFormSubmit: (endorsement) async {
             try {
-              await usersCollection
-                  .doc(targetId)
-                  .collection('endorsement')
-                  .doc(endorsement['studentId'])
-                  .update(endorsement);
+              // Use the WorkspaceController to handle collection separation based on status
+              await workspaceController.updateDocumentWithStatus(
+                'endorsement',
+                endorsement['studentId'],
+                endorsement,
+              );
 
               Fluttertoast.showToast(
                 msg: 'Endorsement Details Updated Successfully',

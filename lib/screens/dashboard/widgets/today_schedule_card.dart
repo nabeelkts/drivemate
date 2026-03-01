@@ -318,23 +318,26 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
                       ),
                     )
                   else
-                    ListView.separated(
-                      padding: EdgeInsets.zero,
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: items.length > 3 ? 3 : items.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final item = items[index];
-                        return _ScheduleRow(
-                          time: item['time'] as String,
-                          name: item['name'] as String,
-                          role: item['role'] as String,
-                          profileUrl: item['profileUrl'] as String?,
-                          textColor: textColor,
-                        );
-                      },
+                    // Show only the count of scheduled sessions
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              '${items.length} session${items.length != 1 ? 's' : ''} scheduled',
+                              style: TextStyle(
+                                color: textColor.withOpacity(0.8),
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                 ],
               ),

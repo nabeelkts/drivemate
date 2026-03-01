@@ -320,13 +320,12 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
         print('Updated data: $updatedStudent');
       }
 
-      // Update the student document
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('students')
-          .doc(studentId.toString())
-          .update(updatedStudent);
+      // Use the WorkspaceController to handle collection separation based on status
+      await workspaceController.updateDocumentWithStatus(
+        'students',
+        studentId.toString(),
+        updatedStudent,
+      );
 
       if (kDebugMode) {
         print('Student document updated successfully');

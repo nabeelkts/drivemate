@@ -50,18 +50,18 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
       color: Color(0xFF747474),
       height: 15.73 / 13);
 
+  late final String _docId = (widget.vehicleDetails['studentId'] ??
+          widget.vehicleDetails['id'] ??
+          widget.vehicleDetails['recordId'])
+      .toString();
+
   @override
   void initState() {
     super.initState();
     vehicleDetails = Map.from(widget.vehicleDetails);
-    _docId = (vehicleDetails['studentId'] ??
-            vehicleDetails['id'] ??
-            vehicleDetails['recordId'])
-        .toString();
     _initStreams();
   }
 
-  late final String _docId;
   late final Stream<DocumentSnapshot> _mainStream;
   late final Stream<QuerySnapshot> _paymentsStream;
   late final Stream<QuerySnapshot> _extraFeesStream;
@@ -637,6 +637,12 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
         vehicleDetails['additionalInfo'] as Map<String, dynamic>?;
     final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
 
+    // Determine the correct collection based on record status
+    final isDeactivated = vehicleDetails['status'] == 'passed' ||
+        vehicleDetails['deactivated'] == true;
+    final collectionName =
+        isDeactivated ? 'deactivated_vehicleDetails' : 'vehicleDetails';
+
     return IconButton(
       icon: Icon(
         hasData ? Icons.info : Icons.info_outline,
@@ -646,7 +652,7 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
         final result = await showAdditionalInfoSheet(
           context: context,
           type: AdditionalInfoType.rcService,
-          collection: 'vehicleDetails',
+          collection: collectionName,
           documentId: _docId,
           existingData: additionalInfo,
         );

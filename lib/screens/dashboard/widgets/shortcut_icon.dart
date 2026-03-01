@@ -61,7 +61,7 @@ class _ShortcutIconState extends State<ShortcutIcon> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   for (var i = 0; i < recentActivities.length; i++) ...[
-                    if (i > 0) const SizedBox(width: 16),
+                    if (i > 0) const SizedBox(width: 24),
                     Builder(
                       builder: (context) {
                         final activity = recentActivities[i];

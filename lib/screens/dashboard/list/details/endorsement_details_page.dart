@@ -186,6 +186,12 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
         endorsementDetails['additionalInfo'] as Map<String, dynamic>?;
     final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
 
+    // Determine the correct collection based on record status
+    final isDeactivated = endorsementDetails['status'] == 'passed' ||
+        endorsementDetails['deactivated'] == true;
+    final collectionName =
+        isDeactivated ? 'deactivated_endorsement' : 'endorsement';
+
     return IconButton(
       icon: Icon(
         hasData ? Icons.info : Icons.info_outline,
@@ -195,7 +201,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
         final result = await showAdditionalInfoSheet(
           context: context,
           type: AdditionalInfoType.student,
-          collection: 'endorsement',
+          collection: collectionName,
           documentId: _docId,
           existingData: additionalInfo,
         );

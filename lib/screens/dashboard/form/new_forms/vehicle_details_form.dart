@@ -22,24 +22,65 @@ class _VehicleDetailsState extends State<VehicleDetails> {
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
 
+  // Move controllers to state level to preserve data during rebuilds
+  late TextEditingController fullNameController;
+  late TextEditingController mobileNumberController;
+  late TextEditingController houseNameController;
+  late TextEditingController placeController;
+  late TextEditingController postController;
+  late TextEditingController districtController;
+  late TextEditingController pinController;
+  late TextEditingController vehicleNumberController;
+  late TextEditingController vehicleModelController;
+  late TextEditingController chassisNumberController;
+  late TextEditingController engineNumberController;
+  late TextEditingController totalAmountController;
+  late TextEditingController advanceAmountController;
+  late TextEditingController balanceAmountController;
+  final formKey = GlobalKey<FormState>();
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize controllers in initState
+    fullNameController = TextEditingController();
+    mobileNumberController = TextEditingController();
+    houseNameController = TextEditingController();
+    placeController = TextEditingController();
+    postController = TextEditingController();
+    districtController = TextEditingController();
+    pinController = TextEditingController();
+    vehicleNumberController = TextEditingController();
+    vehicleModelController = TextEditingController();
+    chassisNumberController = TextEditingController();
+    engineNumberController = TextEditingController();
+    totalAmountController = TextEditingController();
+    advanceAmountController = TextEditingController();
+    balanceAmountController = TextEditingController();
+  }
+
+  @override
+  void dispose() {
+    // Dispose controllers to prevent memory leaks
+    fullNameController.dispose();
+    mobileNumberController.dispose();
+    houseNameController.dispose();
+    placeController.dispose();
+    postController.dispose();
+    districtController.dispose();
+    pinController.dispose();
+    vehicleNumberController.dispose();
+    vehicleModelController.dispose();
+    chassisNumberController.dispose();
+    engineNumberController.dispose();
+    totalAmountController.dispose();
+    advanceAmountController.dispose();
+    balanceAmountController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final formKey = GlobalKey<FormState>();
-    final fullNameController = TextEditingController();
-    final mobileNumberController = TextEditingController();
-    final houseNameController = TextEditingController();
-    final placeController = TextEditingController();
-    final postController = TextEditingController();
-    final districtController = TextEditingController();
-    final pinController = TextEditingController();
-    final vehicleNumberController = TextEditingController();
-    final vehicleModelController = TextEditingController();
-    final chassisNumberController = TextEditingController();
-    final engineNumberController = TextEditingController();
-    final totalAmountController = TextEditingController();
-    final advanceAmountController = TextEditingController();
-    final balanceAmountController = TextEditingController();
-
     return Stack(
       children: [
         BaseFormWidget(
@@ -50,99 +91,107 @@ class _VehicleDetailsState extends State<VehicleDetails> {
               onPressed: isLoading
                   ? null
                   : () async {
-                      if (formKey.currentState!.validate()) {
-                        setState(() {
-                          isLoading = true;
-                        });
-                        bool navigated = false;
-                        try {
-                          final user = FirebaseAuth.instance.currentUser;
-                          if (user == null) return;
+                      // Validate form fields first
+                      if (!formKey.currentState!.validate()) {
+                        return; // Don't proceed if form validation fails
+                      }
 
-                          final schoolId =
-                              _workspaceController.currentSchoolId.value;
-                          final targetId =
-                              schoolId.isNotEmpty ? schoolId : user.uid;
+                      // Check if at least one service type is selected
+                      if (selectedServices.isEmpty) {
+                        Fluttertoast.showToast(
+                            msg: 'Please select at least one service type');
+                        return;
+                      }
 
-                          final generatedId = await generateStudentId(targetId);
-                          // Service types are now stored as array
-                          final serviceTypes = selectedServices.isNotEmpty
-                              ? selectedServices
-                              : ['Transfer of Ownership'];
-                          final data = {
-                            'fullName': fullNameController.text,
-                            'mobileNumber': mobileNumberController.text,
-                            'houseName': houseNameController.text,
-                            'place': placeController.text,
-                            'post': postController.text,
-                            'district': districtController.text,
-                            'pin': pinController.text,
-                            'vehicleNumber': vehicleNumberController.text,
-                            'vehicleModel': vehicleModelController.text,
-                            'chassisNumber': chassisNumberController.text,
-                            'engineNumber': engineNumberController.text,
-                            'serviceTypes': serviceTypes, // Array of services
-                            'cov': serviceTypes
-                                .join(', '), // For backward compatibility
-                            'totalAmount': totalAmountController.text,
-                            'advanceAmount': advanceAmountController.text,
-                            'balanceAmount': balanceAmountController.text,
-                            'registrationDate':
-                                DateTime.now().toIso8601String(),
-                            'studentId': generatedId,
-                          };
+                      setState(() {
+                        isLoading = true;
+                      });
+                      bool navigated = false;
+                      try {
+                        final user = FirebaseAuth.instance.currentUser;
+                        if (user == null) return;
 
+                        final schoolId =
+                            _workspaceController.currentSchoolId.value;
+                        final targetId =
+                            schoolId.isNotEmpty ? schoolId : user.uid;
+
+                        final generatedId = await generateStudentId(targetId);
+                        // Service types are now stored as array
+                        final serviceTypes = selectedServices.isNotEmpty
+                            ? selectedServices
+                            : ['Transfer of Ownership'];
+                        final data = {
+                          'fullName': fullNameController.text,
+                          'mobileNumber': mobileNumberController.text,
+                          'houseName': houseNameController.text,
+                          'place': placeController.text,
+                          'post': postController.text,
+                          'district': districtController.text,
+                          'pin': pinController.text,
+                          'vehicleNumber': vehicleNumberController.text,
+                          'vehicleModel': vehicleModelController.text,
+                          'chassisNumber': chassisNumberController.text,
+                          'engineNumber': engineNumberController.text,
+                          'serviceTypes': serviceTypes, // Array of services
+                          'cov': serviceTypes
+                              .join(', '), // For backward compatibility
+                          'totalAmount': totalAmountController.text,
+                          'advanceAmount': advanceAmountController.text,
+                          'balanceAmount': balanceAmountController.text,
+                          'registrationDate': DateTime.now().toIso8601String(),
+                          'studentId': generatedId,
+                        };
+
+                        await FirebaseFirestore.instance
+                            .collection('users')
+                            .doc(targetId)
+                            .collection('vehicleDetails')
+                            .doc(generatedId)
+                            .set(data);
+
+                        // Record initial payment transaction if any
+                        final advance =
+                            double.tryParse(advanceAmountController.text) ?? 0;
+                        if (advance > 0) {
                           await FirebaseFirestore.instance
                               .collection('users')
                               .doc(targetId)
                               .collection('vehicleDetails')
                               .doc(generatedId)
-                              .set(data);
+                              .collection('payments')
+                              .add({
+                            'amount': advance,
+                            'mode': selectedPaymentMode,
+                            'date': Timestamp.now(),
+                            'description': 'Initial Advance',
+                            'createdAt': FieldValue.serverTimestamp(),
+                            'targetId': targetId,
+                            'recordId': generatedId,
+                            'recordName':
+                                data['vehicleNumber'] ?? data['fullName'],
+                            'category': 'vehicleDetails',
+                          });
+                        }
 
-                          // Record initial payment transaction if any
-                          final advance =
-                              double.tryParse(advanceAmountController.text) ??
-                                  0;
-                          if (advance > 0) {
-                            await FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(targetId)
-                                .collection('vehicleDetails')
-                                .doc(generatedId)
-                                .collection('payments')
-                                .add({
-                              'amount': advance,
-                              'mode': selectedPaymentMode,
-                              'date': Timestamp.now(),
-                              'description': 'Initial Advance',
-                              'createdAt': FieldValue.serverTimestamp(),
-                              'targetId': targetId,
-                              'recordId': generatedId,
-                              'recordName':
-                                  data['vehicleNumber'] ?? data['fullName'],
-                              'category': 'vehicleDetails',
-                            });
-                          }
-
-                          Fluttertoast.showToast(
-                              msg: 'Vehicle details added successfully');
-                          Navigator.pushReplacement(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) =>
-                                  VehicleDetailsPage(vehicleDetails: data),
-                            ),
-                          );
-                          navigated = true;
-                        } catch (e) {
-                          Fluttertoast.showToast(
-                              msg: 'Error adding vehicle details: $e');
-                        } finally {
-                          if (!navigated && mounted) {
-                            setState(() {
-                              isLoading = false;
-                            });
-                          }
+                        Fluttertoast.showToast(
+                            msg: 'Vehicle details added successfully');
+                        Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                VehicleDetailsPage(vehicleDetails: data),
+                          ),
+                        );
+                        navigated = true;
+                      } catch (e) {
+                        Fluttertoast.showToast(
+                            msg: 'Error adding vehicle details: $e');
+                      } finally {
+                        if (!navigated && mounted) {
+                          setState(() {
+                            isLoading = false;
+                          });
                         }
                       }
                     },
@@ -161,6 +210,7 @@ class _VehicleDetailsState extends State<VehicleDetails> {
                         label: 'Full Name',
                         controller: fullNameController,
                         placeholder: 'Enter Full Name',
+                        forceUppercase: true,
                       ),
                       FormTextField(
                         label: 'Mobile Number',
@@ -177,21 +227,52 @@ class _VehicleDetailsState extends State<VehicleDetails> {
                         label: 'Vehicle Number',
                         controller: vehicleNumberController,
                         placeholder: 'Enter Vehicle Number',
+                        keyboardType: TextInputType.text,
+                        forceUppercase: true,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Vehicle number is required';
+                          }
+                          return null;
+                        },
                       ),
                       FormTextField(
                         label: 'Vehicle Model',
                         controller: vehicleModelController,
                         placeholder: 'Enter Vehicle Model',
+                        forceUppercase: true,
                       ),
                       FormTextField(
                         label: 'Chassis Number',
                         controller: chassisNumberController,
                         placeholder: 'Enter Chassis Number',
+                        keyboardType: TextInputType.text,
+                        forceUppercase: true,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Chassis number is required';
+                          }
+                          if (value.trim().length < 5) {
+                            return 'Minimum 5 characters required';
+                          }
+                          return null;
+                        },
                       ),
                       FormTextField(
                         label: 'Engine Number',
                         controller: engineNumberController,
                         placeholder: 'Enter Engine Number',
+                        keyboardType: TextInputType.text,
+                        forceUppercase: true,
+                        validator: (value) {
+                          if (value == null || value.trim().isEmpty) {
+                            return 'Engine number is required';
+                          }
+                          if (value.trim().length < 5) {
+                            return 'Minimum 5 characters required';
+                          }
+                          return null;
+                        },
                       ),
                       InkWell(
                         onTap: () => _showServiceSelectionDialog(context),
@@ -224,21 +305,29 @@ class _VehicleDetailsState extends State<VehicleDetails> {
                           label: 'House Name',
                           controller: houseNameController,
                           placeholder: 'Enter House Name',
+                          keyboardType: TextInputType.text,
+                          forceUppercase: true,
                         ),
                         FormTextField(
                           label: 'Place',
                           controller: placeController,
                           placeholder: 'Enter Place',
+                          keyboardType: TextInputType.text,
+                          forceUppercase: true,
                         ),
                         FormTextField(
                           label: 'Post',
                           controller: postController,
                           placeholder: 'Enter Post Office',
+                          keyboardType: TextInputType.text,
+                          forceUppercase: true,
                         ),
                         FormTextField(
                           label: 'District',
                           controller: districtController,
                           placeholder: 'Enter District',
+                          keyboardType: TextInputType.text,
+                          forceUppercase: true,
                         ),
                         FormTextField(
                           label: 'PIN',
@@ -290,6 +379,7 @@ class _VehicleDetailsState extends State<VehicleDetails> {
                         controller: balanceAmountController,
                         placeholder: 'Balance Amount',
                         readOnly: true,
+                        keyboardType: TextInputType.number,
                       ),
                       const SizedBox(height: 16),
                       DropdownButtonFormField<String>(

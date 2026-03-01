@@ -134,13 +134,13 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
                   'registrationDate': DateTime.now().toIso8601String(),
                 };
 
-                await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(targetId)
-                    .collection('vehicleDetails')
-                    .doc(widget.initialValues['studentId'] ??
-                        widget.initialValues['id'])
-                    .update(data);
+                // Use the WorkspaceController to handle collection separation based on status
+                await workspaceController.updateDocumentWithStatus(
+                  'vehicleDetails',
+                  widget.initialValues['studentId'] ??
+                      widget.initialValues['id'],
+                  data,
+                );
 
                 Fluttertoast.showToast(
                     msg: 'Vehicle details updated successfully');

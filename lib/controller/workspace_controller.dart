@@ -139,6 +139,7 @@ class WorkspaceController extends GetxController {
   }
 
   /// Helper to get a filtered Query for any top-level collection
+  /// Handles both active and deactivated collections based on status
   Query<Map<String, dynamic>> getFilteredCollection(String collectionName) {
     Query<Map<String, dynamic>> query =
         _firestore.collection('users').doc(targetId).collection(collectionName);
@@ -150,6 +151,47 @@ class WorkspaceController extends GetxController {
     }
 
     return query;
+  }
+
+  /// Helper to get the correct collection name based on document status
+  String getCollectionName(
+      String baseCollectionName, Map<String, dynamic> data) {
+    final isDeactivated =
+        data['status'] == 'passed' || data['deactivated'] == true;
+    if (isDeactivated) {
+      return 'deactivated_$baseCollectionName';
+    }
+    return baseCollectionName;
+  }
+
+  /// Helper to update a document in the correct collection based on status
+  Future<void> updateDocumentWithStatus(
+    String baseCollectionName,
+    String documentId,
+    Map<String, dynamic> data,
+  ) async {
+    final targetCollection = getCollectionName(baseCollectionName, data);
+    final oldCollection = targetCollection == baseCollectionName
+        ? 'deactivated_$baseCollectionName'
+        : baseCollectionName;
+
+    // Update in the correct collection
+    await _firestore
+        .collection('users')
+        .doc(targetId)
+        .collection(targetCollection)
+        .doc(documentId)
+        .set(data, SetOptions(merge: true));
+
+    // Delete from the old collection if it's different
+    if (targetCollection != oldCollection) {
+      await _firestore
+          .collection('users')
+          .doc(targetId)
+          .collection(oldCollection)
+          .doc(documentId)
+          .delete();
+    }
   }
 
   @override

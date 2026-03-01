@@ -193,7 +193,7 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
 
     final schoolId = workspaceController.currentSchoolId.value;
     final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
-     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     return BaseFormWidget(
@@ -202,7 +202,7 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
       actions: [
         IconButton(
           onPressed: () => formKey.currentState?.submitForm(),
-          icon:  Icon(Icons.check, color: subTextColor),
+          icon: Icon(Icons.check, color: subTextColor),
         ),
       ],
       children: [
@@ -216,11 +216,12 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
           initialValues: widget.initialValues,
           onFormSubmit: (licenseonly) async {
             try {
-              await usersCollection
-                  .doc(targetId)
-                  .collection('licenseonly')
-                  .doc(licenseonly['studentId'])
-                  .update(licenseonly);
+              // Use the WorkspaceController to handle collection separation based on status
+              await workspaceController.updateDocumentWithStatus(
+                'licenseonly',
+                licenseonly['studentId'],
+                licenseonly,
+              );
 
               Fluttertoast.showToast(
                 msg: 'License Only Details Updated Successfully',

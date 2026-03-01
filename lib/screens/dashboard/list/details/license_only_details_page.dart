@@ -185,6 +185,12 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
         licenseDetails['additionalInfo'] as Map<String, dynamic>?;
     final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
 
+    // Determine the correct collection based on record status
+    final isDeactivated = licenseDetails['status'] == 'passed' ||
+        licenseDetails['deactivated'] == true;
+    final collectionName =
+        isDeactivated ? 'deactivated_licenseonly' : 'licenseonly';
+
     return IconButton(
       icon: Icon(
         hasData ? Icons.info : Icons.info_outline,
@@ -194,7 +200,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
         final result = await showAdditionalInfoSheet(
           context: context,
           type: AdditionalInfoType.student,
-          collection: 'licenseonly',
+          collection: collectionName,
           documentId: _docId,
           existingData: additionalInfo,
         );

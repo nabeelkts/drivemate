@@ -11,6 +11,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:mds/utils/loading_utils.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
+import 'package:mds/screens/dashboard/list/details/license_only_details_page.dart';
+import 'package:mds/screens/dashboard/list/details/endorsement_details_page.dart';
 
 class TodaySchedulePage extends StatefulWidget {
   const TodaySchedulePage({super.key});
@@ -250,6 +253,38 @@ class _TodaySchedulePageState extends State<TodaySchedulePage>
               ],
             ),
             trailing: Text(balance.isNotEmpty ? '₹ $balance' : ''),
+            onTap: () {
+              // Navigate to the respective student details page based on collection type
+              String collection = s['_collection'] ?? 'students';
+
+              if (collection == 'students') {
+                // Navigate to StudentDetailsPage
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => StudentDetailsPage(studentDetails: s),
+                  ),
+                );
+              } else if (collection == 'licenseonly') {
+                // Navigate to LicenseOnlyDetailsPage
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        LicenseOnlyDetailsPage(licenseDetails: s),
+                  ),
+                );
+              } else if (collection == 'endorsement') {
+                // Navigate to EndorsementDetailsPage
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) =>
+                        EndorsementDetailsPage(endorsementDetails: s),
+                  ),
+                );
+              }
+            },
           ),
         );
       },
