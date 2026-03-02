@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mds/screens/authentication/auth_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:async';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -12,11 +13,39 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   bool _isFirstLaunch = true;
+  PageController _pageController = PageController();
+  Timer? _timer;
+  int _currentPage = 0;
+  final List<String> _images = [
+    'assets/images/onboard1.png',
+    'assets/images/onboard2.png',
+    'assets/images/onboard3.png',
+  ];
 
   @override
   void initState() {
     super.initState();
     _checkFirstLaunch();
+    _startAutoPlay();
+  }
+
+  void _startAutoPlay() {
+    _timer = Timer.periodic(const Duration(milliseconds: 1500), (Timer timer) {
+      _currentPage = (_currentPage + 1) % _images.length;
+
+      _pageController.animateToPage(
+        _currentPage,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeIn,
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
   }
 
   Future<void> _checkFirstLaunch() async {
@@ -34,7 +63,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 
   void _navigateToAuthPage() {
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AuthPage()));
+    Navigator.pushReplacement(
+        context, MaterialPageRoute(builder: (_) => const AuthPage()));
   }
 
   @override
@@ -77,32 +107,22 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               const SizedBox(height: 40),
               Expanded(
                 child: PageView(
-                  children: [
-                    Padding(
+                  controller: _pageController,
+                  onPageChanged: (int page) {
+                    setState(() {
+                      _currentPage = page;
+                    });
+                  },
+                  children: _images.map((image) {
+                    return Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Image.asset(
-                        'assets/images/onboard1.png',
+                        image,
                         width: 350,
                         height: 306,
                       ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Image.asset(
-                        'assets/images/onboard2.png',
-                        width: 350,
-                        height: 306,
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: Image.asset(
-                        'assets/images/onboard3.png',
-                        width: 350,
-                        height: 306,
-                      ),
-                    ),
-                  ],
+                    );
+                  }).toList(),
                 ),
               ),
               const SizedBox(height: 40),

@@ -6,6 +6,7 @@ import 'package:mds/screens/legal/privacy_policy_screen.dart';
 import 'package:mds/screens/legal/terms_of_service_screen.dart';
 import 'package:mds/screens/profile/contact_us_screen.dart';
 import 'package:mds/screens/profile/invite_page.dart';
+import 'package:mds/screens/profile/about_us_page.dart';
 import 'package:mds/screens/widget/custom_back_button.dart';
 
 class AboutPage extends StatelessWidget {
@@ -93,6 +94,37 @@ class AboutPage extends StatelessWidget {
                 ],
               ),
             ),
+
+            // ── About Us Section ───────────────────────────────────────────
+            Padding(
+              padding: const EdgeInsets.only(left: 4, bottom: 10),
+              child: Text(
+                'ABOUT',
+                style: TextStyle(
+                  color: subColor,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.2,
+                ),
+              ),
+            ),
+            _SectionCard(
+              cardColor: cardColor,
+              borderColor: borderColor,
+              children: [
+                _MenuRow(
+                  icon: Icons.info_outlined,
+                  iconColor: kPrimaryColor,
+                  label: 'About Us',
+                  subtitle: 'Learn about Drivemate and our mission',
+                  textColor: textColor,
+                  onTap: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const AboutUsPage())),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 24),
 
             // ── Invite Friends ───────────────────────────────────────────
             Padding(

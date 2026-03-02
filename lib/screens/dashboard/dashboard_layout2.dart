@@ -323,7 +323,7 @@ class DashboardLayout2 extends StatelessWidget {
       },
       {
         'icon': Icons.directions_car,
-        'label': 'RC',
+        'label': 'RC Services',
         'route': '/rc',
         'color': Colors.green,
       },
