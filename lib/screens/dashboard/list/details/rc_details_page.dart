@@ -19,6 +19,7 @@ import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:mds/widgets/additional_info_sheet.dart';
 import 'package:mds/services/additional_info_service.dart';
+import 'package:mds/widgets/soft_delete_button.dart';
 
 class RCDetailsPage extends StatefulWidget {
   final Map<String, dynamic> vehicleDetails;
@@ -120,6 +121,18 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
             leading: const CustomBackButton(),
             actions: [
               _buildAdditionalInfoButton(),
+              // Soft Delete Button - Move to Recycle Bin
+              SoftDeleteButton(
+                docRef: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(targetId)
+                    .collection('rc_services')
+                    .doc(vehicleDetails['rcServiceId'].toString()),
+                documentName: vehicleDetails['vehicleNumber'] ?? 'RC Service',
+                onDeleteSuccess: () {
+                  Navigator.pop(context);
+                },
+              ),
               IconButton(
                 icon: Icon(Icons.edit, color: subTextColor),
                 onPressed: () => Navigator.push(
@@ -365,7 +378,9 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
                         ...snap.data!.docs.map((doc) {
                           final data = doc.data() as Map<String, dynamic>;
                           final date = (data['date'] as Timestamp).toDate();
-                          final isPaid = data['status'] == 'paid';
+                          final isPaid = (data['status']?.toString() ?? '')
+                                  .toLowerCase() ==
+                              'paid';
                           return Container(
                             margin: const EdgeInsets.only(bottom: 8),
                             decoration: BoxDecoration(

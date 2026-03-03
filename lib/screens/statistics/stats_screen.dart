@@ -40,6 +40,19 @@ class _StatsScreenState extends State<StatsScreen> {
 
   // Define the filter options as a constant list
 
+  DateTime _safeParseGenericDate(dynamic value) {
+    if (value == null) return DateTime.fromMillisecondsSinceEpoch(0);
+    if (value is Timestamp) return value.toDate();
+    if (value is String && value.isNotEmpty) {
+      try {
+        return DateTime.parse(value);
+      } catch (_) {
+        return DateTime.fromMillisecondsSinceEpoch(0);
+      }
+    }
+    return DateTime.fromMillisecondsSinceEpoch(0);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -499,22 +512,12 @@ class _StatsScreenState extends State<StatsScreen> {
           );
           double currentMonthRevenue = revenueStats['currentMonthRevenue'] ?? 0;
 
-          // Process balance from main records
-          for (int i = 0; i < snapshot.data!.length; i++) {
-            if (i == 4 || i == 6) continue;
-            for (var doc in snapshot.data![i].docs) {
-              final data = doc.data();
-              double balance =
-                  double.tryParse(data['balanceAmount']?.toString() ?? '0') ??
-                      0;
-              totalBalance += balance;
-
-              allItems.add({
-                'data': data,
-                'id': doc.id,
-                'source': collections[i],
-              });
-            }
+          // Calculate total balance from allItems that were already collected
+          for (var item in allItems) {
+            final data = item['data'] as Map<String, dynamic>;
+            double balance =
+                double.tryParse(data['balanceAmount']?.toString() ?? '0') ?? 0;
+            totalBalance += balance;
           }
 
           // Calculate Total Learners Growth

@@ -28,7 +28,11 @@ doc/api/
 
 # Obfuscation / Symbols
 app.*.map.json
-app.*.symbols
+
+# Keystore files (DO NOT COMMIT THESE)
+*.jks
+*.keystore
+key.properties
 
 # ==============================
 # Android
@@ -43,10 +47,6 @@ android/app/release/
 
 # Local properties
 local.properties
-
-# Keystore files
-*.keystore
-*.jks
 
 # ==============================
 # iOS

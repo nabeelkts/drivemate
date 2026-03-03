@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 
 class StreamUtils {
   /// Combines a list of streams into one that emits a list of the latest values
@@ -24,7 +25,13 @@ class StreamUtils {
           hasEmitted[i] = true;
           update();
         },
-        onError: controller.addError,
+        onError: (error) {
+          debugPrint('StreamUtils combineLatest error in stream $i: $error');
+          // Mark as emitted with null value to not block other streams
+          latestValues[i] = null as T;
+          hasEmitted[i] = true;
+          update();
+        },
         onDone: () {
           // You might want to close the controller if all streams are done
           // but for Firestore snapshots, they usually stay open.

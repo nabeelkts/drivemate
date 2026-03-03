@@ -100,7 +100,8 @@ class PrivacyPolicyScreen extends StatelessWidget {
                   '• Data portability (receive your data in structured format)\n'
                   '• Opt-out of marketing communications\n'
                   '• Withdraw consent where processing is based on consent\n\n'
-                  'To exercise these rights, please contact us using the information provided below.',
+                  'To exercise these rights, please contact us using the information provided below.\n\n'
+                  'Account Deletion: You can request that your account and associated data be deleted by emailing us at drivemate.mds@gmail.com with the subject line "Account Deletion Request". We will process your request within 30 days.',
             ),
             _buildSection(
               '8. Data Retention',

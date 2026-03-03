@@ -24,6 +24,7 @@ import 'package:mds/utils/loading_utils.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mds/widgets/soft_delete_button.dart';
 import 'package:mds/widgets/additional_info_sheet.dart';
 import 'package:mds/services/additional_info_service.dart';
 
@@ -115,6 +116,18 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
               icon: const Icon(Icons.picture_as_pdf, color: kPrimaryColor),
               onPressed: () => _shareVehicleDetails(context),
               tooltip: 'Export PDF',
+            ),
+            // Soft Delete Button - Move to Recycle Bin
+            SoftDeleteButton(
+              docRef: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(targetId)
+                  .collection('vehicleDetails')
+                  .doc(vehicleDetails['vehicleId'].toString()),
+              documentName: vehicleDetails['vehicleNumber'] ?? 'Vehicle',
+              onDeleteSuccess: () {
+                Navigator.pop(context);
+              },
             ),
             IconButton(
               icon: Icon(Icons.edit,

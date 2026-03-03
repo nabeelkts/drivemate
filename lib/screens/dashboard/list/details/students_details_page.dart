@@ -39,6 +39,7 @@ import 'package:mds/features/tracking/services/background_service.dart';
 import 'package:mds/features/tracking/data/repositories/tracking_repository.dart';
 import 'package:mds/features/tracking/services/location_tracking_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:mds/widgets/soft_delete_button.dart';
 
 class StudentDetailsPage extends StatefulWidget {
   final Map<String, dynamic> studentDetails;
@@ -145,6 +146,18 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           IconButton(
             icon: Icon(Icons.picture_as_pdf, color: subTextColor),
             onPressed: () => _shareStudentDetails(context),
+          ),
+          // Soft Delete Button - Move to Recycle Bin
+          SoftDeleteButton(
+            docRef: FirebaseFirestore.instance
+                .collection('users')
+                .doc(targetId)
+                .collection('students')
+                .doc(studentDetails['studentId'].toString()),
+            documentName: studentDetails['fullName'] ?? 'Student',
+            onDeleteSuccess: () {
+              Navigator.pop(context); // Go back after deletion
+            },
           ),
           IconButton(
             icon: Icon(Icons.edit, color: subTextColor),
@@ -983,7 +996,9 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                   ...feeDocs.map((doc) {
                     final data = doc.data() as Map<String, dynamic>;
                     final date = (data['date'] as Timestamp).toDate();
-                    final isPaid = data['status'] == 'paid';
+                    final isPaid =
+                        (data['status']?.toString() ?? '').toLowerCase() ==
+                            'paid';
                     return Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: BoxDecoration(

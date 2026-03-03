@@ -10,6 +10,7 @@ class TransactionData {
   final String? imageUrl;
   final bool isExpense;
   final String? note;
+  final String? recordId;
 
   TransactionData({
     required this.date,
@@ -21,5 +22,6 @@ class TransactionData {
     this.imageUrl,
     this.isExpense = false,
     this.note,
+    this.recordId,
   });
 }

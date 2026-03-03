@@ -31,6 +31,14 @@
           }
         },
         {
+          "client_id": "694652953963-gurnfu13g64ag1quvhnhfjcemg340cmu.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.mds",
+            "certificate_hash": "1976bd7d982662a046860c13442100e6964d9dd6"
+          }
+        },
+        {
           "client_id": "694652953963-nkj9h968feqjgr8og8jchfg8j0fhddjt.apps.googleusercontent.com",
           "client_type": 3
         }

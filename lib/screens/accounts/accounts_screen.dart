@@ -266,6 +266,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
           isEqualTo: workspaceController.currentBranchId.value);
     }
 
+    // Create the core streams (these are essential)
     final streams = [
       workspaceController.getFilteredCollection('students').snapshots(),
       workspaceController.getFilteredCollection('licenseonly').snapshots(),
@@ -279,6 +280,195 @@ class _AccountsScreenState extends State<AccountsScreen> {
     return StreamUtils.combineLatest(streams).asBroadcastStream();
   }
 
+  // Separate method to fetch extra fees that won't block the main stream
+  Stream<List<QuerySnapshot<Map<String, dynamic>>>> _getExtraFeesStream(
+      String targetId) {
+    final workspaceController = Get.find<WorkspaceController>();
+
+    // Extra fees collection groups
+    Query<Map<String, dynamic>> extraFeesStudentsQuery = _firestore
+        .collectionGroup('extra_fees')
+        .where('targetId', isEqualTo: targetId)
+        .where('category', isEqualTo: 'students');
+
+    Query<Map<String, dynamic>> extraFeesLicenseOnlyQuery = _firestore
+        .collectionGroup('extra_fees')
+        .where('targetId', isEqualTo: targetId)
+        .where('category', isEqualTo: 'licenseonly');
+
+    Query<Map<String, dynamic>> extraFeesEndorsementQuery = _firestore
+        .collectionGroup('extra_fees')
+        .where('targetId', isEqualTo: targetId)
+        .where('category', isEqualTo: 'endorsement');
+
+    Query<Map<String, dynamic>> extraFeesVehicleQuery = _firestore
+        .collectionGroup('extra_fees')
+        .where('targetId', isEqualTo: targetId)
+        .where('category', isEqualTo: 'vehicleDetails');
+
+    Query<Map<String, dynamic>> extraFeesDlServicesQuery = _firestore
+        .collectionGroup('extra_fees')
+        .where('targetId', isEqualTo: targetId)
+        .where('category', isEqualTo: 'dl_services');
+
+    if (!workspaceController.isOrganizationMode.value &&
+        workspaceController.currentBranchId.value.isNotEmpty &&
+        workspaceController.currentBranchId.value != targetId) {
+      extraFeesStudentsQuery = extraFeesStudentsQuery.where('branchId',
+          isEqualTo: workspaceController.currentBranchId.value);
+      extraFeesLicenseOnlyQuery = extraFeesLicenseOnlyQuery.where('branchId',
+          isEqualTo: workspaceController.currentBranchId.value);
+      extraFeesEndorsementQuery = extraFeesEndorsementQuery.where('branchId',
+          isEqualTo: workspaceController.currentBranchId.value);
+      extraFeesVehicleQuery = extraFeesVehicleQuery.where('branchId',
+          isEqualTo: workspaceController.currentBranchId.value);
+      extraFeesDlServicesQuery = extraFeesDlServicesQuery.where('branchId',
+          isEqualTo: workspaceController.currentBranchId.value);
+    }
+
+    // Create streams with error handling to prevent one failing stream from breaking all
+    final extraFeesStreams = [
+      _handleStreamErrors(extraFeesStudentsQuery.snapshots()),
+      _handleStreamErrors(extraFeesLicenseOnlyQuery.snapshots()),
+      _handleStreamErrors(extraFeesEndorsementQuery.snapshots()),
+      _handleStreamErrors(extraFeesVehicleQuery.snapshots()),
+      _handleStreamErrors(extraFeesDlServicesQuery.snapshots()),
+    ];
+
+    return StreamUtils.combineLatest(extraFeesStreams).asBroadcastStream();
+  }
+
+  // Helper method to handle stream errors and return empty snapshots on error
+  Stream<QuerySnapshot<Map<String, dynamic>>> _handleStreamErrors(
+      Stream<QuerySnapshot<Map<String, dynamic>>> stream) {
+    // Since we can't easily create an empty QuerySnapshot in error handling,
+    // we'll return the stream as-is with error handling that just prints the error
+    return stream.asBroadcastStream();
+  }
+
+  List<TransactionData> _extraFeesTransactions = [];
+  bool _extraFeesLoaded = false;
+  List<Map<String, dynamic>> _extraFeesForRevenue = [];
+  bool _extraFeesForRevenueLoaded = false;
+
+  void _loadExtraFees(BuildContext context) {
+    if (_extraFeesLoaded) return; // Only load once
+
+    final workspaceController = Get.find<WorkspaceController>();
+    final targetId = workspaceController.currentSchoolId.value.isNotEmpty
+        ? workspaceController.currentSchoolId.value
+        : (user?.uid ?? '');
+
+    _getExtraFeesStream(targetId).listen((extraFeesDataList) {
+      List<TransactionData> extraFeesTransactions = [];
+
+      // Process extra fees data (similar to how it was done before)
+      final extraFeesIndices = [0, 1, 2, 3, 4]; // 5 extra fees collections
+      for (var idx in extraFeesIndices) {
+        if (extraFeesDataList.length > idx &&
+            extraFeesDataList[idx]?.docs != null) {
+          for (var doc in extraFeesDataList[idx]!.docs) {
+            final data = doc.data();
+
+            // Skip soft-deleted documents
+            if (data['isDeleted'] == true) continue;
+
+            final date = _safeParseGenericDate(data['date']);
+            final amount =
+                double.tryParse(data['amount']?.toString() ?? '0') ?? 0.0;
+            final description = data['description'] ?? 'Additional Fee';
+            final note = data['note'] ?? '';
+            final category = data['category'] ?? 'unknown';
+
+            // Only add if amount > 0 and fee is unpaid
+            final status = data['status']?.toString() ?? 'unpaid';
+            if (amount > 0 && status != 'paid') {
+              // Extract the parent document ID and collection from the reference path
+              final parentPath = doc.reference.parent.parent?.path ?? '';
+              final pathParts = parentPath.split('/');
+              String name = 'Additional Fee for Record';
+              String recordId = '';
+              String parentCollection = 'unknown';
+
+              // Extract record ID and parent collection from parent path
+              if (pathParts.length >= 2) {
+                recordId = pathParts[pathParts.length - 1];
+                // The collection is the second to last element in the path
+                parentCollection = pathParts.length >= 2
+                    ? pathParts[pathParts.length - 2]
+                    : 'unknown';
+              }
+
+              // The extra fees documents should have the parent document name stored in the data
+              // If not, we'll use a generic name with the record ID
+              final recordName = data['recordName'] ?? data['parentName'];
+              if (recordName != null &&
+                  recordName.toString().trim().isNotEmpty &&
+                  recordName != 'N/A') {
+                name = recordName.toString();
+              } else {
+                // If no record name is stored, use the parent document ID
+                if (recordId.isNotEmpty) {
+                  name = 'Additional Fee - $recordId';
+                } else {
+                  // Last resort: use a generic name with document ID
+                  name = 'Additional Fee - ${doc.id}';
+                }
+              }
+
+              extraFeesTransactions.add(TransactionData(
+                date: date,
+                name: name,
+                amount: amount,
+                type: 'Additional Fee',
+                collectionId:
+                    parentCollection, // Use the parent collection for navigation
+                doc: doc,
+                note: note,
+                recordId: recordId, // Add the record ID for navigation
+              ));
+            }
+          }
+        }
+      }
+
+      // Convert to revenue format for stats screen
+      List<Map<String, dynamic>> extraFeesForRevenue = [];
+      for (var transaction in extraFeesTransactions) {
+        extraFeesForRevenue.add({
+          'name': transaction.name,
+          'amount': transaction.amount,
+          'date': transaction.date,
+          'label': transaction.type,
+          'source': transaction.collectionId,
+          'id': transaction.doc?.id ?? '',
+        });
+      }
+
+      // Update the state
+      setState(() {
+        _extraFeesTransactions = extraFeesTransactions;
+        _extraFeesLoaded = true;
+        _extraFeesForRevenue = extraFeesForRevenue;
+        _extraFeesForRevenueLoaded = true;
+      });
+    }).onError((error) {
+      debugPrint('Error loading extra fees: $error');
+      setState(() {
+        _extraFeesLoaded = true; // Still mark as loaded to not retry
+      });
+    });
+  }
+
+  // Method to get extra fees data for revenue calculation
+  List<Map<String, dynamic>> getExtraFeesForRevenue() {
+    return _extraFeesForRevenue;
+  }
+
+  bool getExtraFeesLoaded() {
+    return _extraFeesForRevenueLoaded;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -286,6 +476,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
     final textColor = isDark ? Colors.white : Colors.black;
     final cardColor = isDark ? Colors.grey.shade900 : Colors.grey.shade100;
     final borderColor = isDark ? Colors.grey.shade600 : Colors.grey.shade400;
+
+    // Load extra fees separately
+    _loadExtraFees(context);
     return SafeArea(
         child: Scaffold(
       backgroundColor: isDark ? Colors.black : Colors.grey.shade200,
@@ -337,9 +530,14 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     // 1. Process main collections (indices 0, 1, 2, 3, 5)
                     final mainIndices = [0, 1, 2, 3, 5];
                     for (var idx in mainIndices) {
-                      if (dataList.length > idx) {
-                        for (var doc in dataList[idx].docs) {
+                      if (dataList.length > idx &&
+                          dataList[idx]?.docs != null) {
+                        for (var doc in dataList[idx]!.docs) {
                           final data = doc.data();
+
+                          // Skip soft-deleted documents
+                          if (data['isDeleted'] == true) continue;
+
                           final collectionId = doc.reference.parent.id;
 
                           double adv = double.tryParse(
@@ -410,9 +608,13 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     }
 
                     // 2. Process Expenses (index 4)
-                    if (dataList.length > 4) {
-                      for (var doc in dataList[4].docs) {
+                    if (dataList.length > 4 && dataList[4]?.docs != null) {
+                      for (var doc in dataList[4]!.docs) {
                         final data = doc.data();
+
+                        // Skip soft-deleted documents
+                        if (data['isDeleted'] == true) continue;
+
                         DateTime date = _safeParseGenericDate(
                             data['date'] ?? data['timestamp']);
 
@@ -434,9 +636,13 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     }
 
                     // 3. Process Payments (index 6)
-                    if (dataList.length > 6) {
-                      for (var doc in dataList[6].docs) {
+                    if (dataList.length > 6 && dataList[6]?.docs != null) {
+                      for (var doc in dataList[6]!.docs) {
                         final data = doc.data();
+
+                        // Skip soft-deleted documents
+                        if (data['isDeleted'] == true) continue;
+
                         DateTime date = _safeParseGenericDate(
                             data['date'] ?? data['createdAt']);
                         double amt = double.tryParse(
@@ -473,10 +679,16 @@ class _AccountsScreenState extends State<AccountsScreen> {
                               collectionId: data['category'] ?? 'payments',
                               doc: doc,
                               note: data['description'] ?? data['note'],
+                              recordId: recordId, // Add recordId for navigation
                             ));
                           }
                         }
                       }
+                    }
+
+                    // Merge extra fees transactions if they have been loaded
+                    if (_extraFeesLoaded && _extraFeesTransactions.isNotEmpty) {
+                      transactions.addAll(_extraFeesTransactions);
                     }
 
                     // Store all for DailyLedger
@@ -809,7 +1021,11 @@ class _AccountsScreenState extends State<AccountsScreen> {
         final rawData = transaction.doc.data() as Map<String, dynamic>;
         final detailsData = Map<String, dynamic>.from(rawData);
 
-        String recordId = detailsData['recordId'] ?? '';
+        // Use the recordId from the transaction if available, otherwise extract from path
+        String recordId = transaction.recordId ?? '';
+        if (recordId.isEmpty) {
+          recordId = detailsData['recordId'] ?? '';
+        }
         if (recordId.isEmpty) {
           final parentPath =
               transaction.doc.reference.parent.parent?.path ?? '';

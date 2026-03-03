@@ -18,9 +18,9 @@ import 'package:provider/provider.dart';
 import 'package:mds/screens/profile/dialog_box.dart';
 import 'package:mds/services/subscription_service.dart';
 import 'package:mds/screens/profile/admin/admin_subscription_page.dart';
-import 'package:mds/screens/authentication/google_sign_in.dart';
 import 'package:mds/screens/profile/settings_page.dart';
 import 'package:mds/screens/profile/about_page.dart'; // ← new
+import 'package:mds/screens/recycle_bin/recycle_bin_screen.dart'; // Recycle Bin
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onSubscriptionRenewed;
@@ -338,6 +338,19 @@ class _ProfileScreenState extends State<ProfileScreen>
                         );
                         _workspaceController.refreshAppData();
                       },
+                    ),
+                    _Divider(color: borderColor),
+                    _MenuRow(
+                      icon: Icons.delete_outline,
+                      iconColor: Colors.red,
+                      label: 'Recycle Bin',
+                      subtitle: 'Deleted items (90 days)',
+                      textColor: textColor,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const RecycleBinScreen()),
+                      ),
                     ),
                     _Divider(color: borderColor),
                     GestureDetector(

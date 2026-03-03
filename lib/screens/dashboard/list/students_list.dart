@@ -53,10 +53,12 @@ class _StudentListState extends State<StudentList> {
       if (mounted) {
         _userStreamController.add(snapshot);
         setState(() {
-          // Filter out documents that don't have required fields
+          // Filter out soft-deleted and invalid documents
           _allStudents = snapshot.docs.where((doc) {
-            // Only include documents with basic required fields
             final data = doc.data();
+            // Exclude soft-deleted items (in recycle bin)
+            if (data['isDeleted'] == true) return false;
+            // Only include documents with basic required fields
             return data.containsKey('fullName') ||
                 data.containsKey('name') ||
                 data.containsKey('mobileNumber');

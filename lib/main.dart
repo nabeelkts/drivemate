@@ -24,6 +24,7 @@ import 'package:mds/screens/dashboard/test_date_updater_screen.dart';
 import 'package:mds/screens/notification/notification_screen.dart';
 import 'package:mds/screens/dashboard/list/dl_services_list.dart';
 import 'package:provider/provider.dart';
+import 'package:mds/services/soft_delete_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -47,6 +48,9 @@ Future<void> main() async {
   // ✅ FIXED: DI must run BEFORE runApp so all services are ready
   // when the first widget tree builds
   DependencyInjection.init();
+
+  // Cleanup expired soft-deleted documents
+  await SoftDeleteService.cleanupExpiredDocuments();
 
   runApp(const MyApp());
 }

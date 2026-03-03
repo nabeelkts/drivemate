@@ -6,6 +6,7 @@ import 'package:mds/screens/widget/custom_back_button.dart';
 import 'package:get/get.dart';
 import 'package:mds/controller/workspace_controller.dart';
 import 'package:mds/constants/colors.dart';
+import 'package:mds/utils/soft_delete_utils.dart';
 import 'package:mds/screens/dashboard/list/widgets/animated_search_widget.dart';
 import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'package:mds/screens/dashboard/list/widgets/summary_header.dart';
@@ -68,7 +69,8 @@ class _BaseListWidgetState extends State<BaseListWidget> {
         if (mounted) {
           _userStreamController.add(snapshot);
           setState(() {
-            _allItems = snapshot.docs;
+            // Filter out soft-deleted items
+            _allItems = SoftDeleteUtils.filterDeletedDocuments(snapshot.docs);
             _filterItems(_searchController.text);
           });
         }

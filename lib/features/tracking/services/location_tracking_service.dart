@@ -48,7 +48,7 @@ class LocationTrackingService extends GetxService {
   // Path persistence — throttle Firestore writes
   // Write a path point every _pathWriteIntervalMeters OR _pathWriteIntervalSeconds
   static const double _pathWriteIntervalMeters = 20.0; // every 20m
-  static const int _pathWriteIntervalSeconds = 15;    // or every 15s
+  static const int _pathWriteIntervalSeconds = 15; // or every 15s
   double _distanceSinceLastPathWrite = 0.0;
   DateTime? _lastPathWriteTime;
 
@@ -98,7 +98,8 @@ class LocationTrackingService extends GetxService {
         if (_currentLessonId != null) {
           final completedLessonId = _currentLessonId!;
           final distanceKm = _lessonDistance / 1000;
-          print('Lesson ended: $completedLessonId — ${distanceKm.toStringAsFixed(2)} km');
+          print(
+              'Lesson ended: $completedLessonId — ${distanceKm.toStringAsFixed(2)} km');
           await _saveLessonDistance(completedLessonId, _lessonDistance);
           await _finalizeLessonPath(completedLessonId, _lessonDistance);
           _currentLessonId = null;
@@ -132,7 +133,8 @@ class LocationTrackingService extends GetxService {
   }
 
   /// Mark path as complete and write final distance
-  Future<void> _finalizeLessonPath(String lessonId, double distanceMeters) async {
+  Future<void> _finalizeLessonPath(
+      String lessonId, double distanceMeters) async {
     try {
       await FirebaseFirestore.instance
           .collection('lesson_paths')
@@ -158,7 +160,7 @@ class LocationTrackingService extends GetxService {
 
     final shouldWrite =
         _distanceSinceLastPathWrite >= _pathWriteIntervalMeters ||
-        secondsSinceLast >= _pathWriteIntervalSeconds;
+            secondsSinceLast >= _pathWriteIntervalSeconds;
 
     if (!shouldWrite) return;
 
@@ -197,8 +199,7 @@ class LocationTrackingService extends GetxService {
           .get();
 
       for (final doc in query.docs) {
-        if (doc.id == lessonId ||
-            doc.data()['currentLessonId'] == lessonId) {
+        if (doc.id == lessonId || doc.data()['currentLessonId'] == lessonId) {
           await doc.reference.update({
             'lessonDistanceKm': distanceMeters / 1000,
             'lessonCompletedAt': FieldValue.serverTimestamp(),
@@ -260,7 +261,8 @@ class LocationTrackingService extends GetxService {
       ).then((position) {
         _lastPosition = position;
         _updateLocation(position);
-      }).catchError((e) => print('Initial position error: $e'));
+      }).catchError((e) => print(
+          'Initial position error: $e')); // ignore: invalid_return_type_for_catch_error
 
       _positionStreamSubscription =
           Geolocator.getPositionStream(locationSettings: locationSettings)
@@ -270,7 +272,8 @@ class LocationTrackingService extends GetxService {
           _updateLocation(position);
           _writePathPoint(position); // ✅ persist to Firestore
         },
-        onError: (e) => print('Location stream error: $e'),
+        onError: (e) => print(
+            'Location stream error: $e'), // ignore: invalid_return_type_for_catch_error
       );
 
       _isTracking = true;
@@ -311,14 +314,14 @@ class LocationTrackingService extends GetxService {
 
     _repository.updateLocation(location).catchError((e) {
       print('Error updating location: $e');
+      return null; // Return null to satisfy FutureOr<Null>
     });
 
     if (_serviceInstance is AndroidServiceInstance) {
       (_serviceInstance as AndroidServiceInstance)
           .setForegroundNotificationInfo(
         title: 'Drivemate: Active',
-        content:
-            'Speed: ${(location.speed * 3.6).toStringAsFixed(1)} km/h | '
+        content: 'Speed: ${(location.speed * 3.6).toStringAsFixed(1)} km/h | '
             'Trip: ${(_lessonDistance / 1000).toStringAsFixed(2)} km',
       );
     }

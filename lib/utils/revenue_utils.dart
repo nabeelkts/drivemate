@@ -8,6 +8,8 @@ class RevenueUtils {
     required List<QuerySnapshot<Map<String, dynamic>>> snapshots,
     required DateTime selectedDate,
     required List<DateTime> months,
+    List<Map<String, dynamic>>?
+        additionalTransactions, // Extra fees transactions
   }) {
     final Map<String, double> revenueByMonth = {};
     for (var month in months) {
@@ -22,6 +24,11 @@ class RevenueUtils {
       selectedDate: selectedDate,
       filter: 'All',
     );
+
+    // Add additional transactions (like extra fees) if provided
+    if (additionalTransactions != null) {
+      allTransactions.addAll(additionalTransactions);
+    }
 
     // Populate revenueByMonth
     for (var t in allTransactions) {
@@ -114,7 +121,59 @@ class RevenueUtils {
       }
     }
 
-    // 2. Process Individual Payments Subcollections
+    // 2. Process Extra Fees Collections (indices 7-11)
+    final extraFeesIndices = [7, 8, 9, 10, 11];
+    final extraFeesCollections = [
+      'extra_fees_students',
+      'extra_fees_licenseonly',
+      'extra_fees_endorsement',
+      'extra_fees_vehicleDetails',
+      'extra_fees_dl_services'
+    ];
+
+    for (int i = 0; i < extraFeesIndices.length; i++) {
+      int idx = extraFeesIndices[i];
+      if (snapshots.length > idx) {
+        String source = extraFeesCollections[i].replaceAll('extra_fees_', '');
+        for (var doc in snapshots[idx].docs) {
+          final data = doc.data();
+          final date = _parseDate(data['date']) ??
+              DateTime.fromMillisecondsSinceEpoch(0);
+          final amount =
+              double.tryParse(data['amount']?.toString() ?? '0') ?? 0.0;
+
+          if (amount > 0) {
+            final recordName = data['recordName'] ?? data['parentName'];
+            String name = 'Additional Fee - ' + doc.id; // Default name
+            if (recordName != null &&
+                recordName.toString().trim().isNotEmpty &&
+                recordName != 'N/A') {
+              name = recordName.toString();
+            }
+            String description = data['description'] ?? 'Additional Fee';
+
+            // Use the actual source collection instead of generic 'extra_fees'
+            String actualSource = source;
+            // Handle special cases where the source name differs from navigation target
+            if (source == 'vehicleDetails') {
+              actualSource = 'vehicleDetails';
+            }
+
+            transactions.add({
+              'name': name,
+              'amount': amount,
+              'date': date,
+              'label': description,
+              'source': actualSource,
+              'id': doc.id,
+              'data': data,
+            });
+          }
+        }
+      }
+    }
+
+    // 3. Process Individual Payments Subcollections
     if (snapshots.length > 6) {
       for (var doc in snapshots[6].docs) {
         final data = doc.data();

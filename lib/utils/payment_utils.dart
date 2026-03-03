@@ -1683,6 +1683,35 @@ class PaymentUtils {
                     'paymentNote': noteController.text.trim(),
                   });
 
+                  // Add payment record to payments subcollection to ensure it appears in revenue and transaction history
+                  // Extract the parent collection name from the reference path
+                  String parentPath = docRef
+                      .parent.path; // e.g., users/{userId}/students/{docId}
+                  List<String> pathParts = parentPath.split('/');
+                  // Get the collection name (second to last element)
+                  String parentCollection = '';
+                  if (pathParts.length >= 3) {
+                    parentCollection = pathParts[pathParts.length - 2];
+                  } else {
+                    parentCollection = 'unknown';
+                  }
+                  final paymentRef = docRef.collection('payments').doc();
+                  batch.set(paymentRef, {
+                    'amount': feeAmount,
+                    'mode': selectedMode,
+                    'date': Timestamp.fromDate(combinedDateTime),
+                    'description': 'Additional Fee',
+                    'createdAt': FieldValue.serverTimestamp(),
+                    'targetId': targetId,
+                    'recordId': parentDoc.id,
+                    'recordName': parentData['fullName'] ??
+                        parentData['vehicleNumber'] ??
+                        'N/A',
+                    'category': parentCollection,
+                    'branchId': branchId ?? targetId,
+                    'note': noteController.text.trim(),
+                  });
+
                   // Log activity
                   final activityRef = firestore
                       .collection('users')
@@ -1701,6 +1730,14 @@ class PaymentUtils {
                   });
 
                   await batch.commit();
+
+                  // Sync extra fee statuses based on new balance
+                  final finalBatch = firestore.batch();
+                  await _syncExtraFeeStatuses(
+                    docRef: docRef,
+                    batch: finalBatch,
+                  );
+                  await finalBatch.commit();
 
                   if (generateReceipt && context.mounted) {
                     try {
@@ -1915,6 +1952,33 @@ class PaymentUtils {
           double.tryParse(doc.data()['amount']?.toString() ?? '0') ?? 0.0;
       final currentStatus = doc.data()['status']?.toString() ?? 'unpaid';
 
+      // Check if this fee was manually collected (has collectedAt timestamp)
+      bool isManuallyCollected =
+          currentStatus == 'paid' && doc.data()['collectedAt'] != null;
+
+      if (isManuallyCollected) {
+        // Preserve manually collected fees - don't change their status
+        continue; // Skip to the next fee
+      }
+
+      // Check if this fee was just created (has createdAt close to now)
+      Timestamp? createdAt = doc.data()['createdAt'];
+      bool isNewFee = false;
+      if (createdAt != null) {
+        DateTime createdTime = createdAt.toDate();
+        // Consider fee as "new" if created within the last 5 minutes
+        if (DateTime.now().difference(createdTime).inMinutes < 5) {
+          isNewFee = true;
+        }
+      }
+
+      // For new fees, don't automatically mark as paid - let user collect manually
+      if (isNewFee && currentStatus == 'unpaid') {
+        // Keep new fees as unpaid initially, regardless of available funds
+        continue; // Skip to the next fee
+      }
+
+      // Apply automatic logic to non-new fees that weren't manually collected
       if (availableForExtra >= feeAmount) {
         if (currentStatus != 'paid') {
           batch.update(doc.reference, {'status': 'paid'});
