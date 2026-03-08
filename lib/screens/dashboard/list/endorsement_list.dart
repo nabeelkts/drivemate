@@ -4,15 +4,15 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/dashboard/form/edit_forms/edit_endorsement_details_form.dart';
-import 'package:mds/screens/dashboard/form/new_forms/endorment_dl_form.dart';
-import 'package:mds/screens/dashboard/list/deactivated_endorsement_list.dart';
-import 'package:mds/screens/dashboard/list/details/endorsement_details_page.dart';
-import 'package:mds/screens/dashboard/list/widgets/list_item_card.dart';
-import 'package:mds/screens/profile/dialog_box.dart';
-import 'package:mds/screens/widget/base_list_widget.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/dashboard/form/edit_forms/edit_endorsement_details_form.dart';
+import 'package:drivemate/screens/dashboard/form/new_forms/endorment_dl_form.dart';
+import 'package:drivemate/screens/dashboard/list/deactivated_endorsement_list.dart';
+import 'package:drivemate/screens/dashboard/list/details/endorsement_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/list_item_card.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
+import 'package:drivemate/screens/widget/base_list_widget.dart';
 
 class EndorsementList extends StatelessWidget {
   final String userId;
@@ -26,6 +26,7 @@ class EndorsementList extends StatelessWidget {
       collectionName: 'endorsement',
       searchField: 'Name',
       secondarySearchField: 'Mobile Number', // Add mobile number search
+      summaryLabel: 'Total:',
       addButtonText: 'Create New Endorsement',
       onAddNew: () {
         Navigator.push(
@@ -41,8 +42,10 @@ class EndorsementList extends StatelessWidget {
         );
       },
       itemBuilder: (context, doc) {
-        final data = doc.data();
-        data['recordId'] = doc.id; // Inject ID for Details Stream fallback
+        final data = Map<String, dynamic>.from(doc.data());
+        // Inject document ID for navigation to details pages
+        data['studentId'] = doc.id;
+        data['recordId'] = doc.id;
         data['id'] = doc.id;
 
         final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -191,14 +194,14 @@ class EndorsementList extends StatelessWidget {
           : 'Are you sure the student failed the test? A failed badge will be shown.',
       () async {
         await _updateEndorsementStatus(documentId, endorsementData, status);
-        Navigator.of(context).pop();
-        if (isPassed) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const DeactivatedEndorsementList(),
-            ),
-          );
+        // Close confirmation dialog first
+        if (context.mounted) {
+          Navigator.of(context).pop();
+        }
+        // Navigate to deactivated list after a brief delay
+        if (isPassed && context.mounted) {
+          // Use Get.off for safer navigation
+          Get.off(() => const DeactivatedEndorsementList());
         }
       },
     );

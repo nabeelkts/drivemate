@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/model/carousel_model.dart';
+import 'package:drivemate/model/carousel_model.dart';
 import 'package:shimmer/shimmer.dart';
 
 class CarouselWithIndicator extends StatefulWidget {
@@ -37,8 +37,7 @@ class _CarouselWithIndicatorState extends State<CarouselWithIndicator> {
                     borderRadius: BorderRadius.all(Radius.circular(10.0)),
                   ),
                   child: ClipRRect(
-                    borderRadius:
-                        const BorderRadius.all(Radius.circular(10.0)),
+                    borderRadius: const BorderRadius.all(Radius.circular(10.0)),
                     child: AspectRatio(
                       aspectRatio: 16 / 9,
                       child: Container(

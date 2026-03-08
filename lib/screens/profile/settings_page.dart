@@ -1,13 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/controller/app_controller.dart';
-import 'package:mds/controller/theme_controller.dart';
-import 'package:mds/screens/profile/home_layout_selector.dart';
-import 'package:mds/screens/profile/dialog_box.dart';
-import 'package:mds/screens/authentication/google_sign_in.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/controller/app_controller.dart';
+import 'package:drivemate/controller/theme_controller.dart';
+import 'package:drivemate/screens/profile/home_layout_selector.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
+import 'package:drivemate/screens/authentication/google_sign_in.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
 import 'package:provider/provider.dart';
 
 class SettingsPage extends StatelessWidget {
@@ -63,50 +63,35 @@ class SettingsPage extends StatelessWidget {
                     fontSize: 16,
                     fontWeight: FontWeight.bold)),
             const SizedBox(height: 8),
-            _buildSection(isDark, cardColor, [
-              _buildSettingTile(
-                  textColor: textColor,
-                  icon: Icons.brightness_6,
-                  title: 'Dark Mode',
-                  subtitle: isDarkMode ? 'Enabled' : 'Disabled',
-                  trailing: Switch(
-                      value: isDarkMode,
-                      onChanged: (v) => toggleTheme(),
-                      activeColor: themeController.themeColor)),
-              /* _buildSettingTile(
-                  textColor: textColor,
-                  icon: Icons.dashboard_customize,
-                  title: 'Home layout',
-                  subtitle: 'Choose your home screen design',
-                  trailing: Icon(Icons.chevron_right,
-                      color: textColor.withOpacity(0.5)),
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const HomeLayoutSelector(),
-                      ),
-                    );
-                  }), */
-              _buildSettingTile(
-                  textColor: textColor,
-                  icon: Icons.notifications,
-                  title: 'Notifications',
-                  subtitle: '',
-                  trailing: Switch(
-                      value: notificationsEnabled,
-                      onChanged: (v) => toggleNotifications(),
-                      activeColor: themeController.themeColor)),
-              _buildSettingTile(
-                  textColor: textColor,
-                  icon: Icons.fingerprint,
-                  title: 'Biometric login',
-                  subtitle: 'Use fingerprint/face ID',
-                  trailing: Switch(
-                      value: biometricEnabled,
-                      onChanged: (v) => toggleBiometric(),
-                      activeColor: themeController.themeColor)),
-            ]),
+            Obx(() => _buildSection(isDark, cardColor, [
+                  _buildSettingTile(
+                      textColor: textColor,
+                      icon: Icons.brightness_6,
+                      title: 'Dark Mode',
+                      subtitle: isDarkMode ? 'Enabled' : 'Disabled',
+                      trailing: Switch(
+                          value: isDarkMode,
+                          onChanged: (v) => toggleTheme(),
+                          activeColor: themeController.themeColor)),
+                  _buildSettingTile(
+                      textColor: textColor,
+                      icon: Icons.notifications,
+                      title: 'Notifications',
+                      subtitle: '',
+                      trailing: Switch(
+                          value: appController.notificationsEnabled.value,
+                          onChanged: (v) => toggleNotifications(),
+                          activeColor: themeController.themeColor)),
+                  _buildSettingTile(
+                      textColor: textColor,
+                      icon: Icons.fingerprint,
+                      title: 'Biometric login',
+                      subtitle: 'Use fingerprint/face ID',
+                      trailing: Switch(
+                          value: appController.biometricEnabled.value,
+                          onChanged: (v) => toggleBiometric(),
+                          activeColor: themeController.themeColor)),
+                ])),
             const SizedBox(height: 24),
             Text('Account Actions',
                 style: TextStyle(

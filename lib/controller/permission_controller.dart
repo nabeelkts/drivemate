@@ -13,29 +13,11 @@ class PermissionController extends GetxController {
 
   /// Request all necessary permissions for the app
   Future<void> requestAllPermissions() async {
-    // List of permissions to request
-    final permissions = [
-      Permission.location,
-      Permission.locationWhenInUse,
-      Permission.notification,
-    ];
-
-    // Request permissions one by one to avoid UI overlaps
-    for (var permission in permissions) {
-      final status = await permission.status;
-      if (status.isDenied || status.isRestricted) {
-        await permission.request();
-      }
-    }
-
-    // Special check for Background Location (needed for tracking)
-    // Only ask if WhenInUse is granted
-    if (await Permission.locationWhenInUse.isGranted) {
-      final backgroundStatus = await Permission.locationAlways.status;
-      if (backgroundStatus.isDenied) {
-        // We might want to show a custom rationale first
-        // await Permission.locationAlways.request();
-      }
+    // Only request notification permission on startup
+    // Location permission will be requested when a lesson/test starts
+    final notificationStatus = await Permission.notification.status;
+    if (notificationStatus.isDenied || notificationStatus.isRestricted) {
+      await Permission.notification.request();
     }
   }
 

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mds/screens/authentication/auth_page.dart';
+import 'package:drivemate/screens/authentication/auth_page.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:async';
 
@@ -13,7 +13,7 @@ class OnboardingScreen extends StatefulWidget {
 
 class _OnboardingScreenState extends State<OnboardingScreen> {
   bool _isFirstLaunch = true;
-  PageController _pageController = PageController();
+  final PageController _pageController = PageController();
   Timer? _timer;
   int _currentPage = 0;
   final List<String> _images = [

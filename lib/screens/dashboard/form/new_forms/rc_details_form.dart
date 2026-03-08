@@ -3,11 +3,11 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:mds/screens/dashboard/list/details/rc_details_page.dart';
-import 'package:mds/screens/widget/common_form.dart';
+import 'package:drivemate/screens/dashboard/list/details/rc_details_page.dart';
+import 'package:drivemate/screens/widget/common_form.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
 
 class RCDetailsForm extends StatefulWidget {
   const RCDetailsForm({super.key});

@@ -1,45 +1,48 @@
 import 'dart:io';
 import 'dart:typed_data';
-import 'package:android_intent_plus/android_intent.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter/services.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:mds/screens/authentication/widgets/my_button.dart';
-import 'package:mds/screens/dashboard/form/edit_forms/edit_student_details_form.dart';
-import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
-import 'package:mds/screens/dashboard/list/details/pdf_preview_screen.dart';
-import 'package:mds/service/attendance_pdf_service.dart';
+import 'package:drivemate/screens/authentication/widgets/my_button.dart';
+import 'package:drivemate/screens/dashboard/form/edit_forms/edit_student_details_form.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:drivemate/screens/dashboard/list/details/pdf_preview_screen.dart';
+import 'package:drivemate/service/attendance_pdf_service.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:mds/services/pdf_service.dart';
-import 'package:mds/services/image_cache_service.dart';
-import 'package:mds/services/attendance_pdf_service.dart';
-import 'package:mds/screens/profile/action_button.dart';
-import 'package:mds/utils/loading_utils.dart';
+import 'package:drivemate/services/pdf_service.dart';
+import 'package:drivemate/services/image_cache_service.dart';
+import 'package:drivemate/screens/profile/action_button.dart';
+import 'package:drivemate/utils/loading_utils.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/screens/widget/utils.dart';
+import 'package:drivemate/screens/widget/utils.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/utils/payment_utils.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/utils/payment_utils.dart';
 import 'package:iconly/iconly.dart';
-import 'package:mds/utils/test_utils.dart';
-import 'package:mds/utils/image_utils.dart';
-import 'package:mds/utils/date_utils.dart';
-import 'package:mds/widgets/additional_info_sheet.dart';
-import 'package:mds/services/additional_info_service.dart';
+import 'package:drivemate/utils/test_utils.dart';
+import 'package:drivemate/utils/image_utils.dart';
+import 'package:drivemate/utils/date_utils.dart';
+import 'package:drivemate/widgets/additional_info_sheet.dart';
+import 'package:drivemate/services/additional_info_service.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:mds/features/tracking/services/background_service.dart';
-import 'package:mds/features/tracking/data/repositories/tracking_repository.dart';
-import 'package:mds/features/tracking/services/location_tracking_service.dart';
+import 'package:drivemate/features/tracking/services/background_service.dart';
+import 'package:drivemate/features/tracking/data/repositories/tracking_repository.dart';
+import 'package:drivemate/features/tracking/services/location_tracking_service.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:mds/widgets/soft_delete_button.dart';
+import 'package:drivemate/widgets/soft_delete_button.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:drivemate/services/storage_service.dart';
+import 'package:drivemate/screens/dashboard/list/details/document_preview_screen.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/details_tabs_bar.dart';
 
 class StudentDetailsPage extends StatefulWidget {
   final Map<String, dynamic> studentDetails;
@@ -56,71 +59,72 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   final List<String> _selectedTransactionIds = [];
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
-  bool _isTransactionHistoryExpanded = false;
+  List<Map<String, dynamic>> _cachedPayments = [];
+  int _activeTab = 0;
+  String get _docId =>
+      studentDetails['id']?.toString() ??
+      studentDetails['studentId']?.toString() ??
+      '';
+  late final Stream<DocumentSnapshot> _mainStream;
+  late final Stream<QuerySnapshot> _paymentsStream;
+  late final Stream<QuerySnapshot> _attendanceHistoryStream;
+  late final Stream<QuerySnapshot> _extraFeesStream;
+  late final Stream<QuerySnapshot> _documentsStream;
+  String _collectionName = 'students';
 
   @override
   void initState() {
     super.initState();
     studentDetails = Map.from(widget.studentDetails);
-    _docId = studentDetails['studentId'].toString();
     _initStreams();
   }
 
-  late final String _docId;
-  late final Stream<DocumentSnapshot> _mainStream;
-  late final Stream<QuerySnapshot> _paymentsStream;
-  late final Stream<QuerySnapshot> _extraFeesStream;
-  late final Stream<QuerySnapshot> _attendanceLimitStream;
-  late final Stream<QuerySnapshot> _attendanceHistoryStream;
-
-  void _initStreams() {
+  Future<void> _initStreams() async {
     final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
         ? _workspaceController.currentSchoolId.value
         : (FirebaseAuth.instance.currentUser?.uid ?? '');
 
-    _mainStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('students')
-        .doc(_docId)
-        .snapshots();
+    // Initialize with empty streams to prevent late init errors during first build
+    _mainStream = const Stream.empty();
+    _paymentsStream = const Stream.empty();
+    _attendanceHistoryStream = const Stream.empty();
+    _extraFeesStream = const Stream.empty();
+    _documentsStream = const Stream.empty();
 
-    _paymentsStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('students')
+    final base = FirebaseFirestore.instance.collection('users').doc(targetId);
+    final activeSnap = await base.collection('students').doc(_docId).get();
+    _collectionName = activeSnap.exists ? 'students' : 'deactivated_students';
+
+    _mainStream = base.collection(_collectionName).doc(_docId).snapshots();
+
+    _paymentsStream = base
+        .collection(_collectionName)
         .doc(_docId)
         .collection('payments')
         .orderBy('date', descending: true)
         .snapshots();
 
-    _extraFeesStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('students')
+    _attendanceHistoryStream = base
+        .collection(_collectionName)
+        .doc(_docId)
+        .collection('attendance')
+        .orderBy('date', descending: true)
+        .snapshots();
+
+    _extraFeesStream = base
+        .collection(_collectionName)
         .doc(_docId)
         .collection('extra_fees')
         .orderBy('date', descending: true)
         .snapshots();
 
-    _attendanceLimitStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('students')
+    _documentsStream = base
+        .collection(_collectionName)
         .doc(_docId)
-        .collection('attendance')
-        .orderBy('date', descending: true)
-        .limit(2)
+        .collection('documents')
+        .orderBy('timestamp', descending: true)
         .snapshots();
-
-    _attendanceHistoryStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('students')
-        .doc(_docId)
-        .collection('attendance')
-        .orderBy('date', descending: true)
-        .snapshots();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -128,7 +132,6 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
-
     final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
         ? _workspaceController.currentSchoolId.value
         : (FirebaseAuth.instance.currentUser?.uid ?? '');
@@ -137,28 +140,34 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-        title: Text('Student Details', style: TextStyle(color: textColor)),
         elevation: 0,
         leading: const CustomBackButton(),
+        title: Text('Student Details', style: TextStyle(color: textColor)),
         actions: [
           _buildLessonControlButton(targetId),
-          _buildAdditionalInfoButton(),
           IconButton(
             icon: Icon(Icons.picture_as_pdf, color: subTextColor),
             onPressed: () => _shareStudentDetails(context),
           ),
-          // Soft Delete Button - Move to Recycle Bin
-          SoftDeleteButton(
-            docRef: FirebaseFirestore.instance
-                .collection('users')
-                .doc(targetId)
-                .collection('students')
-                .doc(studentDetails['studentId'].toString()),
-            documentName: studentDetails['fullName'] ?? 'Student',
-            onDeleteSuccess: () {
-              Navigator.pop(context); // Go back after deletion
-            },
-          ),
+          if (_collectionName == 'students')
+            SoftDeleteButton(
+              docRef: FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(targetId)
+                  .collection(_collectionName)
+                  .doc(_docId) as DocumentReference<Object?>,
+              documentName: studentDetails['fullName'] ?? 'Student',
+              onDeleteSuccess: () {
+                Get.snackbar(
+                  'Success',
+                  'Student moved to recycle bin',
+                  snackPosition: SnackPosition.BOTTOM,
+                  backgroundColor: Colors.green,
+                  colorText: Colors.white,
+                );
+                Navigator.pop(context);
+              },
+            ),
           IconButton(
             icon: Icon(Icons.edit, color: subTextColor),
             onPressed: () {
@@ -189,31 +198,28 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         stream: _mainStream,
         builder: (context, snapshot) {
           if (snapshot.hasData && snapshot.data!.exists) {
-            studentDetails = snapshot.data!.data() as Map<String, dynamic>;
+            studentDetails = Map<String, dynamic>.from(
+                snapshot.data!.data() as Map<String, dynamic>);
           }
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              children: [
-                _buildProfileHeader(context),
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(flex: 1, child: _buildPersonalInfoCard(context)),
-                    const SizedBox(width: 16),
-                    Expanded(flex: 1, child: _buildAddressCard(context)),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                _buildPaymentOverviewCard(context),
-                const SizedBox(height: 16),
-                _buildAttendanceCard(context, targetId),
-                const SizedBox(height: 16),
-                _buildTestDateCard(context),
-                const SizedBox(height: 24),
-              ],
+          final bottomInset = MediaQuery.of(context).padding.bottom;
+          return SafeArea(
+            bottom: true,
+            child: SingleChildScrollView(
+              padding:
+                  EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + bottomInset),
+              child: Column(
+                children: [
+                  _buildProfileHeader(context, targetId),
+                  const SizedBox(height: 16),
+                  _buildInfoGrid(context),
+                  const SizedBox(height: 16),
+                  _buildCustomTabBar(context),
+                  const SizedBox(height: 16),
+                  _buildTabContent(context, targetId),
+                  const SizedBox(height: 24),
+                ],
+              ),
             ),
           );
         },
@@ -221,195 +227,72 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     );
   }
 
-  // ── Test date card ──────────────────────────────────────────────────────────
-
-  Widget _buildTestDateCard(BuildContext context) {
+  Widget _buildProfileHeader(BuildContext context, String targetId) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     final cardColor = Theme.of(context).cardColor;
 
-    final llDate = AppDateUtils.formatDateForDisplay(
-      studentDetails['learnersTestDate']?.toString(),
-    );
-    final dlDate = AppDateUtils.formatDateForDisplay(
-      studentDetails['drivingTestDate']?.toString(),
-    );
-
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       decoration: BoxDecoration(
         color: cardColor,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: kAccentRed.withOpacity(0.5)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Test Dates',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-              IconButton(
-                icon: const Icon(IconlyLight.edit, color: kAccentRed, size: 20),
-                onPressed: () => TestUtils.showUpdateTestDateDialog(
-                  context: context,
-                  item: studentDetails,
-                  collection: 'students',
-                  studentId: _docId,
-                  onUpdate: () => setState(() {}),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 5),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          _buildTestDateRow(
-            'Learners Test (LL)',
-            llDate,
-            IconlyBold.calendar,
-            Colors.blue,
-            isDark,
-          ),
-          const Divider(height: 16),
-          _buildTestDateRow(
-            'Driving Test (DL)',
-            dlDate,
-            IconlyBold.calendar,
-            Colors.green,
-            isDark,
-          ),
-        ],
+              ],
       ),
-    );
-  }
-
-  Widget _buildTestDateRow(
-    String label,
-    String date,
-    IconData icon,
-    Color iconColor,
-    bool isDark,
-  ) {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: iconColor.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: iconColor, size: 20),
-        ),
-        const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: (isDark ? Colors.white : Colors.black).withOpacity(0.5),
-              ),
-            ),
-            Text(
-              date.isEmpty ? 'Pick test date' : date,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
-
-  // ── Profile header ──────────────────────────────────────────────────────────
-
-  Widget _buildProfileHeader(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-      decoration: _cardDecoration(context, kAccentRed),
       child: Row(
         children: [
-          Builder(
-            builder: (context) {
-              Timer? holdTimer;
-              return GestureDetector(
-                onTapDown: (_) {
-                  if (studentDetails['image'] != null &&
-                      studentDetails['image'].toString().isNotEmpty) {
-                    holdTimer = Timer(const Duration(seconds: 1), () {
-                      ImageUtils.showImagePopup(
-                        context,
-                        studentDetails['image'],
-                        studentDetails['fullName'],
-                      );
-                    });
-                  }
-                },
-                onTapUp: (_) => holdTimer?.cancel(),
-                onTapCancel: () => holdTimer?.cancel(),
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: kAccentRed,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: Theme.of(context).scaffoldBackgroundColor,
-                      width: 3,
-                    ),
-                  ),
-                  child: ClipOval(
-                    child: (studentDetails['image'] != null &&
-                            studentDetails['image'].toString().isNotEmpty)
-                        ? CachedNetworkImage(
-                            imageUrl: studentDetails['image'],
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Shimmer.fromColors(
-                              baseColor: isDark
-                                  ? Colors.grey[800]!
-                                  : Colors.grey[300]!,
-                              highlightColor: isDark
-                                  ? Colors.grey[700]!
-                                  : Colors.grey[100]!,
-                              child: Container(color: Colors.white),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              alignment: Alignment.center,
-                              child: Text(
-                                _initials,
-                                style: TextStyle(
-                                  fontSize: 40,
-                                  color: textColor,
-                                  height: 1.0,
-                                ),
-                                textAlign: TextAlign.center,
-                              ),
-                            ),
-                          )
-                        : Container(
-                            alignment: Alignment.center,
-                            child: Text(
-                              _initials,
-                              style: TextStyle(
-                                fontSize: 40,
-                                color: textColor,
-                                height: 1.0,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                          ),
-                  ),
-                ),
-              );
-            },
+          Container(
+            width: 100,
+            height: 100,
+            decoration: BoxDecoration(
+              color: kAccentRed,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Theme.of(context).scaffoldBackgroundColor,
+                width: 3,
+              ),
+            ),
+            child: InkWell(
+              onTap: () {
+                final imageUrl = studentDetails['image']?.toString() ?? '';
+                if (imageUrl.isEmpty) return;
+                ImageUtils.showImagePopup(
+                  context,
+                  imageUrl,
+                  studentDetails['fullName']?.toString() ?? 'Profile Photo',
+                );
+              },
+              child: ClipOval(
+                child: (studentDetails['image'] != null &&
+                        studentDetails['image'].toString().isNotEmpty)
+                    ? CachedNetworkImage(
+                        imageUrl: studentDetails['image'],
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Shimmer.fromColors(
+                          baseColor:
+                              isDark ? Colors.grey[800]! : Colors.grey[300]!,
+                          highlightColor:
+                              isDark ? Colors.grey[700]! : Colors.grey[100]!,
+                          child: Container(color: Colors.white),
+                        ),
+                        errorWidget: (context, url, error) =>
+                            _buildInitialsPlaceholder(),
+                      )
+                    : _buildInitialsPlaceholder(),
+              ),
+            ),
           ),
-          const SizedBox(width: 20),
+          const SizedBox(width: 16),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -422,28 +305,26 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
                 Text(
-                  'ID: ${studentDetails['studentId'] ?? 'N/A'}',
-                  style: TextStyle(color: subTextColor, fontSize: 14),
+                  'Student ID: ${studentDetails['studentId'] ?? 'N/A'}',
+                  style: TextStyle(color: subTextColor, fontSize: 13),
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
                     color: kAccentRed.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: kAccentRed),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(color: kAccentRed.withOpacity(0.3)),
                   ),
                   child: Text(
                     'COV: ${studentDetails['cov'] ?? 'N/A'}',
                     style: const TextStyle(
                       color: kAccentRed,
                       fontSize: 12,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
                 ),
@@ -455,146 +336,186 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     );
   }
 
-  String get _initials {
-    final name = studentDetails['fullName'];
-    if (name == null || name.isEmpty) return '';
-    return name[0].toUpperCase();
+  Widget _buildInitialsPlaceholder() {
+    return Center(
+      child: Text(
+        _initials,
+        style: const TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          color: Colors.white,
+        ),
+      ),
+    );
   }
 
-  // ── Personal info ───────────────────────────────────────────────────────────
-
-  Widget _buildPersonalInfoCard(BuildContext context) {
+  Widget _buildInfoGrid(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
-    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
+    final subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: _buildInfoCard(context, 'Personal Information', [
+            {
+              'label': 'Guardian',
+              'value': studentDetails['guardianName'] ?? 'N/A'
+            },
+            {
+              'label': 'Date of Birth',
+              'value': formatDisplayDate(studentDetails['dob'])
+            },
+            {
+              'label': 'Blood Group',
+              'value': studentDetails['bloodGroup'] ?? 'N/A'
+            },
+            {
+              'label': 'Mobile',
+              'value': studentDetails['mobileNumber'] ?? 'N/A'
+            },
+            {
+              'label': 'Emergency',
+              'value': studentDetails['emergencyNumber'] ?? 'N/A'
+            },
+          ]),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: _buildInfoCard(context, 'Address Details', [
+            {'label': 'House', 'value': studentDetails['house'] ?? ''},
+            {'label': 'Place', 'value': studentDetails['place'] ?? ''},
+            {'label': 'Post', 'value': studentDetails['post'] ?? ''},
+            {'label': 'District', 'value': studentDetails['district'] ?? ''},
+            {'label': 'PIN', 'value': studentDetails['pin'] ?? ''},
+          ]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoCard(
+      BuildContext context, String title, List<Map<String, String>> data,
+      {Widget? extraContent}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
+    final cardColor = Theme.of(context).cardColor;
 
     return Container(
-      height: 200,
+      height: 220,
       padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(context, kAccentRed),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kAccentRed.withOpacity(0.5)),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Personal Info',
-              style: TextStyle(
-                color: textColor,
+              title,
+              style: const TextStyle(
+                color: kAccentRed,
+                fontSize: 14,
                 fontWeight: FontWeight.bold,
-                fontSize: 16,
               ),
             ),
             const SizedBox(height: 12),
-            _buildInfoRow(
-              'Name',
-              studentDetails['fullName'] ?? 'N/A',
-              textColor,
-              subTextColor,
-            ),
-            _buildInfoRow(
-              'Guardian',
-              studentDetails['guardianName'] ?? 'N/A',
-              textColor,
-              subTextColor,
-            ),
-            _buildInfoRow(
-              'DOB',
-              formatDisplayDate(studentDetails['dob']),
-              textColor,
-              subTextColor,
-            ),
-            // ── Tappable mobile number ──
-            _buildMobileRow(
-              studentDetails['mobileNumber'] ?? 'N/A',
-              textColor,
-              subTextColor,
-              context,
-            ),
-            _buildInfoRow(
-              'Emergency',
-              studentDetails['emergencyNumber'] ?? 'N/A',
-              textColor,
-              subTextColor,
-            ),
-            _buildInfoRow(
-              'Blood Group',
-              studentDetails['bloodGroup'] ?? 'N/A',
-              textColor,
-              subTextColor,
-            ),
+            ...data
+                .where((d) => d['value']!.toString().isNotEmpty)
+                .map((item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item['label']!,
+                            style: TextStyle(color: subTextColor, fontSize: 11),
+                          ),
+                          const SizedBox(height: 2),
+                          item['label'] == 'Mobile'
+                              ? _buildMobileRow(item['value']!, textColor,
+                                  subTextColor, context)
+                              : Text(
+                                  item['value']!,
+                                  style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                        ],
+                      ),
+                    )),
+            if (extraContent != null) extraContent,
           ],
         ),
       ),
     );
   }
 
-  // ── Address card ────────────────────────────────────────────────────────────
-
-  Widget _buildAddressCard(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
-
-    return Container(
-      height: 200,
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(context, kAccentRed),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Address',
-              style: TextStyle(
-                color: textColor,
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 12),
-            _buildInfoRow(
-              'House',
-              studentDetails['house'] ?? '',
-              textColor,
-              subTextColor,
-            ),
-            _buildInfoRow(
-              'Place',
-              studentDetails['place'] ?? '',
-              textColor,
-              subTextColor,
-            ),
-            _buildInfoRow(
-              'Post',
-              studentDetails['post'] ?? '',
-              textColor,
-              subTextColor,
-            ),
-            _buildInfoRow(
-              'District',
-              studentDetails['district'] ?? '',
-              textColor,
-              subTextColor,
-            ),
-            _buildInfoRow(
-              'PIN Code',
-              studentDetails['pin'] ?? '',
-              textColor,
-              subTextColor,
-            ),
-          ],
-        ),
-      ),
+  Widget _buildCustomTabBar(BuildContext context) {
+    return DetailsTabsBar(
+      tabs: const [
+        DetailsTabItem(label: 'Payment', icon: Icons.account_balance_wallet),
+        DetailsTabItem(label: 'Attendance', icon: Icons.calendar_today),
+        DetailsTabItem(label: 'Tests', icon: Icons.assignment),
+        DetailsTabItem(label: 'Documents', icon: Icons.description),
+        DetailsTabItem(label: 'Notes', icon: Icons.note),
+        DetailsTabItem(label: 'Additional', icon: Icons.info_outline),
+      ],
+      activeIndex: _activeTab,
+      onChanged: (i) => setState(() => _activeTab = i),
     );
   }
 
-  // ── Payment overview ────────────────────────────────────────────────────────
+  Widget _buildTabContent(BuildContext context, String targetId) {
+    final cardColor = Theme.of(context).cardColor;
+    return Container(
+      constraints: const BoxConstraints(minHeight: 200),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kAccentRed.withOpacity(0.5)),
+      ),
+      child: _getTabWidget(context, targetId),
+    );
+  }
 
-  Widget _buildPaymentOverviewCard(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
+  Widget _getTabWidget(BuildContext context, String targetId) {
+    switch (_activeTab) {
+      case 0:
+        return _buildPaymentTab(context, targetId);
+      case 1:
+        return _buildAttendanceTab(context, targetId);
+      case 2:
+        return _buildTestsTab(context);
+      case 3:
+        return _buildDocumentsTab(context, targetId);
+      case 4:
+        return _buildNotesTab(context);
+      case 5:
+        return _buildAdditionalTab(context);
+      default:
+        return const SizedBox();
+    }
+  }
 
+  Widget _buildPaymentTab(BuildContext context, String targetId) {
     double total =
         double.tryParse(studentDetails['totalAmount']?.toString() ?? '0') ?? 0;
     double balance =
@@ -603,1454 +524,577 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     double paidAmount = total - balance;
     double progressValue = total > 0 ? paidAmount / total : 0;
 
-    final schoolId = _workspaceController.currentSchoolId.value;
-    final targetId =
-        schoolId.isNotEmpty ? schoolId : FirebaseAuth.instance.currentUser?.uid;
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(context, kAccentRed),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Payment Overview',
-                style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Payment Summary',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            Row(
+              children: [
+                if (_selectedTransactionIds.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.receipt_long, color: kAccentRed),
+                    onPressed: _generateSelectedReceipts,
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.post_add, color: Colors.blue),
+                  onPressed: () => _showAddExtraFeeDialog(context, targetId),
                 ),
-              ),
-              Row(
-                children: [
-                  if (_selectedTransactionIds.isNotEmpty)
-                    IconButton(
-                      icon: const Icon(Icons.receipt_long, color: kAccentRed),
-                      onPressed: _generateSelectedReceipts,
-                      tooltip: 'Generate Receipt for Selected',
-                    ),
-                  StreamBuilder<DocumentSnapshot>(
-                    stream: FirebaseFirestore.instance
-                        .collection('users')
-                        .doc(targetId)
-                        .collection('students')
-                        .doc(studentDetails['studentId'].toString())
-                        .snapshots(),
-                    builder: (context, snapshot) {
-                      return Row(
-                        children: [
-                          IconButton(
-                            icon: const Icon(
-                              Icons.post_add,
-                              color: Colors.blue,
-                            ),
-                            onPressed: () {
-                              if (snapshot.hasData) {
-                                PaymentUtils.showAddExtraFeeDialog(
-                                  context: context,
-                                  doc: snapshot.data!
-                                      as DocumentSnapshot<Map<String, dynamic>>,
-                                  targetId: targetId!,
-                                  branchId: _workspaceController
-                                      .currentBranchId.value,
-                                  category: 'students',
-                                );
-                              }
-                            },
-                            tooltip: 'Add Extra Fee',
-                          ),
-                          IconButton(
-                            icon: const Icon(
-                              Icons.add_circle,
-                              color: Colors.green,
-                            ),
-                            onPressed: () {
-                              if (snapshot.hasData) {
-                                PaymentUtils.showAddPaymentDialog(
-                                  context: context,
-                                  doc: snapshot.data!
-                                      as DocumentSnapshot<Map<String, dynamic>>,
-                                  targetId: targetId!,
-                                  branchId: _workspaceController
-                                      .currentBranchId.value,
-                                  category: 'students',
-                                );
-                              }
-                            },
-                            tooltip: 'Add Payment',
-                          ),
-                        ],
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Total Fee:',
-                    style: TextStyle(color: subTextColor, fontSize: 12),
-                  ),
-                  Text(
-                    'Rs. $total',
-                    style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Paid Amount',
-                    style: TextStyle(color: subTextColor, fontSize: 12),
-                  ),
-                  Text(
-                    'Rs. $paidAmount',
-                    style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          LinearProgressIndicator(
+                IconButton(
+                  icon: const Icon(Icons.account_balance_wallet,
+                      color: Colors.green),
+                  onPressed: () => _showReceiveMoneyDialog(context, targetId),
+                  tooltip: 'Receive Money',
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+                child: _buildSummaryTile(
+                    context, 'Total Fee', '₹${total.toInt()}', Colors.grey)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: _buildSummaryTile(
+                    context, 'Paid', '₹${paidAmount.toInt()}', Colors.green)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: _buildSummaryTile(
+                    context, 'Balance', '₹${balance.toInt()}', kAccentRed)),
+          ],
+        ),
+        const SizedBox(height: 24),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: LinearProgressIndicator(
             value: progressValue.clamp(0.0, 1.0),
-            backgroundColor: isDark ? Colors.grey[800] : Colors.grey[300],
+            backgroundColor: Colors.grey[200],
             valueColor: const AlwaysStoppedAnimation<Color>(kAccentRed),
             minHeight: 10,
-            borderRadius: BorderRadius.circular(5),
           ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              'Outstanding Balance: Rs. $balance',
-              style: TextStyle(color: subTextColor, fontSize: 12),
-            ),
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            '${(progressValue * 100).round()}% Completed',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
           ),
-          const SizedBox(height: 16),
-          const Divider(),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Transaction History',
-                style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-              if (_selectedTransactionIds.isNotEmpty)
-                IconButton(
-                  icon: const Icon(Icons.receipt_long, color: kAccentRed),
-                  onPressed: _generateSelectedReceipts,
-                  tooltip: 'Generate Receipt for Selected',
-                  visualDensity: VisualDensity.compact,
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          StreamBuilder<QuerySnapshot>(
-            stream: _paymentsStream,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) {
-                return const ShimmerLoadingList();
-              }
-
-              final docs = snapshot.data?.docs ?? [];
-
-              List<Map<String, dynamic>> combinedDocs = docs.map((d) {
-                final map = d.data() as Map<String, dynamic>;
-                map['id'] = d.id;
-                map['docRef'] = d;
-                return map;
-              }).toList();
-
-              if (combinedDocs.isEmpty) {
-                final advAmt = double.tryParse(
-                      studentDetails['advanceAmount']?.toString() ?? '0',
-                    ) ??
-                    0;
-                if (advAmt > 0) {
-                  final regDate = DateTime.tryParse(
-                        studentDetails['registrationDate']?.toString() ?? '',
-                      ) ??
-                      DateTime(2000);
-                  combinedDocs.add({
-                    'id': 'legacy_adv',
-                    'amount': advAmt,
-                    'date': Timestamp.fromDate(regDate),
-                    'mode': studentDetails['paymentMode'] ?? 'Cash',
-                    'description': 'Initial Advance',
-                    'isLegacy': true,
-                  });
-                }
-              }
-
-              combinedDocs.sort(
-                (a, b) =>
-                    (b['date'] as Timestamp).compareTo(a['date'] as Timestamp),
-              );
-
-              if (combinedDocs.isEmpty) {
-                return Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Text(
-                      'No transactions yet',
-                      style: TextStyle(color: subTextColor, fontSize: 12),
-                    ),
-                  ),
-                );
-              }
-
-              // Show only 2 items by default, expand to show all
-              final displayDocs = _isTransactionHistoryExpanded
-                  ? combinedDocs
-                  : combinedDocs.take(2).toList();
-              final hasMore = combinedDocs.length > 2;
-
-              return Column(
-                children: [
-                  ...displayDocs.map((data) {
-                    final date = (data['date'] as Timestamp).toDate();
-                    final isSelected = _selectedTransactionIds.contains(
-                      data['id'],
-                    );
-
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.grey[900] : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                        border: isSelected
-                            ? Border.all(color: kAccentRed, width: 1)
-                            : null,
-                      ),
-                      child: CheckboxListTile(
-                        value: isSelected,
-                        activeColor: kAccentRed,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        onChanged: (val) {
-                          setState(() {
-                            if (val == true) {
-                              _selectedTransactionIds.add(data['id']);
-                            } else {
-                              _selectedTransactionIds.remove(data['id']);
-                            }
-                          });
-                        },
-                        title: Text(
-                          'Rs. ${data['amount']}',
-                          style: TextStyle(
-                            color: textColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
-                        subtitle: Text(
-                          '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}${data['note'] != null && data['note'].toString().trim().isNotEmpty ? '\nNote: ${data['note']}' : (data['description'] != null && data['description'].toString().trim().isNotEmpty ? '\n${data['description']}' : '')}',
-                          style: TextStyle(color: subTextColor, fontSize: 11),
-                        ),
-                        secondary: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            IconButton(
-                              icon: const Icon(
-                                Icons.edit_outlined,
-                                size: 20,
-                                color: Colors.blue,
-                              ),
-                              onPressed: () {
-                                PaymentUtils.showEditPaymentDialog(
-                                  context: context,
-                                  docRef: FirebaseFirestore.instance
-                                      .collection('users')
-                                      .doc(targetId)
-                                      .collection('students')
-                                      .doc(
-                                        studentDetails['studentId'].toString(),
-                                      ),
-                                  paymentDoc: data['docRef'],
-                                  targetId: targetId.toString(),
-                                  category: 'students',
-                                );
-                              },
-                              tooltip: 'Edit Payment',
-                            ),
-                            IconButton(
-                              icon: const Icon(
-                                Icons.delete_outline,
-                                size: 20,
-                                color: Colors.red,
-                              ),
-                              onPressed: () {
-                                PaymentUtils.deletePayment(
-                                  context: context,
-                                  studentRef: FirebaseFirestore.instance
-                                      .collection('users')
-                                      .doc(targetId)
-                                      .collection('students')
-                                      .doc(
-                                        studentDetails['studentId'].toString(),
-                                      ),
-                                  paymentDoc: data['docRef'],
-                                  targetId: targetId.toString(),
-                                );
-                              },
-                              tooltip: 'Delete Payment',
-                            ),
-                          ],
-                        ),
-                        isThreeLine: true,
-                      ),
-                    );
-                  }).toList(),
-                  if (hasMore)
-                    TextButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _isTransactionHistoryExpanded =
-                              !_isTransactionHistoryExpanded;
-                        });
-                      },
-                      icon: Icon(
-                        _isTransactionHistoryExpanded
-                            ? Icons.expand_less
-                            : Icons.expand_more,
-                        color: kAccentRed,
-                      ),
-                      label: Text(
-                        _isTransactionHistoryExpanded
-                            ? 'Show Less'
-                            : 'Show ${combinedDocs.length - 2} More',
-                        style: const TextStyle(color: kAccentRed),
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-          // ── Additional Fees ─────────────────────────────────────────────
-          StreamBuilder<QuerySnapshot>(
-            stream: _extraFeesStream,
-            builder: (context, feesSnapshot) {
-              if (!feesSnapshot.hasData || feesSnapshot.data!.docs.isEmpty) {
-                return const SizedBox.shrink();
-              }
-              final feeDocs = feesSnapshot.data!.docs;
-              final baseDocRef = FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(targetId)
-                  .collection('students')
-                  .doc(studentDetails['studentId'].toString());
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Divider(),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'Additional Fees',
-                        style: TextStyle(
-                          color: textColor,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (_selectedTransactionIds.isNotEmpty)
-                        IconButton(
-                          icon: const Icon(
-                            Icons.receipt_long,
-                            color: kAccentRed,
-                          ),
-                          onPressed: _generateSelectedReceipts,
-                          tooltip: 'Generate Receipt for Selected',
-                          visualDensity: VisualDensity.compact,
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ...feeDocs.map((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    final date = (data['date'] as Timestamp).toDate();
-                    final isPaid =
-                        (data['status']?.toString() ?? '').toLowerCase() ==
-                            'paid';
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.grey[900] : Colors.grey[100],
-                        borderRadius: BorderRadius.circular(8),
-                        border: _selectedTransactionIds.contains(doc.id)
-                            ? Border.all(color: kAccentRed, width: 1)
-                            : isPaid
-                                ? Border.all(
-                                    color: Colors.green.withOpacity(0.4))
-                                : null,
-                      ),
-                      child: Row(
-                        children: [
-                          Checkbox(
-                            value: _selectedTransactionIds.contains(doc.id),
-                            activeColor: kAccentRed,
-                            onChanged: isPaid
-                                ? (val) {
-                                    setState(() {
-                                      if (val == true) {
-                                        _selectedTransactionIds.add(doc.id);
-                                      } else {
-                                        _selectedTransactionIds.remove(doc.id);
-                                      }
-                                    });
-                                  }
-                                : null,
-                          ),
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 8.0,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    data['description'] ?? 'N/A',
-                                    style: TextStyle(
-                                      color: textColor,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 14,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    'Rs. ${data['amount']}',
-                                    style: TextStyle(
-                                      color: textColor,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  Text(
-                                    DateFormat('dd MMM yyyy').format(date),
-                                    style: TextStyle(
-                                      color: subTextColor,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                  if (isPaid &&
-                                      data['paymentMode'] != null) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Mode: ${data['paymentMode']}',
-                                      style: TextStyle(
-                                        color: subTextColor,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                  ],
-                                  if (data['note'] != null &&
-                                      data['note']
-                                          .toString()
-                                          .trim()
-                                          .isNotEmpty) ...[
-                                    const SizedBox(height: 2),
-                                    Text(
-                                      'Note: ${data['note']}',
-                                      style: TextStyle(
-                                        color: subTextColor,
-                                        fontSize: 11,
-                                      ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                          ),
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (isPaid)
-                                const Padding(
-                                  padding: EdgeInsets.only(right: 8.0),
-                                  child: Chip(
-                                    label: Text(
-                                      'Paid',
-                                      style: TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11,
-                                      ),
-                                    ),
-                                    backgroundColor: Colors.green,
-                                    visualDensity: VisualDensity.compact,
-                                    padding: EdgeInsets.zero,
-                                  ),
-                                )
-                              else
-                                TextButton(
-                                  onPressed: () =>
-                                      PaymentUtils.showCollectExtraFeeDialog(
-                                    context: context,
-                                    docRef: baseDocRef,
-                                    feeDoc: doc,
-                                    targetId: targetId.toString(),
-                                    branchId: _workspaceController
-                                        .currentBranchId.value,
-                                  ),
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: Colors.redAccent,
-                                  ),
-                                  child: const Text(
-                                    'Collect',
-                                    style: TextStyle(fontSize: 12),
-                                  ),
-                                ),
-                              Row(
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.edit_outlined,
-                                      size: 18,
-                                      color: Colors.blue,
-                                    ),
-                                    onPressed: () =>
-                                        PaymentUtils.showEditExtraFeeDialog(
-                                      context: context,
-                                      docRef: baseDocRef,
-                                      feeDoc: doc,
-                                      targetId: targetId.toString(),
-                                      category: 'students',
-                                    ),
-                                    tooltip: 'Edit',
-                                  ),
-                                  IconButton(
-                                    icon: const Icon(
-                                      Icons.delete_outline,
-                                      size: 18,
-                                      color: Colors.red,
-                                    ),
-                                    onPressed: () =>
-                                        PaymentUtils.deleteExtraFee(
-                                      context: context,
-                                      docRef: baseDocRef,
-                                      feeDoc: doc,
-                                      targetId: targetId.toString(),
-                                    ),
-                                    tooltip: 'Delete',
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    );
-                  }),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
+        ),
+        const SizedBox(height: 24),
+        const Text(
+          'Transaction History',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+        const SizedBox(height: 12),
+        _buildTransactionHistory(context, targetId),
+        const SizedBox(height: 24),
+        const Text(
+          'Additional Fees',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+        const SizedBox(height: 12),
+        _buildExtraFeesList(context, targetId),
+      ],
     );
   }
 
-  // ── Lesson control button for AppBar ───────────────────────────────────────
-
-  Widget _buildLessonControlButton(String targetId) {
-    final lessonStatus = studentDetails['lessonStatus'] ?? 'none';
-    final isLessonActive = lessonStatus == 'started';
-
-    return IconButton(
-      icon: Icon(
-        isLessonActive ? Icons.stop_circle : Icons.play_circle,
-        color: isLessonActive ? Colors.red : Colors.green,
-        size: 28,
-      ),
-      onPressed: () => _toggleLessonStatus(targetId, isLessonActive),
-      tooltip: isLessonActive ? 'End Lesson' : 'Start Lesson',
+  Widget _buildSummaryTile(
+      BuildContext context, String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Text(value,
+            style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+      ],
     );
   }
 
-  // ── Additional Info button for AppBar ──────────────────────────────────────
-
-  Widget _buildAdditionalInfoButton() {
-    final additionalInfo =
-        studentDetails['additionalInfo'] as Map<String, dynamic>?;
-    final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
-
-    // Determine the correct collection based on student status
-    final isDeactivated = studentDetails['status'] == 'passed' ||
-        studentDetails['deactivated'] == true;
-    final collectionName = isDeactivated ? 'deactivated_students' : 'students';
-
-    return IconButton(
-      icon: Icon(
-        hasData ? Icons.info : Icons.info_outline,
-        color: hasData ? kPrimaryColor : Colors.grey,
-      ),
-      onPressed: () async {
-        final result = await showAdditionalInfoSheet(
-          context: context,
-          type: AdditionalInfoType.student,
-          collection: collectionName,
-          documentId: _docId,
-          existingData: additionalInfo,
-        );
-        if (result == true) {
-          // Refresh data
-          setState(() {});
+  Widget _buildAttendanceTab(BuildContext context, String targetId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _attendanceHistoryStream,
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+        double totalKm = 0;
+        for (var doc in docs) {
+          final data = doc.data() as Map<String, dynamic>;
+          final distStr = data['distance']?.toString() ?? '0';
+          totalKm += double.tryParse(distStr.split(' ')[0]) ?? 0;
         }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                    child: _buildAttendanceSummaryCard(context, 'Sessions',
+                        docs.length.toString(), Icons.event)),
+                const SizedBox(width: 16),
+                Expanded(
+                    child: _buildAttendanceSummaryCard(context, 'Total KM',
+                        totalKm.toStringAsFixed(1), Icons.speed)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Recent Sessions',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.picture_as_pdf, color: kAccentRed),
+                  onPressed: () => _downloadAttendancePdf(context, targetId),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (docs.isEmpty)
+              const Center(
+                  child: Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Text('No attendance records found.')))
+            else
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: docs.length,
+                itemBuilder: (context, index) => _buildAttendanceItem(
+                    context, docs[index].data() as Map<String, dynamic>),
+              ),
+          ],
+        );
       },
-      tooltip: 'Additional Information',
     );
   }
 
-  // ── Lesson status card (DEPRECATED - now in AppBar) ─────────────────────────
-
-  Widget _buildLessonStatusCard(BuildContext context, String targetId) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final cardColor = Theme.of(context).cardColor;
-    final lessonStatus = studentDetails['lessonStatus'] ?? 'none';
-    final isLessonActive = lessonStatus == 'started';
-
+  Widget _buildAttendanceSummaryCard(
+      BuildContext context, String label, String value, IconData icon) {
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isLessonActive ? Colors.green : Colors.grey.withOpacity(0.5),
-          width: 2,
-        ),
+        color: kAccentRed.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: kAccentRed.withOpacity(0.1)),
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Lesson Control',
-                style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              if (isLessonActive)
-                const Icon(
-                  Icons.emergency_recording,
-                  color: Colors.green,
-                  size: 20,
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            isLessonActive
-                ? 'Lesson is currently in progress. Location is being shared with the owner.'
-                : 'Start a lesson to begin real-time location tracking for the owner.',
-            style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 13),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => _toggleLessonStatus(targetId, isLessonActive),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: isLessonActive ? Colors.red : Colors.green,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
-              child: Text(
-                isLessonActive ? 'End Lesson' : 'Start Lesson',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Attendance card ─────────────────────────────────────────────────────────
-
-  Widget _buildAttendanceCard(BuildContext context, String targetId) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: _cardDecoration(context, kAccentRed),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Attendance Logs',
-                style: TextStyle(
-                  color: textColor,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
-              ),
-              Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(
-                      Icons.picture_as_pdf,
-                      color: kAccentRed,
-                      size: 20,
-                    ),
-                    tooltip: 'Download PDF',
-                    onPressed: () => _downloadAttendancePdf(context, targetId),
-                  ),
-                  TextButton.icon(
-                    onPressed: () => _showAttendanceLogs(context, targetId),
-                    icon: const Icon(
-                      Icons.history,
-                      size: 18,
-                      color: kAccentRed,
-                    ),
-                    label: const Text(
-                      'View All',
-                      style: TextStyle(color: kAccentRed),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
+          Icon(icon, color: kAccentRed),
           const SizedBox(height: 8),
-          StreamBuilder<QuerySnapshot>(
-            stream: _attendanceLimitStream,
-            builder: (context, snapshot) {
-              if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                return Text(
-                  'No classes recorded yet.',
-                  style: TextStyle(
-                    color: textColor.withOpacity(0.5),
-                    fontSize: 13,
-                  ),
-                );
-              }
-
-              return Column(
-                children: snapshot.data!.docs.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final date =
-                      (data['date'] as Timestamp?)?.toDate() ?? DateTime.now();
-                  final startTime = (data['startTime'] as Timestamp?)?.toDate();
-                  final endTime = (data['endTime'] as Timestamp?)?.toDate();
-                  String timeRange = 'N/A';
-                  if (startTime != null && endTime != null) {
-                    timeRange =
-                        '${DateFormat('hh:mm a').format(startTime)} - ${DateFormat('hh:mm a').format(endTime)}';
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                DateFormat('dd MMM yyyy').format(date),
-                                style: TextStyle(
-                                  color: textColor,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                ),
-                              ),
-                              Text(
-                                timeRange,
-                                style: TextStyle(
-                                  color: textColor.withOpacity(0.6),
-                                  fontSize: 11,
-                                ),
-                              ),
-                              Text(
-                                data['instructorName'] ?? 'Unknown',
-                                style: TextStyle(
-                                  color: textColor.withOpacity(0.6),
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              data['duration'] ?? 'N/A',
-                              style: const TextStyle(
-                                color: kAccentRed,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                            Text(
-                              data['distance'] ?? '0 KM',
-                              style: TextStyle(
-                                color: textColor.withOpacity(0.6),
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                }).toList(),
-              );
-            },
-          ),
+          Text(value,
+              style:
+                  const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
         ],
       ),
     );
   }
 
-  // ── Attendance PDF ──────────────────────────────────────────────────────────
-
-  Future<void> _downloadAttendancePdf(
-    BuildContext context,
-    String targetId,
-  ) async {
-    Uint8List? pdfBytes;
-    try {
-      pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
-        final snap = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(targetId)
-            .collection('students')
-            .doc(studentDetails['studentId'].toString())
-            .collection('attendance')
-            .orderBy('date', descending: false)
-            .get();
-
-        final records = snap.docs.map((d) => d.data()).toList();
-        if (records.isEmpty) throw 'No attendance records found';
-
-        final workspace = Get.find<WorkspaceController>();
-        final companyData = workspace.companyData;
-        Uint8List? logoBytes;
-        if (companyData['companyLogo'] != null &&
-            companyData['companyLogo'].toString().isNotEmpty) {
-          logoBytes = await ImageCacheService().fetchAndCache(
-            companyData['companyLogo'],
-          );
-        }
-
-        return await AttendancePdfService.generate(
-          studentName: studentDetails['fullName'] ?? 'N/A',
-          studentId: studentDetails['studentId'].toString(),
-          cov: studentDetails['cov'] ?? 'N/A',
-          records: records,
-          companyData: companyData,
-          companyLogoBytes: logoBytes,
-        );
-      });
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error generating PDF: $e')));
-      }
-      return;
+  Widget _buildAttendanceItem(BuildContext context, Map<String, dynamic> data) {
+    final date = (data['date'] as Timestamp?)?.toDate() ?? DateTime.now();
+    final startTime = (data['startTime'] as Timestamp?)?.toDate();
+    final endTime = (data['endTime'] as Timestamp?)?.toDate();
+    String timeRange = 'N/A';
+    if (startTime != null && endTime != null) {
+      timeRange =
+          '${DateFormat('hh:mm a').format(startTime)} - ${DateFormat('hh:mm a').format(endTime)}';
     }
 
-    if (pdfBytes != null && context.mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PdfPreviewScreen(pdfBytes: pdfBytes!),
-        ),
-      );
-    }
-  }
-
-  // ── Attendance logs bottom sheet ────────────────────────────────────────────
-
-  void _showAttendanceLogs(BuildContext context, String targetId) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        height: MediaQuery.of(context).size.height * 0.75,
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
+    return Card(
+      elevation: 0,
+      margin: const EdgeInsets.only(bottom: 8),
+      shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(color: Colors.grey[200]!)),
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        title: Text(DateFormat('dd MMM yyyy').format(date),
+            style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              margin: const EdgeInsets.only(top: 8),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 16, 12, 4),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Attendance History',
-                      style: TextStyle(
-                        color: textColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ),
-                  TextButton.icon(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      _downloadAttendancePdf(context, targetId);
-                    },
-                    icon: const Icon(
-                      Icons.picture_as_pdf,
-                      color: kAccentRed,
-                      size: 18,
-                    ),
-                    label: const Text(
-                      'Export PDF',
-                      style: TextStyle(
-                        color: kAccentRed,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-            Expanded(
-              child: StreamBuilder<QuerySnapshot>(
-                stream: _attendanceHistoryStream,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const ShimmerLoadingList();
-                  }
-                  if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return Center(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.history_edu_outlined,
-                            size: 48,
-                            color: textColor.withOpacity(0.2),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'No attendance history found.',
-                            style: TextStyle(color: textColor.withOpacity(0.5)),
-                          ),
-                        ],
-                      ),
-                    );
-                  }
-                  return ListView.separated(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 20,
-                      vertical: 10,
-                    ),
-                    itemCount: snapshot.data!.docs.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (context, index) {
-                      final data = snapshot.data!.docs[index].data()
-                          as Map<String, dynamic>;
-                      final date = (data['date'] as Timestamp?)?.toDate() ??
-                          DateTime.now();
-                      final startTime =
-                          (data['startTime'] as Timestamp?)?.toDate();
-                      final endTime = (data['endTime'] as Timestamp?)?.toDate();
-                      String timeRange = 'N/A';
-                      if (startTime != null && endTime != null) {
-                        timeRange =
-                            '${DateFormat('hh:mm a').format(startTime)} – ${DateFormat('hh:mm a').format(endTime)}';
-                      }
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 46,
-                              padding: const EdgeInsets.symmetric(vertical: 6),
-                              decoration: BoxDecoration(
-                                color: kAccentRed.withOpacity(0.08),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                children: [
-                                  Text(
-                                    DateFormat('dd').format(date),
-                                    style: const TextStyle(
-                                      color: kAccentRed,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 18,
-                                    ),
-                                  ),
-                                  Text(
-                                    DateFormat('MMM').format(date),
-                                    style: TextStyle(
-                                      color: textColor.withOpacity(0.5),
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    DateFormat(
-                                      'EEEE, dd MMM yyyy',
-                                    ).format(date),
-                                    style: TextStyle(
-                                      color: textColor,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 3),
-                                  Text(
-                                    '⏱ $timeRange',
-                                    style: TextStyle(
-                                      color: textColor.withOpacity(0.6),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  Text(
-                                    '👤 ${data['instructorName'] ?? 'Unknown'}',
-                                    style: TextStyle(
-                                      color: textColor.withOpacity(0.6),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Row(
-                                    children: [
-                                      _AttendanceBadge(
-                                        icon: Icons.timer_outlined,
-                                        label: data['duration'] ?? 'N/A',
-                                        color: kAccentRed,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      _AttendanceBadge(
-                                        icon: Icons.route_outlined,
-                                        label: data['distance'] ?? '0 KM',
-                                        color: Colors.blue,
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.green.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Text(
-                                'DONE',
-                                style: TextStyle(
-                                  color: Colors.green,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
-            ),
+            Text(timeRange),
+            Text('Instructor: ${data['instructorName'] ?? 'Unknown'}',
+                style: const TextStyle(fontSize: 12)),
+          ],
+        ),
+        trailing: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Text(data['duration'] ?? 'N/A',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold, color: kAccentRed)),
+            Text(data['distance'] ?? '0 KM',
+                style: const TextStyle(fontSize: 11)),
           ],
         ),
       ),
     );
   }
 
-  // ── Toggle lesson ───────────────────────────────────────────────────────────
+  Widget _buildTestsTab(BuildContext context) {
+    final llDate = AppDateUtils.formatDateForDisplay(
+        studentDetails['learnersTestDate']?.toString());
+    final dlDate = AppDateUtils.formatDateForDisplay(
+        studentDetails['drivingTestDate']?.toString());
 
-  Future<void> _toggleLessonStatus(String targetId, bool isLessonActive) async {
-    try {
-      final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
-
-      final studentId = studentDetails['studentId'].toString();
-      final collection = FirebaseFirestore.instance
-          .collection('users')
-          .doc(targetId)
-          .collection('students');
-
-      if (!isLessonActive) {
-        await collection.doc(studentId).update({
-          'lessonStatus': 'started',
-          'assignedDriver': user.uid,
-          'assignedDriverName': _workspaceController.userProfileData['name'] ??
-              user.displayName ??
-              'Unknown',
-          'lessonStartTime': FieldValue.serverTimestamp(),
-          'lessonDistanceKm': 0.0,
-        });
-        await BackgroundService.start();
-        Get.snackbar(
-          'Lesson Started',
-          'Real-time tracking is now active for this session.',
-          backgroundColor: Colors.green,
-          colorText: Colors.white,
-        );
-      } else {
-        final snapshot = await collection.doc(studentId).get();
-        final data = snapshot.data();
-        final startTime = (data?['lessonStartTime'] as Timestamp?)?.toDate();
-        final now = DateTime.now();
-
-        String durationStr = 'N/A';
-        if (startTime != null) {
-          final diff = now.difference(startTime);
-          final hours = diff.inHours;
-          final minutes = diff.inMinutes.remainder(60);
-          durationStr = hours > 0 ? '${hours}h ${minutes}m' : '${minutes}m';
-        }
-
-        double lessonDistanceMeters = 0.0;
-
-        try {
-          final lessonPathDoc = await FirebaseFirestore.instance
-              .collection('lesson_paths')
-              .doc(studentId)
-              .get();
-          if (lessonPathDoc.exists) {
-            final pathData = lessonPathDoc.data();
-            final finalDistanceKm =
-                (pathData?['finalDistanceKm'] as num?)?.toDouble() ?? 0.0;
-            if (finalDistanceKm > 0)
-              lessonDistanceMeters = finalDistanceKm * 1000;
-          }
-        } catch (e) {
-          print('Error reading lesson_paths: $e');
-        }
-
-        if (lessonDistanceMeters <= 0) {
-          try {
-            final trackingRepo = Get.find<TrackingRepository>();
-            lessonDistanceMeters = await trackingRepo.getDriverLessonDistance(
-              user.uid,
-            );
-          } catch (e) {
-            print('Error getting distance from RTDB: $e');
-          }
-        }
-
-        if (lessonDistanceMeters <= 0) {
-          final savedKm =
-              (data?['lessonDistanceKm'] as num?)?.toDouble() ?? 0.0;
-          lessonDistanceMeters = savedKm * 1000;
-        }
-
-        if (lessonDistanceMeters <= 0) {
-          try {
-            final ts = Get.find<LocationTrackingService>();
-            lessonDistanceMeters = ts.lessonDistance;
-          } catch (_) {}
-        }
-
-        lessonDistanceMeters = lessonDistanceMeters.clamp(0.0, double.infinity);
-        final distanceKm = (lessonDistanceMeters / 1000).toStringAsFixed(2);
-
-        await collection.doc(studentId).collection('attendance').add({
-          'instructorName': _workspaceController.userProfileData['name'] ??
-              user.displayName ??
-              'Unknown',
-          'date': FieldValue.serverTimestamp(),
-          'startTime': startTime != null ? Timestamp.fromDate(startTime) : null,
-          'endTime': FieldValue.serverTimestamp(),
-          'duration': durationStr,
-          'distance': '$distanceKm KM',
-          'distanceMeters': lessonDistanceMeters,
-          'instructorId': user.uid,
-        });
-
-        await collection.doc(studentId).update({
-          'lessonStatus': 'completed',
-          'lessonEndTime': FieldValue.serverTimestamp(),
-          'lessonDistanceKm': double.parse(distanceKm),
-        });
-
-        Get.snackbar(
-          'Lesson Completed',
-          'Attendance recorded: $durationStr · $distanceKm KM',
-          backgroundColor: Colors.red,
-          colorText: Colors.white,
-        );
-      }
-    } catch (e) {
-      Get.snackbar('Error', 'Failed to update lesson status: $e');
-    }
-  }
-
-  // ── Receipts ────────────────────────────────────────────────────────────────
-
-  Future<void> _generateSelectedReceipts() async {
-    if (_selectedTransactionIds.isEmpty) return;
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final targetId = _workspaceController.targetId;
-    final studentId = studentDetails['studentId'].toString();
-    final List<Map<String, dynamic>> allTransactions = [];
-
-    final paymentsQuery = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('students')
-        .doc(studentId)
-        .collection('payments')
-        .where(FieldPath.documentId, whereIn: _selectedTransactionIds)
-        .get();
-    allTransactions.addAll(paymentsQuery.docs.map((d) => d.data()));
-
-    final feesQuery = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('students')
-        .doc(studentId)
-        .collection('extra_fees')
-        .where(FieldPath.documentId, whereIn: _selectedTransactionIds)
-        .get();
-
-    allTransactions.addAll(
-      feesQuery.docs.map((d) {
-        final data = d.data();
-        return {
-          'amount': data['amount'],
-          'description': data['description'] ?? 'Additional Fee',
-          'mode': data['paymentMode'] ?? 'Cash',
-          'date': data['paymentDate'] ?? data['date'],
-          'note': data['paymentNote'] ?? data['note'],
-        };
-      }),
-    );
-
-    if (allTransactions.isEmpty) return;
-
-    allTransactions.sort((a, b) {
-      final dateA =
-          a['date'] is DateTime ? a['date'] : (a['date'] as Timestamp).toDate();
-      final dateB =
-          b['date'] is DateTime ? b['date'] : (b['date'] as Timestamp).toDate();
-      return dateB.compareTo(dateA);
-    });
-
-    _generateReceipts(allTransactions);
-  }
-
-  Future<void> _generateReceipts(
-    List<Map<String, dynamic>> transactions,
-  ) async {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    Uint8List? pdfBytes;
-    try {
-      pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
-        final workspace = Get.find<WorkspaceController>();
-        final companyData = workspace.companyData;
-
-        if (companyData['hasCompanyProfile'] != true) {
-          throw 'Please set up your Company Profile first';
-        }
-
-        Uint8List? logoBytes;
-        if (companyData['companyLogo'] != null &&
-            companyData['companyLogo'].toString().isNotEmpty) {
-          logoBytes = await ImageCacheService().fetchAndCache(
-            companyData['companyLogo'],
-          );
-        }
-
-        return await PdfService.generateReceipt(
-          companyData: companyData,
-          studentDetails: studentDetails,
-          transactions: transactions,
-          companyLogoBytes: logoBytes,
-        );
-      });
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-      return;
-    }
-
-    if (pdfBytes != null && mounted) {
-      _showPdfPreview(context, pdfBytes);
-    }
-  }
-
-  // ── Share student PDF ───────────────────────────────────────────────────────
-
-  Future<void> _shareStudentDetails(BuildContext context) async {
-    bool includePayment = false;
-
-    final bool? shouldGenerate = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(
-          builder: (context, setState) {
-            return Dialog(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(20),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Test Schedule',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            IconButton(
+              icon: const Icon(Icons.edit_calendar, color: kAccentRed),
+              onPressed: () => TestUtils.showUpdateTestDateDialog(
+                context: context,
+                item: studentDetails,
+                collection: 'students',
+                studentId: _docId,
+                onUpdate: () => setState(() {}),
               ),
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 48,
-                  horizontal: 30,
-                ),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text(
-                      'Share PDF',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w600,
-                        fontSize: 18.0,
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _buildTestCard(context, 'Learners Test (LL)', llDate, Icons.assignment),
+        const SizedBox(height: 12),
+        _buildTestCard(
+            context, 'Driving Test (DL)', dlDate, Icons.directions_car),
+      ],
+    );
+  }
+
+  Widget _buildTestCard(
+      BuildContext context, String type, String date, IconData icon) {
+    final hasDate = date.isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50]!,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: hasDate ? Colors.green : kAccentRed),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(type, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(hasDate ? date : 'Not Scheduled',
+                    style: TextStyle(
+                        color: hasDate ? Colors.black87 : Colors.grey)),
+              ],
+            ),
+          ),
+          StatusBadge(
+              text: hasDate ? 'Scheduled' : 'Pending',
+              color: hasDate ? Colors.green : kAccentRed),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDocumentsTab(BuildContext context, String targetId) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Documents',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            IconButton(
+              icon: const Icon(Icons.add_photo_alternate_outlined,
+                  color: kAccentRed),
+              tooltip: 'Upload Document',
+              onPressed: () => _uploadDocument(context, targetId),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        StreamBuilder<QuerySnapshot>(
+          stream: _documentsStream,
+          builder: (context, snapshot) {
+            final docs = snapshot.data?.docs ?? [];
+            if (docs.isEmpty) {
+              return Column(
+                children: [
+                  _buildDocListItem('Aadhaar Card', 'Pending', kAccentRed),
+                  _buildDocListItem(
+                      'Passport Size Photo', 'Pending', kAccentRed),
+                  _buildDocListItem('Application Form', 'Pending', kAccentRed),
+                ],
+              );
+            }
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: docs.length,
+              itemBuilder: (context, index) {
+                final data = docs[index].data() as Map<String, dynamic>;
+                final name = data['name'] ?? 'Document';
+                final status = data['status'] ?? 'Uploaded';
+                final statusColor =
+                    (status == 'Uploaded') ? Colors.green : kAccentRed;
+                final timestamp = data['timestamp'] as Timestamp?;
+                final subtitle = timestamp != null
+                    ? DateFormat('dd MMM yyyy').format(timestamp.toDate())
+                    : null;
+
+                return ListTile(
+                  leading: const Icon(Icons.file_present, color: kAccentRed),
+                  title: Text(name),
+                  subtitle: subtitle != null ? Text(subtitle) : null,
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      StatusBadge(text: status, color: statusColor),
+                      IconButton(
+                        icon:
+                            const Icon(Icons.delete_outline, color: Colors.red),
+                        onPressed: () =>
+                            _deleteDocument(docs[index].id, targetId),
                       ),
-                    ),
-                    const SizedBox(height: 16),
-                    CheckboxListTile(
-                      title: const Text('Include Payment Overview'),
-                      value: includePayment,
-                      onChanged: (bool? value) {
-                        setState(() => includePayment = value ?? false);
-                      },
-                      controlAffinity: ListTileControlAffinity.leading,
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Expanded(
-                          child: ActionButton(
-                            text: 'Cancel',
-                            backgroundColor: const Color(0xFFFFF1F1),
-                            textColor: const Color(0xFFFF0000),
-                            onPressed: () => Navigator.of(context).pop(false),
-                          ),
+                    ],
+                  ),
+                  onTap: () {
+                    final url = data['url']?.toString() ?? '';
+                    if (url.isEmpty) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DocumentPreviewScreen(
+                          docName: name,
+                          docUrl: url,
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: ActionButton(
-                            text: 'Generate',
-                            backgroundColor: const Color(0xFFF6FFF0),
-                            textColor: Colors.black,
-                            onPressed: () => Navigator.of(context).pop(true),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDocListItem(String name, String status, Color color) {
+    return ListTile(
+      leading: const Icon(Icons.file_present),
+      title: Text(name),
+      trailing: StatusBadge(text: status, color: color),
+    );
+  }
+
+  Widget _buildNotesTab(BuildContext context) {
+    final hasNotes =
+        (studentDetails['remarks'] ?? '').toString().trim().isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Notes & Remarks',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.add, size: 20, color: kAccentRed),
+                  tooltip: 'Add Notes',
+                  onPressed: () => _editNotes(context, isNew: true),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 20, color: kAccentRed),
+                  tooltip: hasNotes ? 'Edit Notes' : 'Add Notes',
+                  onPressed: () => _editNotes(context),
+                ),
+                if (hasNotes)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline,
+                        size: 20, color: Colors.red),
+                    tooltip: 'Delete Notes',
+                    onPressed: () => _clearNotes(context),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.yellow[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.yellow[200]!),
+          ),
+          child: Text(
+            hasNotes ? studentDetails['remarks'] : 'No remarks added yet.',
+            style: const TextStyle(fontStyle: FontStyle.italic),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTransactionHistory(BuildContext context, String targetId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _paymentsStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          final docs = snapshot.data?.docs ?? [];
+          _cachedPayments = docs.map((d) {
+            final map = d.data() as Map<String, dynamic>;
+            map['id'] = d.id;
+            map['docRef'] = d;
+            return map;
+          }).toList();
+          _cachedPayments.sort((a, b) =>
+              (b['date'] as Timestamp).compareTo(a['date'] as Timestamp));
+        }
+
+        if (_cachedPayments.isEmpty)
+          return const Center(
+              child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No transactions yet.')));
+
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _cachedPayments.length,
+          itemBuilder: (context, index) {
+            final data = _cachedPayments[index];
+            final date = (data['date'] as Timestamp).toDate();
+            final transactionId = data['id'];
+            final isSelected = _selectedTransactionIds.contains(transactionId);
+
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+              leading: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Checkbox(
+                    value: isSelected,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true)
+                          _selectedTransactionIds.add(transactionId);
+                        else
+                          _selectedTransactionIds.remove(transactionId);
+                      });
+                    },
+                    activeColor: kAccentRed,
+                  ),
+                  const Icon(Icons.payment, color: Colors.green),
+                ],
+              ),
+              title: Text('₹${(data['amount'] as num).toInt()}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, color: Colors.green)),
+              subtitle: Text(
+                  '${DateFormat('dd MMM yyyy, hh:mm a').format(date)} · ${data['mode']}'),
+              trailing: PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, size: 20),
+                onSelected: (value) =>
+                    _handleTransactionAction(value, data, targetId),
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                      value: 'edit',
+                      child: ListTile(
+                          leading: Icon(Icons.edit, size: 18),
+                          title: Text('Edit'),
+                          dense: true)),
+                  const PopupMenuItem(
+                      value: 'delete',
+                      child: ListTile(
+                          leading:
+                              Icon(Icons.delete, color: Colors.red, size: 18),
+                          title: Text('Delete',
+                              style: TextStyle(color: Colors.red)),
+                          dense: true)),
+                ],
               ),
             );
           },
         );
       },
     );
+  }
+
+  String get _initials {
+    final name = studentDetails['fullName']?.toString() ?? '';
+    if (name.isEmpty) return '??';
+    final parts = name.trim().split(' ');
+    if (parts.length > 1) return (parts[0][0] + parts[1][0]).toUpperCase();
+    return name[0].toUpperCase();
+  }
+
+  Future<void> _shareStudentDetails(BuildContext context) async {
+    bool includePayment = false;
+    final bool? shouldGenerate = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Generate PDF'),
+        content: StatefulBuilder(
+          builder: (context, setDialogState) => CheckboxListTile(
+            title: const Text('Include Payment Overview'),
+            value: includePayment,
+            onChanged: (val) =>
+                setDialogState(() => includePayment = val ?? false),
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: const Text('Generate')),
+        ],
+      ),
+    );
 
     if (shouldGenerate != true) return;
 
-    Uint8List? pdfBytes;
     try {
-      pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
+      final pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
         final workspace = Get.find<WorkspaceController>();
         final companyData = workspace.companyData;
-
         Uint8List? studentImageBytes;
         if (studentDetails['image'] != null &&
-            studentDetails['image'].isNotEmpty) {
-          studentImageBytes = await ImageCacheService().fetchAndCache(
-            studentDetails['image'],
-          );
+            studentDetails['image'].toString().isNotEmpty) {
+          studentImageBytes =
+              await ImageCacheService().fetchAndCache(studentDetails['image']);
         }
-
         Uint8List? logoBytes;
         if (companyData['hasCompanyProfile'] == true &&
-            companyData['companyLogo'] != null &&
-            companyData['companyLogo'].toString().isNotEmpty) {
-          logoBytes = await ImageCacheService().fetchAndCache(
-            companyData['companyLogo'],
-          );
+            companyData['companyLogo'] != null) {
+          logoBytes = await ImageCacheService()
+              .fetchAndCache(companyData['companyLogo']);
         }
-
         return await PdfService.generatePdf(
           title: 'Student Details',
           data: studentDetails,
@@ -2060,31 +1104,14 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           companyLogoBytes: logoBytes,
         );
       });
+      if (pdfBytes != null) _showPdfPreview(context, pdfBytes);
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
-      }
-      return;
-    }
-
-    if (pdfBytes != null && mounted) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => PdfPreviewScreen(pdfBytes: pdfBytes!),
-        ),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
-  // ── Show PDF preview with WhatsApp FAB ─────────────────────────────────────
-
   void _showPdfPreview(BuildContext context, Uint8List pdfBytes) {
-    final phone = studentDetails['mobileNumber'] ?? '';
-    final studentName = studentDetails['fullName'] ?? 'Student';
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -2092,170 +1119,58 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           pdfBytes: pdfBytes,
           studentName: studentDetails['fullName'],
           studentPhone: studentDetails['mobileNumber'],
-          fileName: 'receipt_${studentDetails['fullName']}.pdf',
+          fileName: 'student_${studentDetails['fullName']}.pdf',
         ),
       ),
     );
   }
-  // ── Send PDF directly to student's WhatsApp using jid ──────────────────────
-
-  Future<void> sendReceiptWhatsApp({
-    required String phone,
-    required String studentName,
-    required Uint8List pdfBytes,
-  }) async {
-    try {
-      // 1️⃣ Save PDF to temp directory
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/receipt_$studentName.pdf');
-      await file.writeAsBytes(pdfBytes);
-
-      // 2️⃣ Clean phone number
-      String cleaned = phone.replaceAll(RegExp(r'[^0-9]'), '');
-      if (cleaned.startsWith('0')) cleaned = cleaned.substring(1);
-
-      // ⚠️ Change country code if needed
-      final internationalNumber = '91$cleaned';
-
-      // 3️⃣ Prefilled message
-      final message = 'Hello $studentName, here is your fee receipt.';
-
-      // 4️⃣ Android Intent to open WhatsApp with PDF and message
-      final whatsappUrl = Uri.parse(
-          'whatsapp://send?phone=$internationalNumber&text=${Uri.encodeComponent(message)}');
-
-      if (await canLaunchUrl(whatsappUrl)) {
-        await launchUrl(whatsappUrl, mode: LaunchMode.externalApplication);
-
-        // Wait a short moment before opening attachment to ensure chat is loaded
-        await Future.delayed(const Duration(milliseconds: 500));
-
-        // Open PDF file using default share intent
-        await launchUrl(
-          Uri.file(file.path),
-          mode: LaunchMode.externalApplication,
-        );
-      } else {
-        throw 'WhatsApp is not installed.';
-      }
-    } catch (e) {
-      print('Error sharing to WhatsApp: $e');
-    }
-  }
-
-  // ── Tappable mobile row ─────────────────────────────────────────────────────
 
   Widget _buildMobileRow(
-    String phone,
-    Color textColor,
-    Color subTextColor,
-    BuildContext context,
-  ) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: GestureDetector(
-        onTap: () => _showContactOptions(context, phone),
-        child: RichText(
-          text: TextSpan(
-            style: TextStyle(
-              fontSize: 13,
-              fontFamily: 'Inter',
-              color: textColor,
-            ),
-            children: [
-              TextSpan(
-                text: 'Mobile: ',
-                style: TextStyle(color: subTextColor),
-              ),
-              TextSpan(
-                text: phone,
+      String phone, Color textColor, Color subTextColor, BuildContext context) {
+    return InkWell(
+      onTap: () => _showContactOptions(context, phone),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: Row(
+          children: [
+            const Icon(Icons.phone, size: 14, color: kAccentRed),
+            const SizedBox(width: 4),
+            Text(phone,
                 style: const TextStyle(
-                  color: kAccentRed,
-                  decoration: TextDecoration.underline,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
+                    color: kAccentRed,
+                    fontWeight: FontWeight.bold,
+                    decoration: TextDecoration.underline)),
+          ],
         ),
       ),
     );
   }
 
-  // ── Call / WhatsApp bottom sheet ────────────────────────────────────────────
-
   void _showContactOptions(BuildContext context, String phone) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     showModalBottomSheet(
       context: context,
-      backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (_) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.grey.withOpacity(0.3),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              phone,
-              style: TextStyle(
-                color: isDark ? Colors.white54 : Colors.black54,
-                fontSize: 13,
-              ),
-            ),
-            const SizedBox(height: 16),
             ListTile(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              tileColor: Colors.green.withOpacity(0.08),
-              leading: const Icon(Icons.phone_rounded, color: Colors.green),
-              title: Text(
-                'Call',
-                style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              leading: const Icon(Icons.call, color: Colors.green),
+              title: const Text('Call Student'),
               onTap: () async {
-                Navigator.pop(context);
-                final uri = Uri(scheme: 'tel', path: phone);
+                final uri = Uri.parse('tel:$phone');
                 if (await canLaunchUrl(uri)) launchUrl(uri);
               },
             ),
-            const SizedBox(height: 10),
             ListTile(
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              tileColor: const Color(0xFF25D366).withOpacity(0.08),
-              leading: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
-              title: Text(
-                'WhatsApp',
-                style: TextStyle(
-                  color: isDark ? Colors.white : Colors.black,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              leading: const Icon(Icons.message, color: Colors.blue),
+              title: const Text('WhatsApp'),
               onTap: () async {
-                Navigator.pop(context);
-                final cleaned =
-                    phone.startsWith('0') ? phone.substring(1) : phone;
+                final cleaned = phone.replaceAll(RegExp(r'[^0-9]'), '');
                 final uri = Uri.parse('https://wa.me/91$cleaned');
-                if (await canLaunchUrl(uri)) {
+                if (await canLaunchUrl(uri))
                   launchUrl(uri, mode: LaunchMode.externalApplication);
-                }
               },
             ),
           ],
@@ -2264,99 +1179,772 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     );
   }
 
-  // ── Helpers ─────────────────────────────────────────────────────────────────
+  Future<void> _downloadAttendancePdf(
+      BuildContext context, String targetId) async {
+    try {
+      final workspace = Get.find<WorkspaceController>();
+      final companyData = workspace.companyData;
+      Uint8List? logoBytes;
+      if (companyData['hasCompanyProfile'] == true &&
+          companyData['companyLogo'] != null) {
+        logoBytes =
+            await ImageCacheService().fetchAndCache(companyData['companyLogo']);
+      }
+      final attendanceSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection('students')
+          .doc(_docId)
+          .collection('attendance')
+          .orderBy('date', descending: true)
+          .get();
+      final logs = attendanceSnap.docs
+          .map((d) => d.data() as Map<String, dynamic>)
+          .toList();
+      final pdfBytes = await AttendancePdfService.generate(
+        studentName: studentDetails['fullName'] ?? 'N/A',
+        studentId: studentDetails['studentId'].toString(),
+        cov: studentDetails['cov'] ?? 'N/A',
+        records: logs,
+        companyData: companyData,
+        companyLogoBytes: logoBytes,
+      );
+      if (pdfBytes != null) _showPdfPreview(context, pdfBytes);
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
 
-  BoxDecoration _cardDecoration(BuildContext context, Color borderColor) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return BoxDecoration(
-      color: Theme.of(context).cardColor,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: borderColor.withOpacity(0.5)),
-      boxShadow: isDark
-          ? null
-          : [
-              BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
-                blurRadius: 10,
-                offset: const Offset(0, 5),
-              ),
-            ],
+  Future<void> _toggleLessonStatus(String targetId, bool isLessonActive) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+      if (!isLessonActive) {
+        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) return;
+
+        LocationPermission p = await Geolocator.checkPermission();
+        if (p == LocationPermission.denied) {
+          p = await Geolocator.requestPermission();
+        }
+        if (p == LocationPermission.denied ||
+            p == LocationPermission.deniedForever) return;
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('students')
+            .doc(_docId)
+            .update({
+          'lessonStatus': 'started',
+          'assignedDriver': user.uid,
+          'lessonStartTime': FieldValue.serverTimestamp()
+        });
+        await BackgroundService.start();
+        Get.snackbar('Lesson Started', 'Real-time tracking active.',
+            backgroundColor: Colors.green, colorText: Colors.white);
+      } else {
+        final snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('students')
+            .doc(_docId)
+            .get();
+        final startTime =
+            (snap.data()?['lessonStartTime'] as Timestamp?)?.toDate();
+        final now = DateTime.now();
+        String duration = startTime != null
+            ? '${now.difference(startTime).inMinutes}m'
+            : 'N/A';
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('students')
+            .doc(_docId)
+            .collection('attendance')
+            .add({
+          'instructorName':
+              _workspaceController.userProfileData['name'] ?? 'Unknown',
+          'date': FieldValue.serverTimestamp(),
+          'startTime': startTime != null ? Timestamp.fromDate(startTime) : null,
+          'endTime': FieldValue.serverTimestamp(),
+          'duration': duration,
+          'distance': '0 KM',
+          'instructorId': user.uid,
+        });
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('students')
+            .doc(_docId)
+            .update({'lessonStatus': 'completed'});
+        Get.snackbar('Lesson Completed', 'Attendance recorded: $duration',
+            backgroundColor: Colors.red, colorText: Colors.white);
+      }
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to update lesson: $e');
+    }
+  }
+
+  Future<void> _generateSelectedReceipts() async {
+    if (_selectedTransactionIds.isEmpty) return;
+    try {
+      final pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
+        final workspace = Get.find<WorkspaceController>();
+        final companyData = workspace.companyData;
+        final selectedPayments = _cachedPayments
+            .where((p) => _selectedTransactionIds.contains(p['id']))
+            .toList();
+        Uint8List? logoBytes;
+        if (companyData['hasCompanyProfile'] == true &&
+            companyData['companyLogo'] != null) {
+          logoBytes = await ImageCacheService()
+              .fetchAndCache(companyData['companyLogo']);
+        }
+        return await PdfService.generateReceipt(
+          companyData: companyData,
+          studentDetails: studentDetails,
+          transactions: selectedPayments,
+          companyLogoBytes: logoBytes,
+        );
+      });
+      if (pdfBytes != null) _showPdfPreview(context, pdfBytes);
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  Widget _buildLessonControlButton(String targetId) {
+    return StreamBuilder<DocumentSnapshot>(
+      stream: _mainStream,
+      builder: (context, snapshot) {
+        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        final isLessonActive = (data?['lessonStatus'] ?? 'none') == 'started';
+        return IconButton(
+          icon: Icon(
+              isLessonActive ? Icons.stop_circle : Icons.play_circle_outline,
+              color: isLessonActive ? Colors.red : Colors.green),
+          onPressed: () => _toggleLessonStatus(targetId, isLessonActive),
+        );
+      },
     );
   }
 
-  Widget _buildInfoRow(
+  void _showReceiveMoneyDialog(BuildContext context, String targetId) {
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection(_collectionName)
+        .doc(_docId)
+        .get()
+        .then((snapshot) {
+      if (snapshot.exists) {
+        PaymentUtils.showReceiveMoneyDialog(
+          context: context,
+          doc: snapshot,
+          targetId: targetId,
+          branchId: _workspaceController.currentBranchId.value,
+          category: 'students',
+        );
+      }
+    });
+  }
+
+  Future<void> _uploadDocument(BuildContext context, String targetId) async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
+    if (image != null) {
+      final nameController = TextEditingController();
+      final bool? shouldUpload = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Document Name'),
+          content: TextField(
+            controller: nameController,
+            decoration: const InputDecoration(
+              hintText: 'Enter document name (e.g. Aadhaar Card)',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Upload'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldUpload != true || nameController.text.trim().isEmpty) {
+        return;
+      }
+
+      try {
+        await LoadingUtils.wrapWithLoading(context, () async {
+          final url = await StorageService()
+              .uploadFile(file: image, path: 'student_docs/$_docId');
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(targetId)
+              .collection('students')
+              .doc(_docId)
+              .collection('documents')
+              .add({
+            'name': nameController.text.trim(),
+            'url': url,
+            'timestamp': FieldValue.serverTimestamp(),
+            'status': 'Uploaded',
+          });
+        }, message: 'Uploading document...');
+        Get.snackbar('Success', 'Document uploaded.',
+            backgroundColor: Colors.green, colorText: Colors.white);
+      } catch (e) {
+        Get.snackbar('Error', 'Failed to upload document: $e');
+      }
+    }
+  }
+
+  Future<void> _deleteDocument(String docId, String targetId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection('students')
+          .doc(_docId)
+          .collection('documents')
+          .doc(docId)
+          .delete();
+      Get.snackbar(
+        'Success',
+        'Document deleted.',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to delete document: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Future<void> _editNotes(BuildContext context, {bool isNew = false}) async {
+    final controller = TextEditingController(
+      text: isNew ? '' : (studentDetails['remarks'] ?? ''),
+    );
+
+    final bool? shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Notes'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Enter notes or remarks',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSave != true) return;
+
+    final notes = controller.text.trim();
+    try {
+      final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+          ? _workspaceController.currentSchoolId.value
+          : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
+      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
+      var collection = 'students';
+      var snap = await base.collection(collection).doc(_docId).get();
+      if (!snap.exists) {
+        final altSnap =
+            await base.collection('deactivated_students').doc(_docId).get();
+        if (altSnap.exists) {
+          collection = 'deactivated_students';
+        }
+      }
+      await base
+          .collection(collection)
+          .doc(_docId)
+          .set({'remarks': notes}, SetOptions(merge: true));
+
+      setState(() {
+        studentDetails['remarks'] = notes;
+      });
+
+      Get.snackbar(
+        'Success',
+        'Notes updated.',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to update notes: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Future<void> _clearNotes(BuildContext context) async {
+    if ((studentDetails['remarks'] ?? '').toString().trim().isEmpty) {
+      return;
+    }
+
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Notes'),
+        content: const Text(
+          'Are you sure you want to delete all notes for this student?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    try {
+      final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+          ? _workspaceController.currentSchoolId.value
+          : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
+      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
+      var collection = 'students';
+      var snap = await base.collection(collection).doc(_docId).get();
+      if (!snap.exists) {
+        final altSnap =
+            await base.collection('deactivated_students').doc(_docId).get();
+        if (altSnap.exists) {
+          collection = 'deactivated_students';
+        }
+      }
+      await base
+          .collection(collection)
+          .doc(_docId)
+          .update({'remarks': FieldValue.delete()});
+
+      setState(() {
+        studentDetails.remove('remarks');
+      });
+
+      Get.snackbar(
+        'Success',
+        'Notes deleted.',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to delete notes: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Widget _buildAdditionalTab(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
+    final additionalInfo =
+        studentDetails['additionalInfo'] as Map<String, dynamic>?;
+    final hasAdditionalInfo =
+        additionalInfo != null && additionalInfo.isNotEmpty;
+    final Map<String, dynamic> customFields =
+        (additionalInfo?['customFields'] as Map<String, dynamic>?) ?? {};
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Additional Information',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            TextButton.icon(
+              onPressed: () => _openStudentAdditionalInfoSheet(context),
+              icon: const Icon(Icons.edit, size: 18, color: kAccentRed),
+              label: Text(
+                hasAdditionalInfo ? 'Edit' : 'Add',
+                style: const TextStyle(color: kAccentRed, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        if (!hasAdditionalInfo)
+          const Text(
+            'No additional information added yet.',
+            style: TextStyle(color: Colors.grey, fontSize: 12),
+          )
+        else ...[
+          // Core fields
+          if ((additionalInfo['applicationNumber'] ?? '').toString().isNotEmpty)
+            _buildAdditionalInfoRow(
+              'Application Number',
+              additionalInfo['applicationNumber'].toString(),
+              textColor,
+              subTextColor,
+            ),
+          if ((additionalInfo['learnersLicenseNumber'] ?? '')
+              .toString()
+              .isNotEmpty)
+            _buildAdditionalInfoRow(
+              "Learner's License Number",
+              additionalInfo['learnersLicenseNumber'].toString(),
+              textColor,
+              subTextColor,
+            ),
+          if ((additionalInfo['learnersLicenseExpiry'] ?? '')
+              .toString()
+              .isNotEmpty)
+            _buildAdditionalInfoRow(
+              "Learner's License Expiry",
+              additionalInfo['learnersLicenseExpiry'].toString(),
+              textColor,
+              subTextColor,
+            ),
+          if ((additionalInfo['drivingLicenseNumber'] ?? '')
+              .toString()
+              .isNotEmpty)
+            _buildAdditionalInfoRow(
+              'Driving License Number',
+              additionalInfo['drivingLicenseNumber'].toString(),
+              textColor,
+              subTextColor,
+            ),
+          if ((additionalInfo['drivingLicenseExpiry'] ?? '')
+              .toString()
+              .isNotEmpty)
+            _buildAdditionalInfoRow(
+              'Driving License Expiry',
+              additionalInfo['drivingLicenseExpiry'].toString(),
+              textColor,
+              subTextColor,
+            ),
+          if (customFields.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text(
+              'Custom Fields',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+            ),
+            const SizedBox(height: 8),
+            ...customFields.entries.map(
+              (e) => _buildAdditionalInfoRow(
+                e.key,
+                e.value.toString(),
+                textColor,
+                subTextColor,
+              ),
+            ),
+          ],
+        ],
+      ],
+    );
+  }
+
+  Future<void> _openStudentAdditionalInfoSheet(BuildContext context) async {
+    final existing = studentDetails['additionalInfo'] as Map<String, dynamic>?;
+
+    final result = await showAdditionalInfoSheet(
+      context: context,
+      type: AdditionalInfoType.student,
+      collection: 'students',
+      documentId: _docId,
+      existingData: existing,
+    );
+
+    if (result == true) {
+      try {
+        final service = AdditionalInfoService();
+        final updated = await service.getStudentTypeAdditionalInfo(
+          collection: 'students',
+          documentId: _docId,
+        );
+        if (mounted && updated != null) {
+          setState(() {
+            studentDetails['additionalInfo'] = updated;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {});
+        }
+      }
+    }
+  }
+
+  Widget _buildAdditionalInfoRow(
     String label,
     String value,
     Color textColor,
     Color subTextColor,
   ) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: RichText(
-        text: TextSpan(
-          style: TextStyle(fontSize: 13, fontFamily: 'Inter', color: textColor),
-          children: [
-            TextSpan(
-              text: '$label: ',
-              style: TextStyle(color: subTextColor),
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              color: subTextColor,
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
             ),
-            TextSpan(
-              text: value,
-              style: TextStyle(color: textColor),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              color: textColor,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _updateProfileImage(
+      BuildContext context, String targetId) async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await showDialog<XFile?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Update Profile Photo'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Gallery'),
+              onTap: () async {
+                final img = await picker.pickImage(
+                    source: ImageSource.gallery, imageQuality: 50);
+                if (mounted) Navigator.pop(ctx, img);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Camera'),
+              onTap: () async {
+                final img = await picker.pickImage(
+                    source: ImageSource.camera, imageQuality: 50);
+                if (mounted) Navigator.pop(ctx, img);
+              },
             ),
           ],
         ),
       ),
     );
+
+    if (image != null) {
+      try {
+        await LoadingUtils.wrapWithLoading(context, () async {
+          final url = await StorageService().uploadStudentImage(image);
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(targetId)
+              .collection('students')
+              .doc(_docId)
+              .update({'image': url});
+        });
+        Get.snackbar('Success', 'Profile photo updated.',
+            backgroundColor: Colors.green, colorText: Colors.white);
+      } catch (e) {
+        Get.snackbar('Error', 'Failed to upload photo: $e',
+            backgroundColor: Colors.red, colorText: Colors.white);
+      }
+    }
   }
 
-  String _formatAddress() {
-    return [
-      studentDetails['house'],
-      studentDetails['post'],
-      studentDetails['district'],
-      studentDetails['pin'],
-    ].where((e) => e != null && e.isNotEmpty).join(', ');
+  void _showAddExtraFeeDialog(BuildContext context, String targetId) {
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('students')
+        .doc(_docId)
+        .get()
+        .then((snapshot) {
+      if (snapshot.exists) {
+        PaymentUtils.showAddExtraFeeDialog(
+          context: context,
+          doc: snapshot,
+          targetId: targetId,
+          category: 'students',
+        );
+      }
+    });
+  }
+
+  void _handleTransactionAction(
+      String action, Map<String, dynamic> data, String targetId) async {
+    final docRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection(_collectionName)
+        .doc(_docId);
+    if (action == 'edit') {
+      await PaymentUtils.showEditPaymentDialog(
+        context: context,
+        docRef: docRef,
+        paymentDoc: data['docRef'] as DocumentSnapshot,
+        targetId: targetId,
+        category: 'students',
+      );
+    } else if (action == 'delete') {
+      await PaymentUtils.deletePayment(
+        context: context,
+        studentRef: docRef,
+        paymentDoc: data['docRef'] as DocumentSnapshot,
+        targetId: targetId,
+      );
+    }
+    setState(() {});
+  }
+
+  void _handleExtraFeeAction(
+      String action, DocumentSnapshot feeDoc, String targetId) async {
+    final docRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('students')
+        .doc(_docId);
+    if (action == 'edit') {
+      await PaymentUtils.showEditExtraFeeDialog(
+        context: context,
+        docRef: docRef,
+        feeDoc: feeDoc,
+        targetId: targetId,
+        category: 'students',
+      );
+    } else if (action == 'delete') {
+      await PaymentUtils.deleteExtraFee(
+        context: context,
+        docRef: docRef,
+        feeDoc: feeDoc,
+        targetId: targetId,
+      );
+    }
+    setState(() {});
+  }
+
+  Widget _buildExtraFeesList(BuildContext context, String targetId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _extraFeesStream,
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty)
+          return const Center(
+              child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No extra fees added.')));
+
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: docs.length,
+          itemBuilder: (context, index) {
+            final data = docs[index].data() as Map<String, dynamic>;
+            final date =
+                (data['date'] as Timestamp?)?.toDate() ?? DateTime.now();
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading:
+                  const Icon(Icons.label_important_outline, color: Colors.blue),
+              title: Text(data['description'] ?? 'No Description',
+                  style: const TextStyle(fontWeight: FontWeight.w500)),
+              subtitle: Text(DateFormat('dd MMM yyyy').format(date)),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('₹${(data['amount'] as num?)?.toInt() ?? 0}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.red)),
+                  PopupMenuButton<String>(
+                    icon: const Icon(Icons.more_vert, size: 20),
+                    onSelected: (value) =>
+                        _handleExtraFeeAction(value, docs[index], targetId),
+                    itemBuilder: (context) => [
+                      const PopupMenuItem(
+                          value: 'edit',
+                          child: ListTile(
+                              leading: Icon(Icons.edit, size: 18),
+                              title: Text('Edit'),
+                              dense: true)),
+                      const PopupMenuItem(
+                          value: 'delete',
+                          child: ListTile(
+                              leading: Icon(Icons.delete,
+                                  color: Colors.red, size: 18),
+                              title: Text('Delete',
+                                  style: TextStyle(color: Colors.red)),
+                              dense: true)),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 }
 
-// ── Attendance badge ──────────────────────────────────────────────────────────
-
-class _AttendanceBadge extends StatelessWidget {
-  final IconData icon;
-  final String label;
+class StatusBadge extends StatelessWidget {
+  final String text;
   final Color color;
-
-  const _AttendanceBadge({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
+  const StatusBadge({required this.text, required this.color, super.key});
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withOpacity(0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 11, color: color),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3))),
+      child: Text(text,
+          style: TextStyle(
+              color: color, fontSize: 10, fontWeight: FontWeight.bold)),
     );
   }
 }

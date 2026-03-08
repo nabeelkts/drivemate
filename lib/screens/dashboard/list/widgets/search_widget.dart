@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
+import 'package:drivemate/constants/colors.dart';
 
 class SearchWidget extends StatelessWidget {
   final TextEditingController controller;
   final String placeholder;
   final ValueChanged<String> onChanged;
 
-  const SearchWidget({super.key, 
+  const SearchWidget({
+    super.key,
     required this.controller,
     required this.onChanged,
     required this.placeholder,
@@ -29,10 +30,10 @@ class SearchWidget extends StatelessWidget {
           ),
           hintText: placeholder,
           hintStyle: TextStyle(
-           // color: Colors.grey[400],
-          ),
+              // color: Colors.grey[400],
+              ),
           //filled: true,
-         //fillColor: kWhite,
+          //fillColor: kWhite,
           // Adjust the vertical padding here
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(30.0),

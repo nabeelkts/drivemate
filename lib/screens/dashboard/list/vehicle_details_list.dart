@@ -4,15 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/dashboard/form/edit_forms/edit_vehicle_details_form.dart';
-import 'package:mds/screens/dashboard/form/new_forms/vehicle_details_form.dart';
-import 'package:mds/screens/dashboard/list/deactivated_vehicle_details_list.dart';
-import 'package:mds/screens/dashboard/list/details/vehicle_details_page.dart';
-import 'package:mds/screens/dashboard/list/widgets/list_item_card.dart';
-import 'package:mds/screens/profile/dialog_box.dart';
-import 'package:mds/screens/widget/base_list_widget.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/dashboard/form/edit_forms/edit_vehicle_details_form.dart';
+import 'package:drivemate/screens/dashboard/form/new_forms/vehicle_details_form.dart';
+import 'package:drivemate/screens/dashboard/list/deactivated_vehicle_details_list.dart';
+import 'package:drivemate/screens/dashboard/list/details/vehicle_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/list_item_card.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
+import 'package:drivemate/screens/widget/base_list_widget.dart';
 
 class VehicleDetailsList extends StatelessWidget {
   const VehicleDetailsList({super.key});
@@ -40,8 +40,10 @@ class VehicleDetailsList extends StatelessWidget {
         );
       },
       itemBuilder: (context, doc) {
-        final data = doc.data();
-        data['recordId'] = doc.id; // Inject ID for Details Stream fallback
+        final data = Map<String, dynamic>.from(doc.data());
+        // Inject document ID for navigation to details pages
+        data['studentId'] = doc.id;
+        data['recordId'] = doc.id;
         data['id'] = doc.id;
 
         final isDark = Theme.of(context).brightness == Brightness.dark;

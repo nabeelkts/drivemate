@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/controller/app_controller.dart';
-import 'package:mds/screens/legal/privacy_policy_screen.dart';
-import 'package:mds/screens/legal/terms_of_service_screen.dart';
-import 'package:mds/screens/profile/contact_us_screen.dart';
-import 'package:mds/screens/profile/invite_page.dart';
-import 'package:mds/screens/profile/about_us_page.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/controller/app_controller.dart';
+import 'package:drivemate/screens/legal/privacy_policy_screen.dart';
+import 'package:drivemate/screens/legal/terms_of_service_screen.dart';
+import 'package:drivemate/screens/profile/contact_us_screen.dart';
+import 'package:drivemate/screens/profile/invite_page.dart';
+import 'package:drivemate/screens/profile/about_us_page.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
 
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});

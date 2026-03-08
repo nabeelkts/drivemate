@@ -3,13 +3,14 @@ import 'dart:async';
 
 /// SoftDeleteService handles soft deletion of documents with automatic cleanup after 3 months
 class SoftDeleteService {
-  static const int RETENTION_DAYS = 90; // 3 months
+  static const int retentionDays = 90; // 3 months
 
   /// Soft delete a document - moves it to recycle bin state
   static Future<void> softDelete({
     required DocumentReference docRef,
     required String userId,
     String? branchId,
+    String? documentName, // Optional: Name of the document for activity logging
   }) async {
     try {
       final batch = FirebaseFirestore.instance.batch();
@@ -20,7 +21,7 @@ class SoftDeleteService {
         'deletedAt': FieldValue.serverTimestamp(),
         'deletedBy': userId,
         'expiryDate': Timestamp.fromDate(
-          DateTime.now().add(Duration(days: RETENTION_DAYS)),
+          DateTime.now().add(Duration(days: retentionDays)),
         ),
         'originalCollection': docRef.parent.path.split('/').last,
         if (branchId != null) 'deletedFromBranch': branchId,
@@ -28,11 +29,12 @@ class SoftDeleteService {
 
       await batch.commit();
 
-      // Log the deletion activity
+      // Log the deletion activity with document name
       await _logDeletionActivity(
         userId: userId,
         docRef: docRef,
         branchId: branchId,
+        documentName: documentName,
       );
     } catch (e) {
       throw Exception('Failed to soft delete document: $e');
@@ -67,14 +69,16 @@ class SoftDeleteService {
   static Future<void> permanentDelete({
     required DocumentReference docRef,
     required String userId,
+    String? documentName, // Optional: Name for activity logging
   }) async {
     try {
       await docRef.delete();
 
-      // Log permanent deletion
+      // Log permanent deletion with document name
       await _logPermanentDeletion(
         userId: userId,
         docRef: docRef,
+        documentName: documentName,
       );
     } catch (e) {
       throw Exception('Failed to permanently delete document: $e');
@@ -242,7 +246,7 @@ class SoftDeleteService {
     final expiry = expiryDate.toDate();
     final difference = expiry.difference(now);
 
-    return difference.inDays.clamp(0, RETENTION_DAYS);
+    return difference.inDays.clamp(0, retentionDays);
   }
 
   /// Log deletion activity for audit trail
@@ -250,6 +254,7 @@ class SoftDeleteService {
     required String userId,
     required DocumentReference docRef,
     String? branchId,
+    String? documentName,
   }) async {
     try {
       final activityRef = FirebaseFirestore.instance
@@ -260,11 +265,14 @@ class SoftDeleteService {
 
       await activityRef.set({
         'title': 'Document Moved to Recycle Bin',
-        'details': 'Document ID: ${docRef.id}',
+        'details': documentName != null
+            ? '"$documentName" moved to recycle bin'
+            : 'Document ID: ${docRef.id}',
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'soft_delete',
         'documentPath': docRef.path,
         'branchId': branchId,
+        if (documentName != null) 'documentName': documentName,
       });
     } catch (e) {
       print('Error logging deletion activity: $e');
@@ -275,6 +283,7 @@ class SoftDeleteService {
   static Future<void> _logPermanentDeletion({
     required String userId,
     required DocumentReference docRef,
+    String? documentName,
   }) async {
     try {
       final activityRef = FirebaseFirestore.instance
@@ -285,7 +294,9 @@ class SoftDeleteService {
 
       await activityRef.set({
         'title': 'Document Permanently Deleted',
-        'details': 'Document ID: ${docRef.id} removed from recycle bin',
+        'details': documentName != null
+            ? '"$documentName" permanently deleted'
+            : 'Document ID: ${docRef.id} removed from recycle bin',
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'permanent_delete',
         'documentPath': docRef.path,

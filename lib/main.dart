@@ -7,24 +7,24 @@ import 'package:get_storage/get_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'package:hive_flutter/adapters.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:mds/controller/dependency_injection.dart';
-import 'package:mds/controller/theme_controller.dart';
-import 'package:mds/controller/app_controller.dart';
-import 'package:mds/firebase_options.dart';
-import 'package:mds/screens/authentication/google_sign_in.dart';
-import 'package:mds/screens/dashboard/form/new_forms/new_student_form.dart';
-import 'package:mds/screens/dashboard/list/endorsement_list.dart';
-import 'package:mds/screens/dashboard/list/license_only_list.dart';
-import 'package:mds/screens/dashboard/list/students_list.dart';
-import 'package:mds/screens/dashboard/list/vehicle_details_list.dart';
-import 'package:mds/screens/dashboard/today_schedule_page.dart';
-import 'package:mds/screens/navigation_screen.dart';
-import 'package:mds/screens/onboarding/splash_screen.dart';
-import 'package:mds/screens/dashboard/test_date_updater_screen.dart';
-import 'package:mds/screens/notification/notification_screen.dart';
-import 'package:mds/screens/dashboard/list/dl_services_list.dart';
+import 'package:drivemate/controller/dependency_injection.dart';
+import 'package:drivemate/controller/theme_controller.dart';
+import 'package:drivemate/controller/app_controller.dart';
+import 'package:drivemate/firebase_options.dart';
+import 'package:drivemate/screens/authentication/google_sign_in.dart';
+import 'package:drivemate/screens/dashboard/form/new_forms/new_student_form.dart';
+import 'package:drivemate/screens/dashboard/list/endorsement_list.dart';
+import 'package:drivemate/screens/dashboard/list/license_only_list.dart';
+import 'package:drivemate/screens/dashboard/list/students_list.dart';
+import 'package:drivemate/screens/dashboard/list/vehicle_details_list.dart';
+import 'package:drivemate/screens/dashboard/today_schedule_page.dart';
+import 'package:drivemate/screens/navigation_screen.dart';
+import 'package:drivemate/screens/onboarding/splash_screen.dart';
+import 'package:drivemate/screens/dashboard/test_date_updater_screen.dart';
+import 'package:drivemate/screens/notification/notification_screen.dart';
+import 'package:drivemate/screens/dashboard/list/dl_services_list.dart';
 import 'package:provider/provider.dart';
-import 'package:mds/services/soft_delete_service.dart';
+import 'package:drivemate/services/soft_delete_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -193,7 +193,22 @@ class MyApp extends StatelessWidget {
               );
             }
 
-            return child!;
+            final mq = MediaQuery.of(context);
+            final baseBottom = mq.padding.bottom;
+            final adjustedBottom = baseBottom == 0 ? 16.0 : baseBottom;
+            final newPadding = mq.padding.copyWith(bottom: adjustedBottom);
+            final mediaData = mq.copyWith(padding: newPadding);
+
+            return MediaQuery(
+              data: mediaData,
+              child: SafeArea(
+                top: false,
+                left: false,
+                right: false,
+                bottom: true,
+                child: child!,
+              ),
+            );
           },
           routes: {
             '/home': (context) => const BottomNavScreen(),

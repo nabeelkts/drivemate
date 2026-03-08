@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
 
 class StaffRequestsPage extends StatelessWidget {
   const StaffRequestsPage({super.key});

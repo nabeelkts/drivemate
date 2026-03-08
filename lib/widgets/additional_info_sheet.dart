@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/services/additional_info_service.dart';
-import 'package:mds/utils/date_input_formatter.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/services/additional_info_service.dart';
+import 'package:drivemate/utils/date_input_formatter.dart';
 
 enum AdditionalInfoType {
   student, // Student, License Only, Endorsement

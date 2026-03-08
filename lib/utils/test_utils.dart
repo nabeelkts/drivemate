@@ -4,8 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:iconly/iconly.dart';
-import 'package:mds/utils/date_utils.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/utils/date_utils.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 
 class TestUtils {
   static Future<void> showUpdateTestDateDialog({

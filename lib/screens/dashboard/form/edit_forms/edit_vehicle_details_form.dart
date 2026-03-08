@@ -2,10 +2,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:mds/screens/dashboard/list/details/vehicle_details_page.dart';
-import 'package:mds/screens/widget/base_form_widget.dart';
+import 'package:drivemate/screens/widget/base_form_widget.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 
 class EditVehicleDetailsForm extends StatefulWidget {
   final Map<String, dynamic> initialValues;
@@ -102,9 +101,6 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
                     Get.find<WorkspaceController>();
                 if (user == null) return;
 
-                final schoolId = workspaceController.currentSchoolId.value;
-                final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
-
                 // Final service type logic
                 final serviceTypes = selectedServices.isNotEmpty
                     ? selectedServices
@@ -144,14 +140,7 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
 
                 Fluttertoast.showToast(
                     msg: 'Vehicle details updated successfully');
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => VehicleDetailsPage(
-                      vehicleDetails: data,
-                    ),
-                  ),
-                );
+                if (mounted) Navigator.pop(context, true);
               } catch (e) {
                 Fluttertoast.showToast(
                     msg: 'Error updating vehicle details: $e');

@@ -1,22 +1,22 @@
 import 'dart:async';
 import 'package:async/async.dart' hide StreamGroup;
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/dashboard/list/details/endorsement_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/license_only_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/rc_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/dl_service_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
-import 'package:mds/screens/accounts/daily_ledger_page.dart';
-import 'package:mds/screens/dashboard/widgets/custom/custom_text.dart';
-import 'package:mds/screens/statistics/receive_money.dart';
-import 'package:mds/screens/accounts/add_expense_screen.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/dashboard/list/details/endorsement_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/license_only_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/rc_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/dl_service_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/students_details_page.dart';
+import 'package:drivemate/screens/accounts/daily_ledger_page.dart';
+import 'package:drivemate/screens/dashboard/widgets/custom/custom_text.dart';
+import 'package:drivemate/screens/statistics/receive_money.dart';
+import 'package:drivemate/screens/accounts/add_expense_screen.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -26,8 +26,8 @@ import 'package:share_plus/share_plus.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:math';
 
-import 'package:mds/models/transaction_data.dart';
-import 'package:mds/utils/stream_utils.dart';
+import 'package:drivemate/models/transaction_data.dart';
+import 'package:drivemate/utils/stream_utils.dart';
 
 class AccountsScreen extends StatefulWidget {
   const AccountsScreen({super.key});
@@ -341,9 +341,14 @@ class _AccountsScreenState extends State<AccountsScreen> {
   // Helper method to handle stream errors and return empty snapshots on error
   Stream<QuerySnapshot<Map<String, dynamic>>> _handleStreamErrors(
       Stream<QuerySnapshot<Map<String, dynamic>>> stream) {
-    // Since we can't easily create an empty QuerySnapshot in error handling,
-    // we'll return the stream as-is with error handling that just prints the error
-    return stream.asBroadcastStream();
+    // Catch errors and return empty result instead of breaking the stream
+    return stream.transform(StreamTransformer.fromHandlers(
+      handleError: (error, stackTrace, sink) {
+        print('⚠️  Accounts extra fees query error (missing index): $error');
+        // Don't add anything to sink - just swallow the error
+        // This prevents the stream from breaking while allowing other streams to work
+      },
+    ));
   }
 
   List<TransactionData> _extraFeesTransactions = [];
@@ -366,7 +371,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
       final extraFeesIndices = [0, 1, 2, 3, 4]; // 5 extra fees collections
       for (var idx in extraFeesIndices) {
         if (extraFeesDataList.length > idx &&
-            extraFeesDataList[idx]?.docs != null) {
+            extraFeesDataList[idx]!.docs != null) {
           for (var doc in extraFeesDataList[idx]!.docs) {
             final data = doc.data();
 
@@ -376,9 +381,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
             final date = _safeParseGenericDate(data['date']);
             final amount =
                 double.tryParse(data['amount']?.toString() ?? '0') ?? 0.0;
-            final description = data['description'] ?? 'Additional Fee';
             final note = data['note'] ?? '';
-            final category = data['category'] ?? 'unknown';
 
             // Only add if amount > 0 and fee is unpaid
             final status = data['status']?.toString() ?? 'unpaid';
@@ -531,7 +534,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     final mainIndices = [0, 1, 2, 3, 5];
                     for (var idx in mainIndices) {
                       if (dataList.length > idx &&
-                          dataList[idx]?.docs != null) {
+                          dataList[idx]!.docs != null) {
                         for (var doc in dataList[idx]!.docs) {
                           final data = doc.data();
 
@@ -608,7 +611,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     }
 
                     // 2. Process Expenses (index 4)
-                    if (dataList.length > 4 && dataList[4]?.docs != null) {
+                    if (dataList.length > 4 && dataList[4]!.docs != null) {
                       for (var doc in dataList[4]!.docs) {
                         final data = doc.data();
 
@@ -637,7 +640,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
 
                     // 3. Process Payments (index 6)
                     if (dataList.length > 6 && dataList[6]?.docs != null) {
-                      for (var doc in dataList[6]!.docs) {
+                      for (var doc in dataList[6].docs!) {
                         final data = doc.data();
 
                         // Skip soft-deleted documents

@@ -6,26 +6,26 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:mds/constants/colors.dart';
+import 'package:drivemate/constants/colors.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
-import 'package:mds/screens/authentication/widgets/my_button.dart';
-import 'package:mds/screens/dashboard/form/edit_forms/edit_student_details_form.dart';
-import 'package:mds/screens/dashboard/form/new_forms/new_student_form.dart';
-import 'package:mds/screens/dashboard/list/deactivated_student_list.dart';
-import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
-import 'package:mds/screens/dashboard/list/widgets/animated_search_widget.dart';
-import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
-import 'package:mds/screens/dashboard/list/widgets/summary_header.dart';
-import 'package:mds/screens/dashboard/list/widgets/list_item_card.dart';
-import 'package:mds/screens/profile/dialog_box.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
+import 'package:drivemate/screens/authentication/widgets/my_button.dart';
+import 'package:drivemate/screens/dashboard/form/edit_forms/edit_student_details_form.dart';
+import 'package:drivemate/screens/dashboard/form/new_forms/new_student_form.dart';
+import 'package:drivemate/screens/dashboard/list/deactivated_student_list.dart';
+import 'package:drivemate/screens/dashboard/list/details/students_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/animated_search_widget.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/summary_header.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/list_item_card.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 
 class StudentList extends StatefulWidget {
   final String userId;
 
-  const StudentList({required this.userId, Key? key}) : super(key: key);
+  const StudentList({required this.userId, super.key});
 
   @override
   State<StudentList> createState() => _StudentListState();
@@ -51,6 +51,7 @@ class _StudentListState extends State<StudentList> {
         .snapshots()
         .listen((snapshot) {
       if (mounted) {
+        print('📊 StudentList received ${snapshot.docs.length} docs');
         _userStreamController.add(snapshot);
         setState(() {
           // Filter out soft-deleted and invalid documents
@@ -63,11 +64,14 @@ class _StudentListState extends State<StudentList> {
                 data.containsKey('name') ||
                 data.containsKey('mobileNumber');
           }).toList();
+          print('   After filtering: ${_allStudents.length} students');
         });
       }
     }, onError: (error) {
+      print('❌ Firestore error in student list: $error');
       if (mounted) {
-        print('Firestore error in student list: $error');
+        // Add error to stream so it can be displayed
+        _userStreamController.addError(error);
       }
     });
   }
@@ -175,7 +179,39 @@ class _StudentListState extends State<StudentList> {
               stream: _userStreamController.stream,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {
-                  return const Text('Connection Error');
+                  print('❌ Firestore Error Details:');
+                  print('   Error: ${snapshot.error}');
+                  print('   Stack Trace: ${snapshot.stackTrace}');
+                  return Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.error_outline,
+                            size: 48, color: Colors.red),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Error Loading Data',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          child: Text(
+                            '${snapshot.error}',
+                            style: const TextStyle(
+                                fontSize: 14, color: Colors.grey),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Check console for details',
+                          style: TextStyle(fontSize: 12, color: Colors.orange),
+                        ),
+                      ],
+                    ),
+                  );
                 }
 
                 if (snapshot.connectionState == ConnectionState.waiting) {

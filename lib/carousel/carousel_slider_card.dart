@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:mds/model/carousel_model.dart';
+import 'package:drivemate/model/carousel_model.dart';
 import 'package:shimmer/shimmer.dart';
 
 class CarouselSliderCard extends StatefulWidget {

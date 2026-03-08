@@ -1,15 +1,70 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
+import 'package:drivemate/constants/colors.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
-import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 
-class RecentActivityScreen extends StatelessWidget {
+class RecentActivityScreen extends StatefulWidget {
   const RecentActivityScreen({super.key});
+
+  @override
+  State<RecentActivityScreen> createState() => _RecentActivityScreenState();
+}
+
+class _RecentActivityScreenState extends State<RecentActivityScreen> {
+  late final StreamController<QuerySnapshot<Map<String, dynamic>>>
+      _streamController;
+  late final StreamSubscription<QuerySnapshot<Map<String, dynamic>>>
+      _subscription;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _cachedDocs = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _setupStream();
+  }
+
+  void _setupStream() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
+
+    final workspaceController = Get.find<WorkspaceController>();
+    final schoolId = workspaceController.currentSchoolId.value;
+    final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
+
+    _streamController =
+        StreamController<QuerySnapshot<Map<String, dynamic>>>.broadcast();
+
+    _subscription = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('recentActivity')
+        .orderBy('timestamp', descending: true)
+        .limit(50)
+        .snapshots()
+        .listen((snapshot) {
+      // Cache the documents
+      setState(() {
+        _cachedDocs = snapshot.docs;
+      });
+      _streamController.add(snapshot);
+    }, onError: (error) {
+      _streamController.addError(error);
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription.cancel();
+    _streamController.close();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,53 +88,31 @@ class RecentActivityScreen extends StatelessWidget {
       );
     }
 
-    final WorkspaceController workspaceController =
-        Get.find<WorkspaceController>();
-
     return Scaffold(
       appBar: AppBar(
         title: Text('Recent Activity', style: TextStyle(color: textColor)),
         backgroundColor: theme.scaffoldBackgroundColor,
         iconTheme: IconThemeData(color: textColor),
       ),
-      body: Obx(() {
-        final schoolId = workspaceController.currentSchoolId.value;
-        final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: _streamController.stream,
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            return Center(
+              child: Text(
+                'Error: ${snapshot.error}',
+                style: TextStyle(color: textColor),
+              ),
+            );
+          }
 
-        return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(targetId)
-              .collection('recentActivity')
-              .orderBy('timestamp', descending: true)
-              .limit(50)
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Center(
-                child: Text(
-                  'Error: ${snapshot.error}',
-                  style: TextStyle(color: textColor),
-                ),
-              );
-            }
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const ShimmerLoadingList();
-            }
-            final docs = snapshot.data?.docs ?? [];
-            if (docs.isEmpty) {
-              return Center(
-                child: Text(
-                  'No recent activity',
-                  style: TextStyle(color: textColor.withOpacity(0.7)),
-                ),
-              );
-            }
+          // Use cached data first to avoid showing shimmer when returning from back navigation
+          if (_cachedDocs.isNotEmpty) {
             return ListView.builder(
               padding: const EdgeInsets.all(16),
-              itemCount: docs.length,
+              itemCount: _cachedDocs.length,
               itemBuilder: (context, index) {
-                final doc = docs[index];
+                final doc = _cachedDocs[index];
                 final data = doc.data();
                 final title = data['title'] as String? ?? 'Activity';
                 final details = data['details'] as String? ?? '';
@@ -147,9 +180,96 @@ class RecentActivityScreen extends StatelessWidget {
                 );
               },
             );
-          },
-        );
-      }),
+          }
+
+          // Only show shimmer on initial load if no cached data
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const ShimmerLoadingList();
+          }
+
+          final docs = snapshot.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return Center(
+              child: Text(
+                'No recent activity',
+                style: TextStyle(color: textColor.withOpacity(0.7)),
+              ),
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: docs.length,
+            itemBuilder: (context, index) {
+              final doc = docs[index];
+              final data = doc.data();
+              final title = data['title'] as String? ?? 'Activity';
+              final details = data['details'] as String? ?? '';
+              final displayName = _extractName(details, title);
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                color: theme.brightness == Brightness.dark
+                    ? Colors.grey.shade900
+                    : Colors.grey.shade100,
+                child: ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: kPrimaryColor.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: ClipOval(
+                      child: (data['imageUrl'] != null &&
+                              data['imageUrl'].toString().isNotEmpty)
+                          ? CachedNetworkImage(
+                              imageUrl: data['imageUrl'],
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) =>
+                                  const CircularProgressIndicator(
+                                      strokeWidth: 2),
+                              errorWidget: (context, url, error) => Center(
+                                child: Text(
+                                  displayName.isNotEmpty
+                                      ? displayName[0].toUpperCase()
+                                      : '?',
+                                  style: const TextStyle(
+                                    color: kPrimaryColor,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: Text(
+                                displayName.isNotEmpty
+                                    ? displayName[0].toUpperCase()
+                                    : '?',
+                                style: const TextStyle(
+                                  color: kPrimaryColor,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                    ),
+                  ),
+                  title: Text(
+                    displayName,
+                    style: TextStyle(
+                        color: textColor, fontWeight: FontWeight.w500),
+                  ),
+                  subtitle: Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: textColor.withOpacity(0.7),
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 

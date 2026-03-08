@@ -6,10 +6,10 @@ import 'package:get/get.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/features/tracking/data/repositories/tracking_repository.dart';
-import 'package:mds/features/tracking/domain/entities/driver_location.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/features/tracking/data/repositories/tracking_repository.dart';
+import 'package:drivemate/features/tracking/domain/entities/driver_location.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 
 /// Owner dashboard — Uber-style real-time driver tracking
 /// with persistent path history loaded from Firestore

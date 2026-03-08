@@ -1,5 +1,5 @@
 import 'package:firebase_database/firebase_database.dart';
-import 'package:mds/features/tracking/domain/entities/driver_location.dart';
+import 'package:drivemate/features/tracking/domain/entities/driver_location.dart';
 
 /// Data model for serializing/deserializing driver location to/from Firebase
 class DriverLocationModel extends DriverLocation {
@@ -44,8 +44,7 @@ class DriverLocationModel extends DriverLocation {
     final value = snapshot.value;
     if (value == null) throw Exception('Snapshot data is null');
 
-    final Map<dynamic, dynamic> data =
-        Map<dynamic, dynamic>.from(value as Map);
+    final Map<dynamic, dynamic> data = Map<dynamic, dynamic>.from(value as Map);
 
     return DriverLocationModel(
       driverId: driverId,

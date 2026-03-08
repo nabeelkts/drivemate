@@ -2,10 +2,10 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/dashboard/recent_activity_screen.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/dashboard/recent_activity_screen.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:animate_do/animate_do.dart';
 

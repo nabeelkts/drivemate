@@ -5,11 +5,11 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/authentication/login_page.dart';
-import 'package:mds/screens/authentication/widgets/my_button.dart';
-import 'package:mds/screens/navigation_screen.dart';
-import 'package:mds/screens/profile/edit_company_profile.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/authentication/login_page.dart';
+import 'package:drivemate/screens/authentication/widgets/my_button.dart';
+import 'package:drivemate/screens/navigation_screen.dart';
+import 'package:drivemate/screens/profile/edit_company_profile.dart';
 
 class EmailVerification extends StatefulWidget {
   const EmailVerification({super.key});

@@ -4,16 +4,16 @@ import 'dart:math' as math;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/dashboard/form/edit_forms/edit_vehicle_details_form.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/dashboard/form/edit_forms/edit_vehicle_details_form.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
-import 'package:mds/screens/dashboard/list/details/rc_details_page.dart';
-import 'package:mds/screens/dashboard/list/widgets/animated_search_widget.dart';
-import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
-import 'package:mds/screens/dashboard/list/widgets/list_item_card.dart';
-import 'package:mds/screens/profile/dialog_box.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
+import 'package:drivemate/screens/dashboard/list/details/rc_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/animated_search_widget.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/list_item_card.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 
 class DeactivatedVehicleList extends StatefulWidget {
   const DeactivatedVehicleList({super.key});
@@ -152,7 +152,7 @@ class _DeactivatedVehicleListState extends State<DeactivatedVehicleList> {
                 return ListView.builder(
                   itemCount: docs.length,
                   itemBuilder: (context, index) {
-                    final data = docs[index].data();
+                    final data = Map<String, dynamic>.from(docs[index].data());
                     final vehicleNumber = data['vehicleNumber'] ?? '';
                     final lastFourDigits = vehicleNumber.length >= 4
                         ? vehicleNumber.substring(vehicleNumber.length - 4)
@@ -176,6 +176,11 @@ class _DeactivatedVehicleListState extends State<DeactivatedVehicleList> {
     Map<String, dynamic> data,
     String lastFourDigits,
   ) {
+    // Inject document ID for navigation to details page
+    data['studentId'] = doc.id;
+    data['id'] = doc.id;
+    data['recordId'] = doc.id;
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return ListItemCard(
       title: data['vehicleNumber'] ?? 'N/A',

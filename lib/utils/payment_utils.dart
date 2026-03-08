@@ -2,9 +2,9 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/services/pdf_service.dart';
-import 'package:mds/screens/dashboard/list/details/pdf_preview_screen.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/services/pdf_service.dart';
+import 'package:drivemate/screens/dashboard/list/details/pdf_preview_screen.dart';
 
 class PaymentUtils {
   static Future<void> showReceiveMoneyDialog({
@@ -233,7 +233,6 @@ class PaymentUtils {
                         dateStr;
                   }
 
-                  final installmentType = nextInstallmentNumber.toString();
                   final description = 'Installment $nextInstallmentNumber';
 
                   // Add timestamp to trigger real-time updates

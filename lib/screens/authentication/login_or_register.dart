@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:mds/screens/authentication/login_page.dart';
-import 'package:mds/screens/authentication/signup.dart';
+import 'package:drivemate/screens/authentication/login_page.dart';
+import 'package:drivemate/screens/authentication/signup.dart';
 
 class LoginOrRegisterScreen extends StatefulWidget {
   const LoginOrRegisterScreen({super.key});

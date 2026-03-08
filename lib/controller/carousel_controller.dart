@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mds/model/carousel_model.dart';
-import 'package:mds/service/banner_service.dart';
+import 'package:drivemate/model/carousel_model.dart';
+import 'package:drivemate/service/banner_service.dart';
 
 class CarouselController extends GetxController {
   static CarouselController instance = Get.find();

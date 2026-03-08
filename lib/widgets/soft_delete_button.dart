@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/services/soft_delete_service.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/services/soft_delete_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 /// SoftDeleteButton - A reusable widget for adding soft delete functionality to any screen
@@ -12,11 +12,11 @@ class SoftDeleteButton extends StatelessWidget {
   final VoidCallback? onDeleteSuccess;
 
   const SoftDeleteButton({
-    Key? key,
     required this.docRef,
     required this.documentName,
     this.onDeleteSuccess,
-  }) : super(key: key);
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -64,6 +64,7 @@ class SoftDeleteButton extends StatelessWidget {
       await SoftDeleteService.softDelete(
         docRef: docRef,
         userId: user.uid,
+        documentName: documentName, // Pass the document name
       );
 
       if (onDeleteSuccess != null) {

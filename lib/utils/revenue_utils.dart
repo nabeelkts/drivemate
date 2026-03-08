@@ -144,7 +144,7 @@ class RevenueUtils {
 
           if (amount > 0) {
             final recordName = data['recordName'] ?? data['parentName'];
-            String name = 'Additional Fee - ' + doc.id; // Default name
+            String name = 'Additional Fee - ${doc.id}'; // Default name
             if (recordName != null &&
                 recordName.toString().trim().isNotEmpty &&
                 recordName != 'N/A') {

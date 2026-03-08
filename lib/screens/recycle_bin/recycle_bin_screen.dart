@@ -2,14 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/constants/constant.dart';
-import 'package:mds/services/soft_delete_service.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/constants/constant.dart';
+import 'package:drivemate/services/soft_delete_service.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class RecycleBinScreen extends StatefulWidget {
-  const RecycleBinScreen({Key? key}) : super(key: key);
+  const RecycleBinScreen({super.key});
 
   @override
   State<RecycleBinScreen> createState() => _RecycleBinScreenState();
@@ -436,6 +436,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
       await SoftDeleteService.permanentDelete(
         docRef: item.reference,
         userId: user!.uid,
+        documentName: item.name, // Pass the document name
       );
 
       if (mounted) {

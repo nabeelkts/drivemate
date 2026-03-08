@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/models/urgent_task_model.dart';
-import 'package:mds/services/urgent_task_service.dart';
-import 'package:mds/screens/urgent_tasks/urgent_tasks_list_page.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/models/urgent_task_model.dart';
+import 'package:drivemate/services/urgent_task_service.dart';
+import 'package:drivemate/screens/urgent_tasks/urgent_tasks_list_page.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/license_only_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/endorsement_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/dl_service_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/rc_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/students_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/license_only_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/endorsement_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/dl_service_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/rc_details_page.dart';
 import 'dart:math' as math;
 
 /// Card widget to display on home page showing urgent tasks count and preview
@@ -20,6 +20,18 @@ class UrgentTaskCard extends StatefulWidget {
 
   @override
   State<UrgentTaskCard> createState() => _UrgentTaskCardState();
+
+  // Track if tasks have been loaded in this app session
+  static bool _hasLoadedOnce = false;
+  static List<UrgentTaskModel> _cachedTasks = [];
+  static DateTime? _lastLoadTime;
+
+  /// Refresh urgent tasks (call when user manually refreshes or after completing a task)
+  static void refreshTasks() {
+    UrgentTaskCard._hasLoadedOnce = false;
+    UrgentTaskCard._cachedTasks = [];
+    UrgentTaskCard._lastLoadTime = null;
+  }
 }
 
 class _UrgentTaskCardState extends State<UrgentTaskCard>
@@ -37,7 +49,17 @@ class _UrgentTaskCardState extends State<UrgentTaskCard>
   @override
   void initState() {
     super.initState();
-    _loadTasks();
+
+    // Check if we have cached tasks from this session
+    if (UrgentTaskCard._hasLoadedOnce &&
+        UrgentTaskCard._cachedTasks.isNotEmpty) {
+      setState(() {
+        _tasks = UrgentTaskCard._cachedTasks;
+        _isLoading = false;
+      });
+    } else {
+      _loadTasks();
+    }
 
     // Initialize animation controller for clockwise rotation
     _animationController = AnimationController(
@@ -65,22 +87,37 @@ class _UrgentTaskCardState extends State<UrgentTaskCard>
     setState(() => _isLoading = true);
 
     try {
-      final tasks = await _service.fetchAllUrgentTasks(
-        userId: _workspaceController.currentSchoolId.value.isNotEmpty
-            ? _workspaceController.currentSchoolId.value
-            : '',
-        schoolId: _workspaceController.currentSchoolId.value,
-        branchId: _workspaceController.currentBranchId.value,
-      );
+      // Add timeout to prevent infinite loading
+      List<UrgentTaskModel> tasks;
+      try {
+        tasks = await _service
+            .fetchAllUrgentTasks(
+              userId: _workspaceController.currentSchoolId.value.isNotEmpty
+                  ? _workspaceController.currentSchoolId.value
+                  : '',
+              schoolId: _workspaceController.currentSchoolId.value,
+              branchId: _workspaceController.currentBranchId.value,
+            )
+            .timeout(Duration(seconds: 10));
+      } catch (e) {
+        print('ERROR loading urgent tasks: $e');
+        tasks = <UrgentTaskModel>[]; // Return empty list on error
+      }
 
       // Filter to only show active tasks (not expired) on home screen
       final activeTasks = tasks.where((t) => t.daysRemaining >= 0).toList();
+
+      // Cache the results for this app session
+      UrgentTaskCard._cachedTasks = activeTasks;
+      UrgentTaskCard._hasLoadedOnce = true;
+      UrgentTaskCard._lastLoadTime = DateTime.now();
 
       setState(() {
         _tasks = activeTasks;
         _isLoading = false;
       });
     } catch (e) {
+      print('ERROR in _loadTasks: $e');
       setState(() => _isLoading = false);
     }
   }

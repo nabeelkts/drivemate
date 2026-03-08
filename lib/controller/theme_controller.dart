@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:mds/constants/colors.dart';
+import 'package:drivemate/constants/colors.dart';
 
 /// Controls app-wide theme color and dark mode. Persists to GetStorage and notifies the app to rebuild.
 class ThemeController extends GetxController {

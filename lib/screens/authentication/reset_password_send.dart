@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:mds/screens/authentication/login_page.dart';
-import 'package:mds/screens/authentication/widgets/my_button.dart';
+import 'package:drivemate/screens/authentication/login_page.dart';
+import 'package:drivemate/screens/authentication/widgets/my_button.dart';
 
 class ResetPasswordSuccess extends StatefulWidget {
   const ResetPasswordSuccess({super.key});
@@ -23,7 +23,6 @@ class _ResetPasswordSuccessState extends State<ResetPasswordSuccess> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-    
       body: SafeArea(
           child: SingleChildScrollView(
         child: Column(
@@ -52,7 +51,6 @@ class _ResetPasswordSuccessState extends State<ResetPasswordSuccess> {
                     Text(
                       'Reset Password',
                       style: TextStyle(
-                        
                         fontSize: 36,
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w600,
@@ -63,7 +61,6 @@ class _ResetPasswordSuccessState extends State<ResetPasswordSuccess> {
                     Text(
                       'Check your mail, click on the link to  reset your password',
                       style: TextStyle(
-                      
                         fontSize: 16,
                         fontFamily: 'Inter',
                         fontWeight: FontWeight.w300,

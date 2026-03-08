@@ -1,10 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/profile/edit_company_profile.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/profile/edit_company_profile.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 
 class RoleSelectionPage extends StatefulWidget {
   const RoleSelectionPage({super.key});

@@ -3,8 +3,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_email_sender/flutter_email_sender.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 
 class ContactUsScreen extends StatefulWidget {

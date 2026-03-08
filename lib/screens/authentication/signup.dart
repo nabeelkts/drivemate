@@ -4,17 +4,17 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/authentication/google_sign_in.dart';
-import 'package:mds/screens/authentication/email_verification.dart';
-import 'package:mds/screens/authentication/widgets/custom_check_box.dart';
-import 'package:mds/screens/authentication/widgets/email_validator.dart';
-import 'package:mds/screens/authentication/widgets/my_button.dart';
-import 'package:mds/screens/authentication/widgets/my_form_text_field.dart';
-import 'package:mds/screens/authentication/widgets/password_validator.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/authentication/google_sign_in.dart';
+import 'package:drivemate/screens/authentication/email_verification.dart';
+import 'package:drivemate/screens/authentication/widgets/custom_check_box.dart';
+import 'package:drivemate/screens/authentication/widgets/email_validator.dart';
+import 'package:drivemate/screens/authentication/widgets/my_button.dart';
+import 'package:drivemate/screens/authentication/widgets/my_form_text_field.dart';
+import 'package:drivemate/screens/authentication/widgets/password_validator.dart';
 import 'package:provider/provider.dart';
-import 'package:mds/screens/profile/edit_company_profile.dart';
-import 'package:mds/screens/authentication/role_selection_page.dart';
+import 'package:drivemate/screens/profile/edit_company_profile.dart';
+import 'package:drivemate/screens/authentication/role_selection_page.dart';
 
 class SignUpPage extends StatefulWidget {
   final Function()? onTap;

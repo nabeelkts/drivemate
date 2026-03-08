@@ -2,9 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/profile/edit_user_profile.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/profile/edit_user_profile.dart';
 
 class ProfileHeader extends StatelessWidget {
   final User? currentUser;

@@ -1,7 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/screens/authentication/signup.dart';
-import 'package:mds/screens/navigation_screen.dart';
+import 'package:drivemate/screens/authentication/signup.dart';
+import 'package:drivemate/screens/navigation_screen.dart';
 
 class AuthHomepage extends StatelessWidget {
   const AuthHomepage({super.key});

@@ -1,0 +1,104 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user is owner of the document
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+    
+    // Helper function to validate user data
+    function isValidUserData(data) {
+      return data.keys().hasAll(['name', 'email']) 
+        && data.name is string 
+        && data.email is string;
+    }
+    
+    // Helper function to validate student data
+    function isValidStudentData(data) {
+      return data.keys().hasAll(['name', 'userId']) 
+        && data.name is string 
+        && data.userId is string;
+    }
+    
+    // Users collection - User-specific data
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || request.auth.token.admin == true);
+      allow create: if isAuthenticated() && isOwner(userId);
+      allow update: if isAuthenticated() && (isOwner(userId) || request.auth.token.admin == true);
+      allow delete: if false; // Prevent deletion of user accounts
+      
+      // Explicit rules for specific subcollections
+      match /students/{document=**} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      
+      match /licenseonly/{document=**} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      
+      match /endorsement/{document=**} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      
+      match /vehicleDetails/{document=**} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      
+      match /dl_services/{document=**} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      
+      match /expenses/{document=**} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      
+      match /payments/{document=**} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      
+      match /extra_fees/{document=**} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+      
+      match /recentActivity/{activityId} {
+        allow read: if isAuthenticated() && isOwner(userId);
+        allow create: if isAuthenticated() && isOwner(userId);
+        allow update: if isAuthenticated() && isOwner(userId);
+        allow delete: if isAuthenticated() && isOwner(userId);
+      }
+      
+      match /notifications/{notificationId} {
+        allow read: if isAuthenticated() && isOwner(userId);
+        allow create: if isAuthenticated() && isOwner(userId);
+        allow update: if isAuthenticated() && isOwner(userId);
+        allow delete: if false;
+      }
+      
+      // Catch-all for any other subcollections
+      match /{collection}/{document=**} {
+        allow read: if isAuthenticated() && isOwner(userId);
+        allow write: if isAuthenticated() && isOwner(userId);
+      }
+    }
+    
+    // Rules for collection group queries (needed for cross-collection queries)
+    // These allow collectionGroup() queries to work properly by matching documents
+    // under users/{userId} path
+    match /users/{userId}/{collection}/{document=**} {
+      allow read: if isAuthenticated() && isOwner(userId);
+      allow write: if isAuthenticated() && isOwner(userId);
+    }
+    
+    // Default rule for any other collections outside users
+    match /{document=**} {
+      allow read, write: if false; // Deny all by default
+    }
+  }
+}

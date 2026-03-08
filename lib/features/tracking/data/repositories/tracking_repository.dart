@@ -1,4 +1,4 @@
-import 'package:mds/features/tracking/domain/entities/driver_location.dart';
+import 'package:drivemate/features/tracking/domain/entities/driver_location.dart';
 
 abstract class TrackingRepository {
   Future<void> startTracking(

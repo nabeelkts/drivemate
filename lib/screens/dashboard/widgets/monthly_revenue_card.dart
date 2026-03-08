@@ -2,12 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/constants/colors.dart';
+import 'package:drivemate/constants/colors.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:mds/utils/revenue_utils.dart';
-import 'package:mds/utils/stream_utils.dart';
+import 'package:drivemate/utils/revenue_utils.dart';
+import 'package:drivemate/utils/stream_utils.dart';
 import 'package:animate_do/animate_do.dart';
 
 class MonthlyRevenueCard extends StatelessWidget {

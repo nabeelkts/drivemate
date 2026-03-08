@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
@@ -6,20 +7,28 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/authentication/widgets/my_button.dart';
-import 'package:mds/screens/dashboard/form/edit_forms/edit_vehicle_details_form.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/dashboard/form/edit_forms/edit_vehicle_details_form.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/utils/payment_utils.dart';
-import 'package:mds/services/image_cache_service.dart';
-import 'package:mds/utils/image_utils.dart';
-import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:drivemate/utils/payment_utils.dart';
+import 'package:drivemate/services/image_cache_service.dart';
+import 'package:drivemate/utils/image_utils.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:drivemate/services/additional_info_service.dart';
+import 'package:drivemate/widgets/soft_delete_button.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:drivemate/services/storage_service.dart';
+import 'package:drivemate/utils/loading_utils.dart';
+import 'package:drivemate/screens/dashboard/list/details/pdf_preview_screen.dart';
+import 'package:drivemate/screens/dashboard/list/details/document_preview_screen.dart';
+import 'package:drivemate/services/pdf_service.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/details_tabs_bar.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:mds/widgets/additional_info_sheet.dart';
-import 'package:mds/services/additional_info_service.dart';
-import 'package:mds/widgets/soft_delete_button.dart';
+import 'package:drivemate/widgets/additional_info_sheet.dart';
+import 'package:drivemate/utils/date_utils.dart';
+import 'package:drivemate/utils/test_utils.dart';
 
 class RCDetailsPage extends StatefulWidget {
   final Map<String, dynamic> vehicleDetails;
@@ -56,6 +65,8 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
           widget.vehicleDetails['recordId'])
       .toString();
 
+  List<Map<String, dynamic>> _cachedPayments = [];
+
   @override
   void initState() {
     super.initState();
@@ -66,34 +77,45 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
   late final Stream<DocumentSnapshot> _mainStream;
   late final Stream<QuerySnapshot> _paymentsStream;
   late final Stream<QuerySnapshot> _extraFeesStream;
+  late final Stream<QuerySnapshot> _documentsStream;
+  String _collectionName = 'rc_services';
 
   void _initStreams() {
     final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
         ? _workspaceController.currentSchoolId.value
         : (FirebaseAuth.instance.currentUser?.uid ?? '');
 
-    _mainStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('vehicleDetails')
-        .doc(_docId)
-        .snapshots();
-    _paymentsStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('vehicleDetails')
-        .doc(_docId)
-        .collection('payments')
-        .orderBy('date', descending: true)
-        .snapshots();
-    _extraFeesStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('vehicleDetails')
-        .doc(_docId)
-        .collection('extra_fees')
-        .orderBy('date', descending: true)
-        .snapshots();
+    // Initialize with empty streams to prevent late init errors during first build
+    _mainStream = const Stream.empty();
+    _paymentsStream = const Stream.empty();
+    _extraFeesStream = const Stream.empty();
+    _documentsStream = const Stream.empty();
+
+    final base = FirebaseFirestore.instance.collection('users').doc(targetId);
+    base.collection('rc_services').doc(_docId).get().then((snap) {
+      _collectionName = snap.exists ? 'rc_services' : 'deactivated_rc_services';
+
+      _mainStream = base.collection(_collectionName).doc(_docId).snapshots();
+      _paymentsStream = base
+          .collection(_collectionName)
+          .doc(_docId)
+          .collection('payments')
+          .orderBy('date', descending: true)
+          .snapshots();
+      _extraFeesStream = base
+          .collection(_collectionName)
+          .doc(_docId)
+          .collection('extra_fees')
+          .orderBy('date', descending: true)
+          .snapshots();
+      _documentsStream = base
+          .collection(_collectionName)
+          .doc(_docId)
+          .collection('documents')
+          .orderBy('timestamp', descending: true)
+          .snapshots();
+      if (mounted) setState(() {});
+    });
   }
 
   @override
@@ -109,8 +131,10 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
     return StreamBuilder<DocumentSnapshot>(
       stream: _mainStream,
       builder: (context, snapshot) {
-        if (snapshot.hasData && snapshot.data!.exists)
-          vehicleDetails = snapshot.data!.data() as Map<String, dynamic>;
+        if (snapshot.hasData && snapshot.data!.exists) {
+          vehicleDetails = Map<String, dynamic>.from(
+              snapshot.data!.data() as Map<String, dynamic>);
+        }
 
         return Scaffold(
           backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -120,19 +144,24 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
             elevation: 0,
             leading: const CustomBackButton(),
             actions: [
-              _buildAdditionalInfoButton(),
-              // Soft Delete Button - Move to Recycle Bin
-              SoftDeleteButton(
-                docRef: FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(targetId)
-                    .collection('rc_services')
-                    .doc(vehicleDetails['rcServiceId'].toString()),
-                documentName: vehicleDetails['vehicleNumber'] ?? 'RC Service',
-                onDeleteSuccess: () {
-                  Navigator.pop(context);
-                },
-              ),
+              IconButton(
+                  icon: Icon(Icons.picture_as_pdf, color: subTextColor),
+                  onPressed: () => _shareRCDetails(context)),
+              if (_collectionName == 'rc_services')
+                SoftDeleteButton(
+                  docRef: FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(targetId)
+                      .collection(_collectionName)
+                      .doc(vehicleDetails['rcServiceId']?.toString() ??
+                          vehicleDetails['id']?.toString() ??
+                          '') as DocumentReference<Object?>,
+                  documentName: vehicleDetails['vehicleNumber'] ?? 'RC Service',
+                  onDeleteSuccess: () {
+                    Get.snackbar('Success', 'RC service moved to recycle bin',
+                        backgroundColor: Colors.green, colorText: Colors.white);
+                  },
+                ),
               IconButton(
                 icon: Icon(Icons.edit, color: subTextColor),
                 onPressed: () => Navigator.push(
@@ -157,391 +186,1084 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
               ),
             ],
           ),
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(15),
-                    boxShadow: [
-                      BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          spreadRadius: 2,
-                          blurRadius: 10)
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      buildTableRow(
-                          'Vehicle Number', vehicleDetails['vehicleNumber']),
-                      const Divider(color: kDivider),
-                      buildTableRow(
-                          'Chassis Number', vehicleDetails['chassisNumber']),
-                      const Divider(color: kDivider),
-                      buildTableRow(
-                          'Engine Number', vehicleDetails['engineNumber']),
-                      const Divider(color: kDivider),
-                      // ── Tappable mobile number ──
-                      buildTappableMobileRow(context,
-                          vehicleDetails['mobileNumber']?.toString() ?? 'N/A'),
-                      const Divider(color: kDivider),
-                      buildTableRow('Total Amount',
-                          'Rs. ${vehicleDetails['totalAmount']}'),
-                      const Divider(color: kDivider),
-                      buildTableRow('Advance Amount',
-                          'Rs. ${vehicleDetails['advanceAmount']}'),
-                      const Divider(color: kDivider),
-                      buildTableRow('Balance Amount',
-                          'Rs. ${vehicleDetails['balanceAmount']}'),
-                      const Divider(color: kDivider),
-                      buildTableRow('Service', vehicleDetails['service']),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                // ── Payment Actions ──────────────────────────────────────────
-                Row(
+          body: Builder(builder: (context) {
+            final bottomInset = MediaQuery.of(context).padding.bottom;
+            return SafeArea(
+              bottom: true,
+              child: SingleChildScrollView(
+                padding:
+                    EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + bottomInset),
+                child: Column(
                   children: [
-                    Expanded(
-                      child: ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.green,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10))),
-                        onPressed: () => PaymentUtils.showReceiveMoneyDialog(
-                            context: context,
-                            doc: snapshot.data!
-                                as DocumentSnapshot<Map<String, dynamic>>,
-                            targetId: targetId,
-                            category: 'vehicleDetails',
-                            branchId:
-                                _workspaceController.currentBranchId.value),
-                        icon: const Icon(Icons.add_card, size: 20),
-                        label: const Text('Add Payment'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        style: OutlinedButton.styleFrom(
-                            foregroundColor: kAccentRed,
-                            side: const BorderSide(color: kAccentRed),
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10))),
-                        onPressed: () => PaymentUtils.showAddExtraFeeDialog(
-                            context: context,
-                            doc: snapshot.data!
-                                as DocumentSnapshot<Map<String, dynamic>>,
-                            targetId: targetId,
-                            category: 'vehicleDetails',
-                            branchId:
-                                _workspaceController.currentBranchId.value),
-                        icon: const Icon(Icons.add_circle_outline, size: 20),
-                        label: const Text('Add Fee'),
-                      ),
-                    ),
+                    _buildProfileHeader(context, targetId),
+                    const SizedBox(height: 16),
+                    _buildInfoGrid(context),
+                    const SizedBox(height: 16),
+                    _buildTabSection(
+                        context,
+                        targetId,
+                        snapshot.data
+                            as DocumentSnapshot<Map<String, dynamic>>?),
                   ],
                 ),
-                const SizedBox(height: 24),
-
-                // ── Transaction History ──────────────────────────────────────
-                StreamBuilder<QuerySnapshot>(
-                  stream: _paymentsStream,
-                  builder: (context, snap) {
-                    if (snap.connectionState == ConnectionState.waiting)
-                      return const ShimmerLoadingList();
-                    final docs = snap.data?.docs ?? [];
-                    List<Map<String, dynamic>> combinedDocs = docs.map((d) {
-                      final map = d.data() as Map<String, dynamic>;
-                      map['id'] = d.id;
-                      map['docRef'] = d;
-                      return map;
-                    }).toList();
-                    combinedDocs.sort((a, b) => (b['date'] as Timestamp)
-                        .compareTo(a['date'] as Timestamp));
-                    if (combinedDocs.isEmpty) return const SizedBox.shrink();
-
-                    // Show only 2 items by default, expand to show all
-                    final displayDocs = _isTransactionHistoryExpanded
-                        ? combinedDocs
-                        : combinedDocs.take(2).toList();
-                    final hasMore = combinedDocs.length > 2;
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Transaction History',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16)),
-                        const SizedBox(height: 12),
-                        ...displayDocs.map((data) {
-                          final date = (data['date'] as Timestamp).toDate();
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                                color:
-                                    isDark ? Colors.grey[900] : Colors.grey[50],
-                                borderRadius: BorderRadius.circular(10)),
-                            child: Row(
-                              children: [
-                                Icon(Icons.payment,
-                                    color: Colors.green[400], size: 24),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                    child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                      Text(data['description'] ?? 'Payment',
-                                          style: const TextStyle(
-                                              fontWeight: FontWeight.w600)),
-                                      Text('Rs. ${data['amount']}',
-                                          style: TextStyle(
-                                              color: Colors.green[600],
-                                              fontWeight: FontWeight.bold)),
-                                      Text(
-                                          DateFormat('dd MMM yyyy, hh:mm a')
-                                              .format(date),
-                                          style: TextStyle(
-                                              color: subTextColor,
-                                              fontSize: 11)),
-                                      if (data['mode'] != null)
-                                        Text('Mode: ${data['mode']}',
-                                            style: TextStyle(
-                                                color: subTextColor,
-                                                fontSize: 11)),
-                                    ])),
-                                IconButton(
-                                  icon: const Icon(Icons.edit,
-                                      size: 18, color: Colors.blue),
-                                  onPressed: () =>
-                                      PaymentUtils.showEditPaymentDialog(
-                                          context: context,
-                                          docRef: snapshot.data!.reference,
-                                          paymentDoc: data['docRef'],
-                                          targetId: targetId,
-                                          category: 'vehicleDetails'),
-                                ),
-                              ],
-                            ),
-                          );
-                        }),
-                        if (hasMore)
-                          TextButton.icon(
-                            onPressed: () {
-                              setState(() {
-                                _isTransactionHistoryExpanded =
-                                    !_isTransactionHistoryExpanded;
-                              });
-                            },
-                            icon: Icon(
-                              _isTransactionHistoryExpanded
-                                  ? Icons.expand_less
-                                  : Icons.expand_more,
-                              color: kAccentRed,
-                            ),
-                            label: Text(
-                              _isTransactionHistoryExpanded
-                                  ? 'Show Less'
-                                  : 'Show ${combinedDocs.length - 2} More',
-                              style: const TextStyle(color: kAccentRed),
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-
-                const SizedBox(height: 16),
-
-                // ── Additional Fees ──────────────────────────────────────────
-                StreamBuilder<QuerySnapshot>(
-                  stream: _extraFeesStream,
-                  builder: (context, snap) {
-                    if (!snap.hasData || snap.data!.docs.isEmpty)
-                      return const SizedBox.shrink();
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Additional Fees',
-                            style: TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16)),
-                        const SizedBox(height: 12),
-                        ...snap.data!.docs.map((doc) {
-                          final data = doc.data() as Map<String, dynamic>;
-                          final date = (data['date'] as Timestamp).toDate();
-                          final isPaid = (data['status']?.toString() ?? '')
-                                  .toLowerCase() ==
-                              'paid';
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            decoration: BoxDecoration(
-                                color: isDark
-                                    ? Colors.grey[900]
-                                    : Colors.grey[100],
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(
-                                    color: isPaid
-                                        ? Colors.green.withOpacity(0.3)
-                                        : Colors.orange.withOpacity(0.3))),
-                            child: Row(
-                              children: [
-                                Checkbox(
-                                    value: _selectedTransactionIds
-                                        .contains(doc.id),
-                                    activeColor: kAccentRed,
-                                    onChanged: isPaid
-                                        ? (val) {
-                                            setState(() {
-                                              if (val == true)
-                                                _selectedTransactionIds
-                                                    .add(doc.id);
-                                              else
-                                                _selectedTransactionIds
-                                                    .remove(doc.id);
-                                            });
-                                          }
-                                        : null),
-                                Expanded(
-                                    child: Padding(
-                                        padding: const EdgeInsets.symmetric(
-                                            vertical: 8.0),
-                                        child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(data['description'] ?? 'Fee',
-                                                  style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.bold)),
-                                              Text('Rs. ${data['amount']}',
-                                                  style: const TextStyle(
-                                                      fontWeight:
-                                                          FontWeight.w600)),
-                                              Text(
-                                                  DateFormat('dd MMM yyyy')
-                                                      .format(date),
-                                                  style: TextStyle(
-                                                      color: subTextColor,
-                                                      fontSize: 11)),
-                                              if (isPaid &&
-                                                  data['paymentMode'] != null)
-                                                Text(
-                                                    'Mode: ${data['paymentMode']}',
-                                                    style: TextStyle(
-                                                        color: subTextColor,
-                                                        fontSize: 11)),
-                                              if (data['note'] != null &&
-                                                  data['note']
-                                                      .toString()
-                                                      .trim()
-                                                      .isNotEmpty)
-                                                Text('Note: ${data['note']}',
-                                                    style: TextStyle(
-                                                        color: subTextColor,
-                                                        fontSize: 11),
-                                                    maxLines: 2,
-                                                    overflow:
-                                                        TextOverflow.ellipsis),
-                                            ]))),
-                                Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            if (isPaid)
-                                              const Padding(
-                                                  padding: EdgeInsets.only(
-                                                      right: 8.0),
-                                                  child: Chip(
-                                                      label: Text('Paid',
-                                                          style: TextStyle(
-                                                              color:
-                                                                  Colors.white,
-                                                              fontSize: 11)),
-                                                      backgroundColor:
-                                                          Colors.green,
-                                                      visualDensity:
-                                                          VisualDensity.compact,
-                                                      padding: EdgeInsets.zero))
-                                            else
-                                              TextButton(
-                                                  onPressed: () =>
-                                                      PaymentUtils.showCollectExtraFeeDialog(
-                                                          context: context,
-                                                          docRef: snapshot
-                                                              .data!.reference,
-                                                          feeDoc: doc,
-                                                          targetId: targetId,
-                                                          branchId:
-                                                              _workspaceController
-                                                                  .currentBranchId
-                                                                  .value),
-                                                  style: TextButton.styleFrom(
-                                                      foregroundColor:
-                                                          Colors.green),
-                                                  child: const Text('Collect',
-                                                      style: TextStyle(fontSize: 12))),
-                                          ]),
-                                      Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            IconButton(
-                                                icon: const Icon(
-                                                    Icons.edit_outlined,
-                                                    size: 18,
-                                                    color: Colors.blue),
-                                                onPressed: () => PaymentUtils
-                                                    .showEditExtraFeeDialog(
-                                                        context: context,
-                                                        docRef: snapshot
-                                                            .data!.reference,
-                                                        feeDoc: doc,
-                                                        targetId: targetId,
-                                                        category:
-                                                            'vehicleDetails'),
-                                                tooltip: 'Edit'),
-                                            IconButton(
-                                                icon: const Icon(
-                                                    Icons.delete_outline,
-                                                    size: 18,
-                                                    color: Colors.red),
-                                                onPressed: () =>
-                                                    PaymentUtils.deleteExtraFee(
-                                                        context: context,
-                                                        docRef: snapshot
-                                                            .data!.reference,
-                                                        feeDoc: doc,
-                                                        targetId: targetId),
-                                                tooltip: 'Delete'),
-                                          ]),
-                                    ]),
-                              ],
-                            ),
-                          );
-                        }),
-                      ],
-                    );
-                  },
-                ),
-              ],
-            ),
-          ),
+              ),
+            );
+          }),
         );
       },
     );
   }
 
-  // ── Tappable mobile row ─────────────────────────────────────────────────────
+  Widget _buildProfileHeader(BuildContext context, String targetId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kAccentRed.withOpacity(0.5)),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                    color: Colors.grey.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 5))
+              ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+                color: kAccentRed.withOpacity(0.1), shape: BoxShape.circle),
+            child: const Icon(Icons.directions_car_outlined,
+                color: kAccentRed, size: 40),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(vehicleDetails['vehicleNumber'] ?? 'N/A',
+                    style: TextStyle(
+                        color: textColor,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold)),
+                const SizedBox(height: 4),
+                Builder(builder: (context) {
+                  String serviceLabel =
+                      vehicleDetails['service']?.toString().trim() ?? '';
+                  if (serviceLabel.isEmpty &&
+                      vehicleDetails['serviceTypes'] is List) {
+                    final list = (vehicleDetails['serviceTypes'] as List)
+                        .where((e) => e != null && e.toString().isNotEmpty)
+                        .map((e) => e.toString())
+                        .toList();
+                    if (list.isNotEmpty) {
+                      serviceLabel = list.join(', ');
+                      if (list.contains('Other') &&
+                          (vehicleDetails['otherService']
+                                  ?.toString()
+                                  .isNotEmpty ??
+                              false)) {
+                        serviceLabel = serviceLabel.replaceAll(
+                            'Other', vehicleDetails['otherService']);
+                      }
+                    }
+                  }
+                  if (serviceLabel.isEmpty &&
+                      (vehicleDetails['cov']?.toString().isNotEmpty ?? false)) {
+                    serviceLabel = vehicleDetails['cov'].toString();
+                  }
+                  if (serviceLabel.isEmpty) serviceLabel = 'N/A';
+                  return Text('Service: $serviceLabel',
+                      style: TextStyle(color: subTextColor, fontSize: 14));
+                }),
+                const SizedBox(height: 8),
+                if (vehicleDetails['status'] != null)
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                        color: Colors.green.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(6)),
+                    child: Text(
+                        vehicleDetails['status'].toString().toUpperCase(),
+                        style: const TextStyle(
+                            color: Colors.green,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold)),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoGrid(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _buildInfoCard(
+                context,
+                'Personal Information',
+                [
+                  {
+                    'label': 'Service',
+                    'value': vehicleDetails['serviceType'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'Full Name',
+                    'value': vehicleDetails['fullName'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'Guardian',
+                    'value': vehicleDetails['guardianName'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'Mobile',
+                    'value': vehicleDetails['mobileNumber'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'Emergency',
+                    'value': vehicleDetails['emergencyNumber'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'Blood Group',
+                    'value': vehicleDetails['bloodGroup'] ?? 'N/A'
+                  },
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildInfoCard(
+                context,
+                'Address Details',
+                [
+                  {
+                    'label': 'House Name',
+                    'value': vehicleDetails['house'] ?? 'N/A'
+                  },
+                  {'label': 'Place', 'value': vehicleDetails['place'] ?? 'N/A'},
+                  {
+                    'label': 'Post Office',
+                    'value': vehicleDetails['post'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'District',
+                    'value': vehicleDetails['district'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'PIN Code',
+                    'value': vehicleDetails['pin'] ?? 'N/A'
+                  },
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoCard(
+      BuildContext context, String title, List<Map<String, String>> data,
+      {Widget? extraContent}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
+    final cardColor = Theme.of(context).cardColor;
+
+    return Container(
+      height: 220,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cardColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: kAccentRed.withOpacity(0.5)),
+        boxShadow: isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.grey.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+      ),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: const TextStyle(
+                color: kAccentRed,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 12),
+            ...data
+                .where((d) =>
+                    d['value']!.toString().isNotEmpty && d['value'] != 'N/A')
+                .map((item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item['label']!,
+                            style: TextStyle(color: subTextColor, fontSize: 11),
+                          ),
+                          const SizedBox(height: 2),
+                          item['label'] == 'Mobile'
+                              ? _buildMobileRow(item['value']!, textColor,
+                                  subTextColor, context)
+                              : Text(
+                                  item['value']!,
+                                  style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                        ],
+                      ),
+                    )),
+            if (extraContent != null) extraContent,
+          ],
+        ),
+      ),
+    );
+  }
+
+  int _activeTab = 0;
+
+  Widget _buildTabSection(BuildContext context, String targetId,
+      DocumentSnapshot<Map<String, dynamic>>? rcSnapshot) {
+    final tabs = const [
+      DetailsTabItem(label: 'Payment', icon: Icons.account_balance_wallet),
+      DetailsTabItem(label: 'Documents', icon: Icons.description),
+      DetailsTabItem(label: 'Notes', icon: Icons.note),
+      DetailsTabItem(label: 'Additional', icon: Icons.info_outline),
+    ];
+
+    return Column(
+      children: [
+        DetailsTabsBar(
+          tabs: tabs,
+          activeIndex: _activeTab,
+          onChanged: (i) => setState(() => _activeTab = i),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          constraints: const BoxConstraints(minHeight: 200),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: kAccentRed.withOpacity(0.5)),
+          ),
+          child: _getTabWidget(context, targetId, rcSnapshot),
+        ),
+      ],
+    );
+  }
+
+  Widget _getTabWidget(BuildContext context, String targetId,
+      DocumentSnapshot<Map<String, dynamic>>? rcSnapshot) {
+    switch (_activeTab) {
+      case 0:
+        return _buildPaymentTab(context, targetId, rcSnapshot);
+      case 1:
+        return _buildDocumentsTab(context, targetId);
+      case 2:
+        return _buildNotesTab(context);
+      case 3:
+        return _buildAdditionalTab(context);
+      default:
+        return const SizedBox.shrink();
+    }
+  }
+
+  Widget _buildPaymentTab(BuildContext context, String targetId,
+      DocumentSnapshot<Map<String, dynamic>>? snapshot) {
+    if (snapshot == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    final data = snapshot.data() ?? {};
+    double total = double.tryParse(data['totalAmount']?.toString() ?? '0') ?? 0;
+    double balance =
+        double.tryParse(data['balanceAmount']?.toString() ?? '0') ?? 0;
+    double paidAmount = total - balance;
+    double progressValue = total > 0 ? paidAmount / total : 0;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Payment Summary',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            Row(
+              children: [
+                if (_selectedTransactionIds.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.receipt_long, color: kAccentRed),
+                    onPressed: _generateSelectedReceipts,
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.post_add, color: Colors.blue),
+                  onPressed: () => PaymentUtils.showAddExtraFeeDialog(
+                      context: context,
+                      doc: snapshot,
+                      targetId: targetId,
+                      category: 'rc_services'),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.account_balance_wallet,
+                      color: Colors.green),
+                  onPressed: () => _showReceiveMoneyDialog(context, targetId),
+                  tooltip: 'Receive Money',
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+                child: _buildSummaryTile(
+                    context, 'Total Fee', '₹${total.toInt()}', Colors.grey)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: _buildSummaryTile(
+                    context, 'Paid', '₹${paidAmount.toInt()}', Colors.green)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: _buildSummaryTile(
+                    context, 'Balance', '₹${balance.toInt()}', kAccentRed)),
+          ],
+        ),
+        const SizedBox(height: 24),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: LinearProgressIndicator(
+            value: progressValue.clamp(0.0, 1.0),
+            backgroundColor: Colors.grey[200],
+            valueColor: const AlwaysStoppedAnimation<Color>(kAccentRed),
+            minHeight: 10,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            '${(progressValue * 100).round()}% Completed',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ),
+        const SizedBox(height: 24),
+        _buildTransactionHistory(context, targetId),
+        const SizedBox(height: 24),
+        const Text(
+          'Additional Fees',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+        const SizedBox(height: 12),
+        _buildExtraFees(context, targetId),
+      ],
+    );
+  }
+
+  Widget _buildSummaryTile(
+      BuildContext context, String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Text(value,
+            style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
+  }
+
+  Widget _buildTransactionHistory(BuildContext context, String targetId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _paymentsStream,
+      builder: (context, snapshot) {
+        if (snapshot.hasData) {
+          final docs = snapshot.data?.docs ?? [];
+          _cachedPayments = docs.map((d) {
+            final map = d.data() as Map<String, dynamic>;
+            map['id'] = d.id;
+            map['docRef'] = d;
+            return map;
+          }).toList();
+          _cachedPayments.sort((a, b) =>
+              (b['date'] as Timestamp).compareTo(a['date'] as Timestamp));
+        }
+
+        if (_cachedPayments.isEmpty)
+          return const Center(
+              child: Padding(
+                  padding: EdgeInsets.all(16),
+                  child: Text('No transactions yet.')));
+
+        return ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _cachedPayments.length,
+          itemBuilder: (context, index) {
+            final data = _cachedPayments[index];
+            final date = (data['date'] as Timestamp).toDate();
+            final transactionId = data['id'];
+            final isSelected = _selectedTransactionIds.contains(transactionId);
+
+            return ListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+              leading: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Checkbox(
+                    value: isSelected,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true)
+                          _selectedTransactionIds.add(transactionId);
+                        else
+                          _selectedTransactionIds.remove(transactionId);
+                      });
+                    },
+                    activeColor: kAccentRed,
+                  ),
+                  const Icon(Icons.payment, color: Colors.green),
+                ],
+              ),
+              title: Text('₹${(data['amount'] as num).toInt()}',
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, color: Colors.green)),
+              subtitle: Text(
+                  '${DateFormat('dd MMM yyyy, hh:mm a').format(date)} · ${data['mode']}'),
+              trailing: PopupMenuButton<String>(
+                icon: const Icon(Icons.more_vert, size: 20),
+                onSelected: (value) =>
+                    _handleTransactionAction(value, data, targetId),
+                itemBuilder: (context) => [
+                  const PopupMenuItem(
+                      value: 'edit',
+                      child: ListTile(
+                          leading: Icon(Icons.edit, size: 18),
+                          title: Text('Edit'),
+                          dense: true)),
+                  const PopupMenuItem(
+                      value: 'delete',
+                      child: ListTile(
+                          leading:
+                              Icon(Icons.delete, color: Colors.red, size: 18),
+                          title: Text('Delete',
+                              style: TextStyle(color: Colors.red)),
+                          dense: true)),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  void _handleTransactionAction(
+      String action, Map<String, dynamic> data, String targetId) async {
+    final docRef = FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection(_collectionName)
+        .doc(_docId);
+    if (action == 'edit') {
+      await PaymentUtils.showEditPaymentDialog(
+        context: context,
+        docRef: docRef,
+        paymentDoc: data['docRef'] as DocumentSnapshot,
+        targetId: targetId,
+        category: 'rc_services',
+      );
+    } else if (action == 'delete') {
+      await PaymentUtils.deletePayment(
+        context: context,
+        studentRef: docRef,
+        paymentDoc: data['docRef'] as DocumentSnapshot,
+        targetId: targetId,
+      );
+    }
+    setState(() {});
+  }
+
+  Future<void> _generateSelectedReceipts() async {
+    if (_selectedTransactionIds.isEmpty) return;
+    try {
+      final pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
+        final workspace = Get.find<WorkspaceController>();
+        final companyData = workspace.companyData;
+        final selectedPayments = _cachedPayments
+            .where((p) => _selectedTransactionIds.contains(p['id']))
+            .toList();
+        Uint8List? logoBytes;
+        if (companyData['hasCompanyProfile'] == true &&
+            companyData['companyLogo'] != null) {
+          logoBytes = await ImageCacheService()
+              .fetchAndCache(companyData['companyLogo']);
+        }
+        return await PdfService.generateReceipt(
+          companyData: companyData,
+          studentDetails: vehicleDetails,
+          transactions: selectedPayments,
+          companyLogoBytes: logoBytes,
+        );
+      });
+      if (pdfBytes != null) _showPdfPreview(context, pdfBytes);
+    } catch (e) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
+  }
+
+  void _showPdfPreview(BuildContext context, Uint8List pdfBytes) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfPreviewScreen(
+          pdfBytes: pdfBytes,
+          studentName: vehicleDetails['fullName'],
+          studentPhone: vehicleDetails['mobileNumber'],
+          fileName: 'rc_${vehicleDetails['vehicleNumber']}.pdf',
+        ),
+      ),
+    );
+  }
+
+  Widget _buildExtraFees(BuildContext context, String targetId) {
+    return StreamBuilder<QuerySnapshot>(
+      stream: _extraFeesStream,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData || snapshot.data!.docs.isEmpty)
+          return const SizedBox.shrink();
+        final docs = snapshot.data!.docs;
+        return Column(
+          children: [
+            const Row(children: [
+              Text('Additional Fees',
+                  style: TextStyle(fontWeight: FontWeight.bold))
+            ]),
+            const SizedBox(height: 12),
+            ...docs.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final date = (data['date'] as Timestamp).toDate();
+              final isPaid = data['status'] == 'paid';
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                        color: isPaid
+                            ? Colors.green.withOpacity(0.5)
+                            : Colors.grey[200]!)),
+                child: ListTile(
+                  title: Text(data['description'] ?? 'Fee',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
+                  subtitle: Text('Rs. ${data['amount']}'),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!isPaid)
+                        TextButton(
+                            onPressed:
+                                () =>
+                                    PaymentUtils.showCollectExtraFeeDialog(
+                                        context: context,
+                                        docRef: FirebaseFirestore.instance
+                                            .collection('users')
+                                            .doc(targetId)
+                                            .collection('rc_services')
+                                            .doc(_docId),
+                                        feeDoc: doc,
+                                        targetId: targetId,
+                                        branchId: _workspaceController
+                                            .currentBranchId.value),
+                            child: const Text('Collect')),
+                      IconButton(
+                          icon: const Icon(Icons.edit_outlined,
+                              color: Colors.blue, size: 20),
+                          onPressed: () => PaymentUtils.showEditExtraFeeDialog(
+                              context: context,
+                              docRef: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(targetId)
+                                  .collection('rc_services')
+                                  .doc(_docId),
+                              feeDoc: doc,
+                              targetId: targetId,
+                              category: 'rc_services')),
+                      IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red, size: 20),
+                          onPressed: () => PaymentUtils.deleteExtraFee(
+                              context: context,
+                              docRef: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(targetId)
+                                  .collection('rc_services')
+                                  .doc(_docId),
+                              feeDoc: doc,
+                              targetId: targetId)),
+                    ],
+                  ),
+                ),
+              );
+            }),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildDocumentsTab(BuildContext context, String targetId) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Documents',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            IconButton(
+              icon: const Icon(Icons.add_photo_alternate_outlined,
+                  color: kAccentRed),
+              tooltip: 'Upload Document',
+              onPressed: () => _uploadDocument(context, targetId),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        StreamBuilder<QuerySnapshot>(
+          stream: _documentsStream,
+          builder: (context, snapshot) {
+            final docs = snapshot.data?.docs ?? [];
+            if (docs.isEmpty)
+              return const Center(
+                  child: Text('No documents uploaded yet',
+                      style: TextStyle(color: Colors.grey)));
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: docs.length,
+              itemBuilder: (context, index) {
+                final data = docs[index].data() as Map<String, dynamic>;
+                final name = data['name'] ?? 'Document';
+                final timestamp = data['timestamp'] as Timestamp?;
+                final subtitle = timestamp != null
+                    ? DateFormat('dd MMM yyyy').format(timestamp.toDate())
+                    : null;
+                return ListTile(
+                  leading: const Icon(Icons.file_present, color: kAccentRed),
+                  title: Text(name),
+                  subtitle: subtitle != null ? Text(subtitle) : null,
+                  trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () =>
+                          _deleteDocument(docs[index].id, targetId)),
+                  onTap: () {
+                    final url = data['url']?.toString() ?? '';
+                    if (url.isEmpty) return;
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DocumentPreviewScreen(
+                          docName: name,
+                          docUrl: url,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTestCard(
+      BuildContext context, String type, String date, IconData icon) {
+    final hasDate = date.isNotEmpty;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[50]!,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: hasDate ? Colors.green : kAccentRed),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(type, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(hasDate ? date : 'Not Scheduled',
+                    style: TextStyle(
+                        color: hasDate ? Colors.black87 : Colors.grey)),
+              ],
+            ),
+          ),
+          StatusBadge(
+              text: hasDate ? 'Scheduled' : 'Pending',
+              color: hasDate ? Colors.green : kAccentRed),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotesTab(BuildContext context) {
+    final hasNotes =
+        (vehicleDetails['remarks'] ?? '').toString().trim().isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Notes & Remarks',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.add, size: 20, color: kAccentRed),
+                  tooltip: 'Add Notes',
+                  onPressed: () => _editNotes(context, isNew: true),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 20, color: kAccentRed),
+                  tooltip: hasNotes ? 'Edit Notes' : 'Add Notes',
+                  onPressed: () => _editNotes(context),
+                ),
+                if (hasNotes)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline,
+                        size: 20, color: Colors.red),
+                    tooltip: 'Delete Notes',
+                    onPressed: () => _clearNotes(context),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.yellow[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.yellow[200]!),
+          ),
+          child: Text(
+            hasNotes ? vehicleDetails['remarks'] : 'No remarks added yet.',
+            style: const TextStyle(fontStyle: FontStyle.italic),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdditionalTab(BuildContext context) {
+    final additionalInfo =
+        vehicleDetails['additionalInfo'] as Map<String, dynamic>?;
+    if (additionalInfo == null || additionalInfo.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Text('No additional information available',
+              style: TextStyle(color: Colors.grey, fontSize: 12)),
+        ),
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Additional Information',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 16),
+        ...additionalInfo.entries.map((e) => Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(e.key.toUpperCase(),
+                      style: const TextStyle(color: Colors.grey, fontSize: 10)),
+                  const SizedBox(height: 2),
+                  Text(e.value.toString(),
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w500)),
+                ],
+              ),
+            )),
+      ],
+    );
+  }
+
+  void _showReceiveMoneyDialog(BuildContext context, String targetId) {
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection(_collectionName)
+        .doc(_docId)
+        .get()
+        .then((snapshot) {
+      if (snapshot.exists) {
+        PaymentUtils.showReceiveMoneyDialog(
+            context: context,
+            doc: snapshot,
+            targetId: targetId,
+            branchId: _workspaceController.currentBranchId.value,
+            category: 'rc_services');
+      }
+    });
+  }
+
+  Future<void> _uploadDocument(BuildContext context, String targetId) async {
+    final picker = ImagePicker();
+    final image =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
+    if (image != null) {
+      final nameController = TextEditingController();
+      final bool? shouldUpload = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Document Name'),
+          content: TextField(
+            controller: nameController,
+            decoration: const InputDecoration(
+              hintText: 'Enter document name',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Upload'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldUpload == true && nameController.text.trim().isNotEmpty) {
+        try {
+          await LoadingUtils.wrapWithLoading(context, () async {
+            final url = await StorageService()
+                .uploadFile(file: image, path: 'rc_docs/$_docId');
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(targetId)
+                .collection('rc_services')
+                .doc(_docId)
+                .collection('documents')
+                .add({
+              'name': nameController.text.trim(),
+              'url': url,
+              'timestamp': FieldValue.serverTimestamp(),
+            });
+          }, message: 'Uploading document...');
+          Get.snackbar('Success', 'Document uploaded');
+        } catch (e) {
+          Get.snackbar('Error', 'Upload failed: $e');
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteDocument(String docId, String targetId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection('rc_services')
+          .doc(_docId)
+          .collection('documents')
+          .doc(docId)
+          .delete();
+      Get.snackbar('Success', 'Document deleted');
+    } catch (e) {
+      Get.snackbar('Error', 'Deletion failed: $e');
+    }
+  }
+
+  Future<void> _shareRCDetails(BuildContext context) async {
+    // PDF generation logic would go here
+  }
+
+  Future<void> _editNotes(BuildContext context, {bool isNew = false}) async {
+    final controller = TextEditingController(
+      text: isNew ? '' : (vehicleDetails['remarks'] ?? ''),
+    );
+
+    final bool? shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Notes'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Enter notes or remarks',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSave != true) return;
+
+    final notes = controller.text.trim();
+    try {
+      final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+          ? _workspaceController.currentSchoolId.value
+          : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
+      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
+      var collection = 'rc_services';
+      var snap = await base.collection(collection).doc(_docId).get();
+      if (!snap.exists) {
+        final altSnap =
+            await base.collection('deactivated_rc_services').doc(_docId).get();
+        if (altSnap.exists) {
+          collection = 'deactivated_rc_services';
+        }
+      }
+      await base
+          .collection(collection)
+          .doc(_docId)
+          .set({'remarks': notes}, SetOptions(merge: true));
+
+      setState(() {
+        vehicleDetails['remarks'] = notes;
+      });
+
+      Get.snackbar(
+        'Success',
+        'Notes updated.',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to update notes: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Future<void> _clearNotes(BuildContext context) async {
+    if ((vehicleDetails['remarks'] ?? '').toString().trim().isEmpty) {
+      return;
+    }
+
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Notes'),
+        content: const Text(
+          'Are you sure you want to delete all notes for this RC service?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    try {
+      final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+          ? _workspaceController.currentSchoolId.value
+          : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
+      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
+      var collection = 'rc_services';
+      var snap = await base.collection(collection).doc(_docId).get();
+      if (!snap.exists) {
+        final altSnap =
+            await base.collection('deactivated_rc_services').doc(_docId).get();
+        if (altSnap.exists) {
+          collection = 'deactivated_rc_services';
+        }
+      }
+      await base
+          .collection(collection)
+          .doc(_docId)
+          .update({'remarks': FieldValue.delete()});
+
+      setState(() {
+        vehicleDetails.remove('remarks');
+      });
+
+      Get.snackbar(
+        'Success',
+        'Notes deleted.',
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to delete notes: $e',
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
 
   Widget buildTappableMobileRow(BuildContext context, String phone) {
     return Padding(
@@ -645,37 +1367,43 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
     );
   }
 
-  // ── Additional Info button for AppBar ──────────────────────────────────────
-
-  Widget _buildAdditionalInfoButton() {
-    final additionalInfo =
-        vehicleDetails['additionalInfo'] as Map<String, dynamic>?;
-    final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
-
-    // Determine the correct collection based on record status
-    final isDeactivated = vehicleDetails['status'] == 'passed' ||
-        vehicleDetails['deactivated'] == true;
-    final collectionName =
-        isDeactivated ? 'deactivated_vehicleDetails' : 'vehicleDetails';
-
-    return IconButton(
-      icon: Icon(
-        hasData ? Icons.info : Icons.info_outline,
-        color: hasData ? kPrimaryColor : Colors.grey,
+  Widget _buildMobileRow(
+      String phone, Color textColor, Color subTextColor, BuildContext context) {
+    return InkWell(
+      onTap: () => _showContactOptions(context, phone),
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8.0),
+        child: Row(
+          children: [
+            const Icon(Icons.phone, size: 14, color: kAccentRed),
+            const SizedBox(width: 4),
+            Text(phone,
+                style: const TextStyle(
+                    color: kAccentRed,
+                    fontWeight: FontWeight.bold,
+                    decoration: TextDecoration.underline)),
+          ],
+        ),
       ),
-      onPressed: () async {
-        final result = await showAdditionalInfoSheet(
-          context: context,
-          type: AdditionalInfoType.rcService,
-          collection: collectionName,
-          documentId: _docId,
-          existingData: additionalInfo,
-        );
-        if (result == true) {
-          setState(() {});
-        }
-      },
-      tooltip: 'Additional Information',
+    );
+  }
+}
+
+class StatusBadge extends StatelessWidget {
+  final String text;
+  final Color color;
+  const StatusBadge({required this.text, required this.color, super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3))),
+      child: Text(text,
+          style: TextStyle(
+              color: color, fontSize: 10, fontWeight: FontWeight.bold)),
     );
   }
 }

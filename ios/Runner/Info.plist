@@ -49,7 +49,9 @@
 	<string>This app needs access to location even in the background to ensure continuous driver tracking during lessons.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>This app needs access to location for real-time fleet tracking and driver monitoring services.</string>
-	<key>UIApplicationSupportsIndirectInputEvents</key>
+	<key>NSFaceIDUsageDescription</key>
+\t<string>This app needs access to Face ID/Touch ID for secure biometric login.</string>
+\t<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 	<key>LSApplicationQueriesSchemes</key>
 	<array>

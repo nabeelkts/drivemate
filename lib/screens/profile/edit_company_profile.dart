@@ -5,12 +5,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/services/storage_service.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/services/storage_service.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class EditCompanyProfile extends StatefulWidget {

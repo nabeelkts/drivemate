@@ -6,12 +6,12 @@ import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
 // Import for date formatting
-import 'package:mds/screens/widget/common_form.dart';
+import 'package:drivemate/screens/widget/common_form.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/widget/base_form_widget.dart';
-import 'package:mds/services/storage_service.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/widget/base_form_widget.dart';
+import 'package:drivemate/services/storage_service.dart';
 
 // ignore: must_be_immutable
 class EditLicenseOnlyForm extends StatefulWidget {
@@ -185,16 +185,10 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
 
   @override
   Widget build(BuildContext context) {
-    User? user = FirebaseAuth.instance.currentUser;
     final WorkspaceController workspaceController =
         Get.find<WorkspaceController>();
-    final CollectionReference usersCollection =
-        FirebaseFirestore.instance.collection('users');
 
-    final schoolId = workspaceController.currentSchoolId.value;
-    final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
     final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     return BaseFormWidget(
       title: 'Edit License Only Details',
@@ -276,7 +270,7 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
           }
         } else {
           // For non-offline errors, rethrow
-          throw uploadError;
+          rethrow;
         }
       }
     }

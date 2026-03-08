@@ -2,10 +2,10 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
 import 'dart:async';
-import 'package:mds/services/subscription_service.dart';
-import 'package:mds/services/storage_service.dart';
+import 'package:drivemate/services/subscription_service.dart';
+import 'package:drivemate/services/storage_service.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:mds/features/tracking/services/location_tracking_service.dart';
+import 'package:drivemate/features/tracking/services/location_tracking_service.dart';
 
 class WorkspaceController extends GetxController {
   final _firestore = FirebaseFirestore.instance;
@@ -16,6 +16,8 @@ class WorkspaceController extends GetxController {
   final RxString userRole = "Owner".obs;
   final RxBool isLoading = false.obs;
   final RxBool isConnected = true.obs;
+  final RxBool isConnectedInitialized = false.obs;
+  bool _isConnectedDebounce = false; // Flag to prevent rapid flickering
   final RxBool isOrganizationMode = false.obs;
 
   // App Data
@@ -105,16 +107,6 @@ class WorkspaceController extends GetxController {
               data['contactEmail'] ?? data['companyEmail'] ?? data['email'],
         };
         print('DEBUG: Fetched staff branch data: ${staffBranchData.value}');
-      } else {
-        // If branch doc not found, try to get from companyData
-        staffBranchData.value = {
-          'id': currentBranchId.value,
-          'branchName': companyData['companyName'] ?? 'Main Branch',
-          'logoUrl': companyData['companyLogo'],
-          'location': companyData['companyAddress'],
-          'contactPhone': companyData['companyPhone'],
-          'contactEmail': companyData['companyEmail'],
-        };
       }
     } catch (e) {
       print('Error fetching staff branch data: $e');
@@ -292,9 +284,29 @@ class WorkspaceController extends GetxController {
         if (role == 'Owner') {
           isConnected.value = true;
         } else {
-          isConnected.value =
+          final bool newConnected =
               schoolId != null && schoolId.isNotEmpty && schoolId != user.uid;
+
+          if (isConnected.value != newConnected ||
+              !isConnectedInitialized.value) {
+            // If we are currently connected and trying to disconnect, add a tiny delay
+            // to prevent flickering during navigation transitions
+            if (isConnected.value && !newConnected && !_isConnectedDebounce) {
+              _isConnectedDebounce = true;
+              Future.delayed(const Duration(milliseconds: 500), () {
+                if (_isConnectedDebounce) {
+                  isConnected.value = false;
+                  _isConnectedDebounce = false;
+                }
+              });
+            } else if (newConnected) {
+              // Reconnecting is always immediate
+              _isConnectedDebounce = false;
+              isConnected.value = true;
+            }
+          }
         }
+        isConnectedInitialized.value = true; // Mark as initialized
 
         // Persist for background service
         if (schoolId != null && schoolId.isNotEmpty) {
@@ -521,6 +533,7 @@ class WorkspaceController extends GetxController {
       currentSchoolId.value = personalId;
       if (userRole.value == 'Staff') {
         isConnected.value = false;
+        isConnectedInitialized.value = true;
       }
       Get.snackbar("Success", "Returned to personal workspace");
     } catch (e) {

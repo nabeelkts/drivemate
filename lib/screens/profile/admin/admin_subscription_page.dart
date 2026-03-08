@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/services/subscription_service.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/services/subscription_service.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/screens/profile/admin/manage_carousel_page.dart';
+import 'package:drivemate/screens/profile/admin/manage_carousel_page.dart';
 
 class AdminSubscriptionPage extends StatefulWidget {
   const AdminSubscriptionPage({super.key});

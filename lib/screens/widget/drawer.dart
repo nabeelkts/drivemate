@@ -1,8 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:mds/screens/authentication/google_sign_in.dart';
-import 'package:mds/screens/profile/dialog_box.dart';
+import 'package:drivemate/screens/authentication/google_sign_in.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
+import 'package:drivemate/screens/debug/firestore_debug_page.dart';
 
 class MyDrawer extends StatelessWidget {
   const MyDrawer({super.key});
@@ -59,6 +60,19 @@ class MyDrawer extends StatelessWidget {
             onTap: () {
               // Handle settings screen navigation
               Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.bug_report, color: Colors.orange),
+            title: const Text('Firestore Debug',
+                style: TextStyle(color: Colors.orange)),
+            onTap: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                    builder: (context) => const FirestoreDebugPage()),
+              );
             },
           ),
           const Divider(),

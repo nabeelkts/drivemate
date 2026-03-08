@@ -2,7 +2,7 @@ import 'package:get_storage/get_storage.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:mds/services/app_lifecycle_service.dart';
+import 'package:drivemate/services/app_lifecycle_service.dart';
 
 class AuthService {
   final LocalAuthentication _auth = LocalAuthentication();

@@ -5,10 +5,10 @@ import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:mds/features/tracking/data/repositories/firebase_tracking_repository.dart';
-import 'package:mds/features/tracking/data/repositories/tracking_repository.dart';
-import 'package:mds/features/tracking/services/location_tracking_service.dart';
-import 'package:mds/firebase_options.dart';
+import 'package:drivemate/features/tracking/data/repositories/firebase_tracking_repository.dart';
+import 'package:drivemate/features/tracking/data/repositories/tracking_repository.dart';
+import 'package:drivemate/features/tracking/services/location_tracking_service.dart';
+import 'package:drivemate/firebase_options.dart';
 
 /// Background service for continuous location tracking
 ///

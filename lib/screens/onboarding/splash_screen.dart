@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mds/screens/authentication/auth_page.dart';
-import 'package:mds/screens/onboarding/onboard.dart';
+import 'package:drivemate/screens/authentication/auth_page.dart';
+import 'package:drivemate/screens/onboarding/onboard.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -23,12 +23,17 @@ class _SplashScreenState extends State<SplashScreen> {
     final prefs = await SharedPreferences.getInstance();
     final isFirstLaunch = prefs.getBool('isFirstLaunch') ?? true;
 
-    await Future.delayed(const Duration(seconds: 1));
+    // Reduced delay for faster startup
+    await Future.delayed(const Duration(milliseconds: 500));
 
     if (isFirstLaunch) {
-      Get.off(() => const OnboardingScreen(), transition: Transition.fadeIn, duration: const Duration(milliseconds: 800));
+      Get.off(() => const OnboardingScreen(),
+          transition: Transition.fadeIn,
+          duration: const Duration(milliseconds: 300));
     } else {
-      Get.off(() => const AuthPage(), transition: Transition.fadeIn, duration: const Duration(milliseconds: 800));
+      Get.off(() => const AuthPage(),
+          transition: Transition.fadeIn,
+          duration: const Duration(milliseconds: 300));
     }
   }
 

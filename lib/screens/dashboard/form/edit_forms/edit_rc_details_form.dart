@@ -3,9 +3,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:mds/screens/widget/common_form.dart';
+import 'package:drivemate/screens/widget/common_form.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 
 class EditRCDetailsForm extends StatelessWidget {
   final Map<String, dynamic> initialValues;

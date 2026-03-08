@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/profile/action_button.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/profile/action_button.dart';
 
 void showCustomConfirmationDialog(BuildContext context, String title,
     String content, VoidCallback onConfirm) {

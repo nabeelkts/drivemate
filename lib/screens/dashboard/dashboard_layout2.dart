@@ -3,17 +3,17 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/utils/revenue_utils.dart';
-import 'package:mds/utils/stream_utils.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/controller/app_controller.dart';
+import 'package:drivemate/utils/revenue_utils.dart';
+import 'package:drivemate/utils/stream_utils.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/controller/app_controller.dart';
 import 'package:flutter_svg/svg.dart';
-import 'package:mds/screens/dashboard/recent_activity_screen.dart';
+import 'package:drivemate/screens/dashboard/recent_activity_screen.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/widgets/urgent_task_card.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/widgets/urgent_task_card.dart';
 import 'dart:math' as math;
 import 'dart:async';
 
@@ -910,8 +910,6 @@ class DashboardLayout2 extends StatelessWidget {
       bool isDark,
       Color textColor,
       List<Map<String, dynamic>> activities) {
-    final isOrg = controller.isOrganizationMode.value;
-
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -977,7 +975,7 @@ class DashboardLayout2 extends StatelessWidget {
             Column(
               children: [
                 for (var i = 0; i < activities.length; i++) ...[
-                  if (i > 0) const SizedBox(height:16 ),
+                  if (i > 0) const SizedBox(height: 16),
                   _buildActivityRow(activities[i], textColor, controller),
                 ],
               ],
@@ -1267,10 +1265,6 @@ class _TodayScheduleWidgetState extends State<_TodayScheduleWidget> {
         child: const CircularProgressIndicator(),
       );
     }
-
-    final displayItems = _items.take(2).toList();
-    final kOrange =
-        const Color(0xFFFF5722); // Assuming kOrange based on mdscolors
 
     return InkWell(
       onTap: () => Navigator.pushNamed(context, '/today_schedule'),

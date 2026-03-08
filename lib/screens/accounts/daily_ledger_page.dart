@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/services/ledger_pdf_service.dart';
-import 'package:mds/services/image_cache_service.dart';
-import 'package:mds/utils/loading_utils.dart';
-import 'package:mds/models/transaction_data.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/services/ledger_pdf_service.dart';
+import 'package:drivemate/services/image_cache_service.dart';
+import 'package:drivemate/utils/loading_utils.dart';
+import 'package:drivemate/models/transaction_data.dart';
 import 'accounts_screen.dart';
 import 'package:flutter/foundation.dart';
 

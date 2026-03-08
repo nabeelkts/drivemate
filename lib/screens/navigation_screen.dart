@@ -4,17 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:iconly/iconly.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/accounts/accounts_screen.dart';
-import 'package:mds/screens/dashboard/dashboard.dart';
-import 'package:mds/screens/dashboard/dashboard_layout2.dart';
-import 'package:mds/screens/profile/profile_screen.dart';
-import 'package:mds/screens/statistics/stats_screen.dart';
-import 'package:mds/services/app_lifecycle_service.dart';
-import 'package:mds/services/subscription_service.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/accounts/accounts_screen.dart';
+import 'package:drivemate/screens/dashboard/dashboard.dart';
+import 'package:drivemate/screens/dashboard/dashboard_layout2.dart';
+import 'package:drivemate/screens/profile/profile_screen.dart';
+import 'package:drivemate/screens/statistics/stats_screen.dart';
+import 'package:drivemate/services/app_lifecycle_service.dart';
+import 'package:drivemate/services/subscription_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/features/tracking/presentation/screens/owner_map_screen.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/features/tracking/presentation/screens/owner_map_screen.dart';
 
 class BottomNavScreen extends StatefulWidget {
   const BottomNavScreen({super.key});
@@ -190,7 +190,9 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
               children: _screens,
             ),
             Obx(() {
-              if (!_workspaceController.isConnected.value &&
+              // Only show overlay if isConnected is explicitly false AND initializeWorkspace has finished its first check
+              if (_workspaceController.isConnectedInitialized.value &&
+                  !_workspaceController.isConnected.value &&
                   _currentIndex != (_isOwner ? 4 : 3)) {
                 return Container(
                   color: theme.scaffoldBackgroundColor.withOpacity(0.95),

@@ -6,10 +6,10 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:mds/screens/widget/common_form.dart';
+import 'package:drivemate/screens/widget/common_form.dart';
 import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 
 class EditDlServiceForm extends StatefulWidget {
   final Map<String, dynamic> initialValues;
@@ -30,14 +30,8 @@ class _EditDlServiceFormState extends State<EditDlServiceForm> {
 
   @override
   Widget build(BuildContext context) {
-    User? user = FirebaseAuth.instance.currentUser;
     final WorkspaceController workspaceController =
         Get.find<WorkspaceController>();
-    final CollectionReference usersCollection =
-        FirebaseFirestore.instance.collection('users');
-
-    final schoolId = workspaceController.currentSchoolId.value;
-    final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
 
     // Get the index, defaulting to 0 if not found
     // If otherService is present, we should default to the "Other" index if available in widget.items

@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:mds/services/ai_document_scanner.dart';
+import 'package:drivemate/services/ai_document_scanner.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
@@ -11,15 +11,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/authentication/widgets/my_button.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/authentication/widgets/my_button.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/utils/date_utils.dart';
+import 'package:drivemate/utils/date_utils.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'package:mds/services/storage_service.dart';
-import 'package:mds/services/ocr_service.dart';
+import 'package:drivemate/services/storage_service.dart';
+import 'package:drivemate/services/ocr_service.dart';
 
 // ignore: must_be_immutable
 class CommonForm extends StatefulWidget {
@@ -289,102 +289,101 @@ class CommonFormState extends State<CommonForm> {
   }
 
   Future<void> smartFill() async {
-  final ImagePicker picker = ImagePicker();
+    final ImagePicker picker = ImagePicker();
 
-  final XFile? pickedImage = await showDialog<XFile?>(
-    context: context,
-    builder: (context) => AlertDialog(
-      title: const Text('Smart AI Scan'),
-      content: const Text('Choose a document to auto-fill details'),
-      actions: [
-        TextButton(
-          child: const Text('Gallery'),
-          onPressed: () async {
-            final XFile? img = await picker.pickImage(
-                source: ImageSource.gallery, imageQuality: 80);
-            if (context.mounted) Navigator.pop(context, img);
-          },
-        ),
-        TextButton(
-          child: const Text('Camera'),
-          onPressed: () async {
-            final XFile? img = await picker.pickImage(
-                source: ImageSource.camera, imageQuality: 80);
-            if (context.mounted) Navigator.pop(context, img);
-          },
-        ),
-      ],
-    ),
-  );
-
-  if (pickedImage == null) return;
-
-  setState(() => isLoading = true);
-
-  try {
-    File file = File(pickedImage.path);
-
-    // 🔥 AI SCAN HERE
-    Map<String, String> data = await _scanner.scan(file);
-
-    if (data["name"] != null && data["name"]!.isNotEmpty) {
-      fullNameController.text = data["name"]!;
-    }
-
-    if (data["guardian"] != null && data["guardian"]!.isNotEmpty) {
-      guardianNameController.text = data["guardian"]!;
-    }
-
-    if (data["dob"] != null && data["dob"]!.isNotEmpty) {
-      // convert 12/08/2003 -> 12-08-2003
-      dobController.text =
-          data["dob"]!.replaceAll("/", "-");
-    }
-
-    if (data["house"] != null) {
-      houseNameController.text = data["house"]!;
-    }
-
-    if (data["place"] != null) {
-      placeController.text = data["place"]!;
-    }
-
-    if (data["post"] != null) {
-      postController.text = data["post"]!;
-    }
-
-    if (data["district"] != null) {
-      districtController.text = data["district"]!;
-    }
-
-    if (data["pin"] != null) {
-      pinController.text = data["pin"]!;
-    }
-
-    if (mounted) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Verify Details'),
-          content: const Text(
-              'Details were auto-filled using AI. Please verify and correct if needed.'),
-          actions: [
-            TextButton(
-              child: const Text('OK'),
-              onPressed: () => Navigator.pop(context),
-            ),
-          ],
-        ),
-      );
-    }
-  } catch (e) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('AI Scan failed: $e')),
+    final XFile? pickedImage = await showDialog<XFile?>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Smart AI Scan'),
+        content: const Text('Choose a document to auto-fill details'),
+        actions: [
+          TextButton(
+            child: const Text('Gallery'),
+            onPressed: () async {
+              final XFile? img = await picker.pickImage(
+                  source: ImageSource.gallery, imageQuality: 80);
+              if (context.mounted) Navigator.pop(context, img);
+            },
+          ),
+          TextButton(
+            child: const Text('Camera'),
+            onPressed: () async {
+              final XFile? img = await picker.pickImage(
+                  source: ImageSource.camera, imageQuality: 80);
+              if (context.mounted) Navigator.pop(context, img);
+            },
+          ),
+        ],
+      ),
     );
-  } finally {
-    if (mounted) setState(() => isLoading = false);
+
+    if (pickedImage == null) return;
+
+    setState(() => isLoading = true);
+
+    try {
+      File file = File(pickedImage.path);
+
+      // 🔥 AI SCAN HERE
+      Map<String, String> data = await _scanner.scan(file);
+
+      if (data["name"] != null && data["name"]!.isNotEmpty) {
+        fullNameController.text = data["name"]!;
+      }
+
+      if (data["guardian"] != null && data["guardian"]!.isNotEmpty) {
+        guardianNameController.text = data["guardian"]!;
+      }
+
+      if (data["dob"] != null && data["dob"]!.isNotEmpty) {
+        // convert 12/08/2003 -> 12-08-2003
+        dobController.text = data["dob"]!.replaceAll("/", "-");
+      }
+
+      if (data["house"] != null) {
+        houseNameController.text = data["house"]!;
+      }
+
+      if (data["place"] != null) {
+        placeController.text = data["place"]!;
+      }
+
+      if (data["post"] != null) {
+        postController.text = data["post"]!;
+      }
+
+      if (data["district"] != null) {
+        districtController.text = data["district"]!;
+      }
+
+      if (data["pin"] != null) {
+        pinController.text = data["pin"]!;
+      }
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Verify Details'),
+            content: const Text(
+                'Details were auto-filled using AI. Please verify and correct if needed.'),
+            actions: [
+              TextButton(
+                child: const Text('OK'),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('AI Scan failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => isLoading = false);
+    }
   }
-}
 
   Future<String> uploadImage() async {
     if (_pickedFile == null) {

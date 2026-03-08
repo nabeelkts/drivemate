@@ -2,14 +2,14 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/utils/soft_delete_utils.dart';
-import 'package:mds/screens/dashboard/list/widgets/animated_search_widget.dart';
-import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
-import 'package:mds/screens/dashboard/list/widgets/summary_header.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/utils/soft_delete_utils.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/animated_search_widget.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/summary_header.dart';
 
 enum SortOrder { newestToOldest, oldestToNewest, aToZ, zToA }
 
@@ -67,15 +67,19 @@ class _BaseListWidgetState extends State<BaseListWidget> {
         .listen(
       (snapshot) {
         if (mounted) {
+          print(
+              '📊 BaseListWidget [${widget.collectionName}] received ${snapshot.docs.length} docs');
           _userStreamController.add(snapshot);
           setState(() {
             // Filter out soft-deleted items
             _allItems = SoftDeleteUtils.filterDeletedDocuments(snapshot.docs);
+            print('   After filtering: ${_allItems.length} docs');
             _filterItems(_searchController.text);
           });
         }
       },
       onError: (error) {
+        print('❌ BaseListWidget [${widget.collectionName}] error: $error');
         if (mounted) {
           _userStreamController.addError(error);
         }
@@ -93,34 +97,33 @@ class _BaseListWidgetState extends State<BaseListWidget> {
 
   void _filterItems(String query) {
     if (!mounted) return;
-
     setState(() {
-      if (query.isEmpty) {
-        _filteredItems = _allItems;
-      } else {
-        _filteredItems = _allItems.where((doc) {
-          final primaryFieldValue =
-              doc.data()[widget.searchField]?.toString().toLowerCase() ?? '';
-          final matchesPrimary =
-              primaryFieldValue.contains(query.toLowerCase());
-
-          // Check secondary field if provided
-          bool matchesSecondary = false;
-          if (widget.secondarySearchField != null) {
-            final secondaryFieldValue = doc
-                    .data()[widget.secondarySearchField]
-                    ?.toString()
-                    .toLowerCase() ??
-                '';
-            matchesSecondary =
-                secondaryFieldValue.contains(query.toLowerCase());
-          }
-
-          return matchesPrimary || matchesSecondary;
-        }).toList();
-      }
-      _sortItems();
+      _filterItemsLocally(query);
     });
+  }
+
+  // Internal helper to filter items without triggering setState if already in build/stream update
+  void _filterItemsLocally(String query) {
+    if (query.isEmpty) {
+      _filteredItems = List.from(_allItems);
+    } else {
+      _filteredItems = _allItems.where((doc) {
+        final data = doc.data();
+        final primaryFieldValue =
+            data[widget.searchField]?.toString().toLowerCase() ?? '';
+        final matchesPrimary = primaryFieldValue.contains(query.toLowerCase());
+
+        bool matchesSecondary = false;
+        if (widget.secondarySearchField != null) {
+          final secondaryFieldValue =
+              data[widget.secondarySearchField]?.toString().toLowerCase() ?? '';
+          matchesSecondary = secondaryFieldValue.contains(query.toLowerCase());
+        }
+
+        return matchesPrimary || matchesSecondary;
+      }).toList();
+    }
+    _sortItems();
   }
 
   void _sortItems() {
@@ -295,7 +298,10 @@ class _BaseListWidgetState extends State<BaseListWidget> {
             child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
               stream: _userStreamController.stream,
               builder: (context, snapshot) {
+                // ALWAYS check for error first - this prevents white screen
                 if (snapshot.hasError) {
+                  print(
+                      '❌ BaseListWidget [${widget.collectionName}] displaying error: ${snapshot.error}');
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -307,7 +313,7 @@ class _BaseListWidgetState extends State<BaseListWidget> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'Error: ${snapshot.error}',
+                          'Error loading data',
                           style: const TextStyle(
                             color: kRedInactiveTextColor,
                             fontSize: 16,
@@ -315,31 +321,16 @@ class _BaseListWidgetState extends State<BaseListWidget> {
                           ),
                           textAlign: TextAlign.center,
                         ),
-                      ],
-                    ),
-                  );
-                }
-
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const ShimmerLoadingList();
-                }
-
-                if (_filteredItems.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.search_off,
-                          color: kPrimaryColor,
-                          size: 48,
-                        ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'No data found',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w500,
+                        const SizedBox(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 32),
+                          child: Text(
+                            '${snapshot.error}',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                            textAlign: TextAlign.center,
                           ),
                         ),
                       ],
@@ -347,11 +338,67 @@ class _BaseListWidgetState extends State<BaseListWidget> {
                   );
                 }
 
-                return ListView.builder(
-                  itemCount: _filteredItems.length,
-                  padding: const EdgeInsets.only(bottom: 80),
-                  itemBuilder: (context, index) =>
-                      widget.itemBuilder(context, _filteredItems[index]),
+                // Seamless Transition: If we have previous data and the stream is just re-subscribing (waiting),
+                // keep showing current items instead of a shimmer or empty state.
+                if (snapshot.connectionState == ConnectionState.waiting &&
+                    _allItems.isNotEmpty) {
+                  // Keep showing current items - fall through
+                } else if (snapshot.connectionState ==
+                        ConnectionState.waiting &&
+                    _allItems.isEmpty &&
+                    !snapshot.hasData) {
+                  return const ShimmerLoadingList();
+                }
+
+                // If we have cached data, show it immediately (prevents white screen on back navigation)
+                if (_filteredItems.isNotEmpty ||
+                    _searchController.text.isNotEmpty) {
+                  if (_filteredItems.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.search_off,
+                              color: kPrimaryColor, size: 48),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'No matching data found',
+                            style: TextStyle(
+                                fontSize: 18, fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+
+                  return ListView.builder(
+                    itemCount: _filteredItems.length,
+                    padding: const EdgeInsets.only(bottom: 80),
+                    itemBuilder: (context, index) =>
+                        widget.itemBuilder(context, _filteredItems[index]),
+                  );
+                }
+
+                // Fallback: show empty state
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.search_off,
+                        color: kPrimaryColor,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'No data found',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
                 );
               },
             ),

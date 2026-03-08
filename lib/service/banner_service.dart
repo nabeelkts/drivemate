@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mds/model/carousel_model.dart';
+import 'package:drivemate/model/carousel_model.dart';
 
 class BannerService {
   final bannersRef = FirebaseFirestore.instance

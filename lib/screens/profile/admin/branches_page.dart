@@ -4,10 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
 
 class BranchesPage extends StatelessWidget {
   const BranchesPage({super.key});

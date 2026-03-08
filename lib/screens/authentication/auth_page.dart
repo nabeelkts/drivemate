@@ -2,14 +2,14 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/screens/authentication/email_verification.dart';
-import 'package:mds/screens/authentication/login_or_register.dart';
-import 'package:mds/screens/navigation_screen.dart';
+import 'package:drivemate/screens/authentication/email_verification.dart';
+import 'package:drivemate/screens/authentication/login_or_register.dart';
+import 'package:drivemate/screens/navigation_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:mds/screens/profile/edit_company_profile.dart';
-import 'package:mds/screens/authentication/role_selection_page.dart';
+import 'package:drivemate/screens/profile/edit_company_profile.dart';
+import 'package:drivemate/screens/authentication/role_selection_page.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 
 class AuthPage extends StatefulWidget {
   // ignore: use_key_in_widget_constructors

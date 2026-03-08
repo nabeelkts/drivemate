@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get_state_manager/src/rx_flutter/rx_obx_widget.dart';
-import 'package:mds/controller/controllers.dart';
-import 'package:mds/carousel/carousel_loading.dart';
-import 'package:mds/carousel/carousel_with_indicator.dart';
+import 'package:drivemate/controller/controllers.dart';
+import 'package:drivemate/carousel/carousel_loading.dart';
+import 'package:drivemate/carousel/carousel_with_indicator.dart';
 
 Widget buildCarouselSection() {
   return Obx(() {

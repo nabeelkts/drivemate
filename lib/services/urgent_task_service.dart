@@ -1,6 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:mds/models/urgent_task_model.dart';
+import 'package:drivemate/models/urgent_task_model.dart';
 import 'package:intl/intl.dart';
 
 /// Service for fetching and managing urgent tasks (expiring items)
@@ -69,7 +69,14 @@ class UrgentTaskService {
           query = query.where('branchId', isEqualTo: branchId);
         }
 
-        final snapshot = await query.get();
+        // Add timeout to prevent hanging queries
+        QuerySnapshot? snapshot;
+        try {
+          snapshot = await query.get().timeout(Duration(seconds: 5));
+        } catch (e) {
+          print('ERROR fetching from $col: $e');
+          continue; // Skip this collection on error
+        }
 
         for (var doc in snapshot.docs) {
           final data = doc.data() as Map<String, dynamic>;
@@ -80,9 +87,6 @@ class UrgentTaskService {
           if (additionalInfo == null) continue;
 
           // Check if student has passed (course completed) or is deactivated
-          final status = data['status'] as String?;
-          final deactivated = data['deactivated'] as bool?;
-          final isPassed = status == 'passed' || deactivated == true;
 
           final docId = doc.id;
           final name = data['fullName'] ?? data['name'] ?? 'Unknown';
@@ -226,14 +230,22 @@ class UrgentTaskService {
       'vehicleDetails',
     ];
 
-    for (var collection in collections) {
-      final tasks = await _fetchFromCollection(
-        collection: collection,
-        userId: userId,
-        schoolId: schoolId,
-        branchId: branchId,
-      );
-      allTasks.addAll(tasks);
+    // Add overall timeout for all collections
+    try {
+      await Future.wait(
+        collections.map((collection) async {
+          final tasks = await _fetchFromCollection(
+            collection: collection,
+            userId: userId,
+            schoolId: schoolId,
+            branchId: branchId,
+          );
+          allTasks.addAll(tasks);
+        }),
+      ).timeout(Duration(seconds: 30));
+    } catch (e) {
+      print('ERROR fetching all urgent tasks: $e');
+      // Return whatever tasks we have so far
     }
 
     // Sort by days remaining (earliest first)

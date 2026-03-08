@@ -3,12 +3,12 @@
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/authentication/login_page.dart';
-import 'package:mds/screens/authentication/reset_password_send.dart';
-import 'package:mds/screens/authentication/widgets/email_validator.dart';
-import 'package:mds/screens/authentication/widgets/my_button.dart';
-import 'package:mds/screens/authentication/widgets/my_form_text_field.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/authentication/login_page.dart';
+import 'package:drivemate/screens/authentication/reset_password_send.dart';
+import 'package:drivemate/screens/authentication/widgets/email_validator.dart';
+import 'package:drivemate/screens/authentication/widgets/my_button.dart';
+import 'package:drivemate/screens/authentication/widgets/my_form_text_field.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -59,7 +59,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           ));
         } else if (e.code == 'operation-not-allowed') {
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Email/password sign-in is not enabled. Please contact support.'),
+            content: Text(
+                'Email/password sign-in is not enabled. Please contact support.'),
           ));
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -145,7 +146,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               const SizedBox(height: 32),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
                 child: MyButton(
                   onTap: () {
                     if (formKey.currentState!.validate()) {
@@ -163,21 +165,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               ),
               const SizedBox(height: 32),
               Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-              child: MyButton(
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const LoginPage(),
-                    ),
-                  );
-                },
-                text: 'Back to Login',
-                isLoading: isLoading,
-                isEnabled: true,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+                child: MyButton(
+                  onTap: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const LoginPage(),
+                      ),
+                    );
+                  },
+                  text: 'Back to Login',
+                  isLoading: isLoading,
+                  isEnabled: true,
+                ),
               ),
-            ),
             ],
           ),
         ),

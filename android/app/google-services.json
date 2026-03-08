@@ -8,34 +8,26 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:694652953963:android:2ffce743c90e1c15e6582e",
+        "mobilesdk_app_id": "1:694652953963:android:a8f115a47de3d415e6582e",
         "android_client_info": {
-          "package_name": "com.example.mds"
+          "package_name": "com.drivemate.mds"
         }
       },
       "oauth_client": [
         {
-          "client_id": "694652953963-1rc1n4lj7ro8k09n35tnbf9oj22oqhr2.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.mds",
-            "certificate_hash": "6e9a63a2b1cc4b300c34f369e6ba329c4d824ebd"
-          }
-        },
-        {
-          "client_id": "694652953963-a7umlf6s6cmaa1qpu6v2hhgsu1sc48pr.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.example.mds",
-            "certificate_hash": "ab26a78105d411ecbf41cd47a2627b1b31ce309f"
-          }
-        },
-        {
           "client_id": "694652953963-gurnfu13g64ag1quvhnhfjcemg340cmu.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
-            "package_name": "com.example.mds",
+            "package_name": "com.drivemate.mds",
             "certificate_hash": "1976bd7d982662a046860c13442100e6964d9dd6"
+          }
+        },
+        {
+          "client_id": "694652953963-idkua0pntq957vgnor4ddst1ie1f43m1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.drivemate.mds",
+            "certificate_hash": "4c37fbf7aaff5516c1eab8edcbe5d90b3d0f5ded"
           }
         },
         {
@@ -59,7 +51,75 @@
               "client_id": "694652953963-3aqg23qh8js9qhp085qsla8v0equid46.apps.googleusercontent.com",
               "client_type": 2,
               "ios_info": {
-                "bundle_id": "com.example.mds"
+                "bundle_id": "com.drivemate.mds"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:694652953963:android:2ffce743c90e1c15e6582e",
+        "android_client_info": {
+          "package_name": "com.example.mds"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "694652953963-4mnpu5gau3f3serfuvftfdfg3rfs375r.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.mds",
+            "certificate_hash": "1976bd7d982662a046860c13442100e6964d9dd6"
+          }
+        },
+        {
+          "client_id": "694652953963-99mslfaf5rtjrvkdud0q96cdpc24rsrd.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.mds",
+            "certificate_hash": "ab26a78105d411ecbf41cd47a2627b1b31ce309f"
+          }
+        },
+        {
+          "client_id": "694652953963-9o8iu6j8dt2afhtledssgjkag293d21k.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.mds",
+            "certificate_hash": "4c37fbf7aaff5516c1eab8edcbe5d90b3d0f5ded"
+          }
+        },
+        {
+          "client_id": "694652953963-qn4os75mhs365fo3pa8gu7eetqs4kti4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.mds",
+            "certificate_hash": "6e9a63a2b1cc4b300c34f369e6ba329c4d824ebd"
+          }
+        },
+        {
+          "client_id": "694652953963-nkj9h968feqjgr8og8jchfg8j0fhddjt.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXiXhkXKfn3PnhapAYJAWemfjX8IUYG9g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "694652953963-nkj9h968feqjgr8og8jchfg8j0fhddjt.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "694652953963-3aqg23qh8js9qhp085qsla8v0equid46.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.drivemate.mds"
               }
             }
           ]

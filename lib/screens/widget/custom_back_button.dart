@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
+import 'package:drivemate/constants/colors.dart';
 
 class CustomBackButton extends StatelessWidget {
   final VoidCallback? onPressed;
@@ -31,8 +31,7 @@ class CustomBackButton extends StatelessWidget {
           ),
           child: Center(
             child: Padding(
-              padding: const EdgeInsets.only(
-                  left: 6.0),
+              padding: const EdgeInsets.only(left: 6.0),
               child: Icon(
                 Icons.arrow_back_ios,
                 color: iconColor ?? kPrimaryColor,

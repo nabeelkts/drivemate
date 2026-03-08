@@ -11,10 +11,22 @@ class StreamUtils {
     final latestValues = List<T?>.filled(streams.length, null);
     final hasEmitted = List<bool>.filled(streams.length, false);
     final subscriptions = <StreamSubscription<T>>[];
+    bool hasInitiallyEmitted = false; // Track initial emission
+    int errorCount = 0; // Track errors
 
-    void update() {
-      if (hasEmitted.every((emitted) => emitted)) {
-        controller.add(latestValues.cast<T>().toList());
+    void update({bool forceEmit = false}) {
+      final allEmitted = hasEmitted.every((emitted) => emitted);
+
+      // Emit when all streams have emitted OR after first partial data (to avoid infinite shimmer)
+      if (allEmitted || forceEmit) {
+        if (!hasInitiallyEmitted || !allEmitted) {
+          hasInitiallyEmitted = true;
+        }
+        // Filter out null values before casting to avoid type cast errors
+        final nonNullValues = latestValues.where((v) => v != null).cast<T>().toList();
+        if (nonNullValues.isNotEmpty) {
+          controller.add(nonNullValues);
+        }
       }
     }
 
@@ -23,14 +35,23 @@ class StreamUtils {
         (value) {
           latestValues[i] = value;
           hasEmitted[i] = true;
-          update();
+          // Force emit after first stream responds to avoid infinite shimmer
+          update(forceEmit: i == 0 && !hasInitiallyEmitted);
         },
         onError: (error) {
           debugPrint('StreamUtils combineLatest error in stream $i: $error');
-          // Mark as emitted with null value to not block other streams
-          latestValues[i] = null as T;
+          errorCount++;
+          // Mark as emitted but don't set null value (to avoid type cast issues)
+          // Just keep the previous valid value or leave it unset
           hasEmitted[i] = true;
-          update();
+          
+          // If all streams have errors, emit what we have
+          if (errorCount == streams.length) {
+            debugPrint('StreamUtils combineLatest: All streams failed, emitting empty list');
+            controller.add([]);
+          } else {
+            update();
+          }
         },
         onDone: () {
           // You might want to close the controller if all streams are done
@@ -45,6 +66,14 @@ class StreamUtils {
         sub.cancel();
       }
     };
+
+    // Timeout fallback: emit partial data after 2 seconds to avoid infinite shimmer
+    Future.delayed(const Duration(seconds: 2), () {
+      if (!hasInitiallyEmitted) {
+        debugPrint('StreamUtils combineLatest timeout - emitting partial data');
+        update(forceEmit: true);
+      }
+    });
 
     return controller.stream;
   }

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
 
 class AboutUsPage extends StatelessWidget {
   const AboutUsPage({super.key});

@@ -5,9 +5,9 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:mds/constants/colors.dart';
+import 'package:drivemate/constants/colors.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:mds/services/storage_service.dart';
+import 'package:drivemate/services/storage_service.dart';
 
 class EditUserProfile extends StatefulWidget {
   final Map<String, dynamic>? initialData;

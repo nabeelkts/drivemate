@@ -3,36 +3,40 @@ import 'package:android_intent_plus/android_intent.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
+import 'package:drivemate/constants/colors.dart';
 import 'package:flutter/services.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
-import 'package:mds/screens/authentication/widgets/my_button.dart';
-import 'package:mds/screens/dashboard/form/edit_forms/edit_endorsement_details_form.dart';
-import 'package:mds/screens/profile/action_button.dart';
-import 'package:mds/screens/dashboard/list/details/pdf_preview_screen.dart';
-import 'package:mds/services/pdf_service.dart';
-import 'package:mds/services/image_cache_service.dart';
-import 'package:mds/utils/loading_utils.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
+import 'package:drivemate/screens/authentication/widgets/my_button.dart';
+import 'package:drivemate/screens/dashboard/form/edit_forms/edit_endorsement_details_form.dart';
+import 'package:drivemate/screens/profile/action_button.dart';
+import 'package:drivemate/screens/dashboard/list/details/pdf_preview_screen.dart';
+import 'package:drivemate/services/pdf_service.dart';
+import 'package:drivemate/services/image_cache_service.dart';
+import 'package:drivemate/utils/loading_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/screens/widget/utils.dart';
-import 'package:mds/widgets/additional_info_sheet.dart';
-import 'package:mds/services/additional_info_service.dart';
+import 'package:drivemate/screens/widget/utils.dart';
+import 'package:drivemate/widgets/additional_info_sheet.dart';
+import 'package:drivemate/services/additional_info_service.dart';
 import 'package:get/get.dart';
 import 'package:iconly/iconly.dart';
-import 'package:mds/utils/test_utils.dart';
-import 'package:mds/utils/image_utils.dart';
-import 'package:mds/utils/date_utils.dart';
+import 'package:drivemate/utils/test_utils.dart';
+import 'package:drivemate/utils/image_utils.dart';
+import 'package:drivemate/utils/date_utils.dart';
 import 'dart:async';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
-import 'package:mds/utils/payment_utils.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:drivemate/utils/payment_utils.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:drivemate/services/storage_service.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:mds/widgets/soft_delete_button.dart';
+import 'package:drivemate/widgets/soft_delete_button.dart';
+import 'package:drivemate/screens/dashboard/list/details/document_preview_screen.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/details_tabs_bar.dart';
 
 class EndorsementDetailsPage extends StatefulWidget {
   final Map<String, dynamic> endorsementDetails;
@@ -50,54 +54,90 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
   bool _isTransactionHistoryExpanded = false;
+  List<Map<String, dynamic>> _cachedPayments =
+      []; // Cache for seamless transitions
+
+  late final String _docId;
 
   @override
   void initState() {
     super.initState();
     endorsementDetails = Map.from(widget.endorsementDetails);
-    _docId = (endorsementDetails['studentId'] ??
-            endorsementDetails['id'] ??
-            endorsementDetails['recordId'])
-        .toString();
+
+    // Try multiple possible field names for document ID
+    final id = endorsementDetails['id']?.toString();
+    final endorsementId = endorsementDetails['endorsementId']?.toString();
+    final recordId = endorsementDetails['recordId']?.toString();
+    final serviceId = endorsementDetails['serviceId']?.toString();
+    final studentId = endorsementDetails['studentId']?.toString();
+
+    _docId = id ?? endorsementId ?? recordId ?? serviceId ?? studentId ?? '';
+
+    // Debug: log what we found
+    if (_docId.isEmpty) {
+      print('WARNING: No document ID found in endorsementDetails');
+      print('Available keys: ${endorsementDetails.keys.join(", ")}');
+    }
+
     _initStreams();
   }
 
-  late final String _docId;
-  late final Stream<DocumentSnapshot> _mainStream;
-  late final Stream<QuerySnapshot> _paymentsStream;
-  late final Stream<QuerySnapshot> _extraFeesStream;
+  Stream<DocumentSnapshot> _mainStream = const Stream.empty();
+  Stream<QuerySnapshot> _paymentsStream = const Stream.empty();
+  Stream<QuerySnapshot> _extraFeesStream = const Stream.empty();
+  Stream<QuerySnapshot> _documentsStream = const Stream.empty();
+  String _collectionName = 'endorsement';
 
   void _initStreams() {
     final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
         ? _workspaceController.currentSchoolId.value
         : (FirebaseAuth.instance.currentUser?.uid ?? '');
 
-    _mainStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('endorsement')
-        .doc(_docId)
-        .snapshots();
-    _paymentsStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('endorsement')
-        .doc(_docId)
-        .collection('payments')
-        .orderBy('date', descending: true)
-        .snapshots();
-    _extraFeesStream = FirebaseFirestore.instance
-        .collection('users')
-        .doc(targetId)
-        .collection('endorsement')
-        .doc(_docId)
-        .collection('extra_fees')
-        .orderBy('date', descending: true)
-        .snapshots();
+    if (_docId.isEmpty) {
+      // Initialize with empty streams to avoid late initialization errors
+      _mainStream = const Stream.empty();
+      _paymentsStream = const Stream.empty();
+      _extraFeesStream = const Stream.empty();
+      _documentsStream = const Stream.empty();
+      return;
+    }
+
+    final base = FirebaseFirestore.instance.collection('users').doc(targetId);
+    base.collection('endorsement').doc(_docId).get().then((snap) {
+      _collectionName = snap.exists ? 'endorsement' : 'deactivated_endorsement';
+
+      _mainStream = base.collection(_collectionName).doc(_docId).snapshots();
+      _paymentsStream = base
+          .collection(_collectionName)
+          .doc(_docId)
+          .collection('payments')
+          .orderBy('date', descending: true)
+          .snapshots();
+      _extraFeesStream = base
+          .collection(_collectionName)
+          .doc(_docId)
+          .collection('extra_fees')
+          .orderBy('date', descending: true)
+          .snapshots();
+      _documentsStream = base
+          .collection(_collectionName)
+          .doc(_docId)
+          .collection('documents')
+          .orderBy('timestamp', descending: true)
+          .snapshots();
+      if (mounted) setState(() {});
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_docId.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Error')),
+        body: const Center(child: Text('Invalid Document ID')),
+      );
+    }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
@@ -114,7 +154,6 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
         elevation: 0,
         leading: const CustomBackButton(),
         actions: [
-          _buildAdditionalInfoButton(),
           IconButton(
               icon: Icon(Icons.picture_as_pdf, color: subTextColor),
               onPressed: () => _shareEndorsementDetails(context)),
@@ -124,10 +163,19 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                 .collection('users')
                 .doc(targetId)
                 .collection('endorsement')
-                .doc(endorsementDetails['endorsementId'].toString()),
+                .doc(_docId),
             documentName: endorsementDetails['fullName'] ?? 'Endorsement',
             onDeleteSuccess: () {
-              Navigator.pop(context);
+              // Get.back() is already called by SoftDeleteButton
+              // Just show success message
+              Get.snackbar(
+                'Success',
+                'Endorsement moved to recycle bin',
+                snackPosition: SnackPosition.BOTTOM,
+                backgroundColor: Colors.green,
+                colorText: Colors.white,
+                duration: const Duration(seconds: 2),
+              );
             },
           ),
           IconButton(
@@ -165,26 +213,28 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
         stream: _mainStream,
         builder: (context, snapshot) {
           if (snapshot.hasData && snapshot.data!.exists) {
-            endorsementDetails = snapshot.data!.data() as Map<String, dynamic>;
+            endorsementDetails = Map<String, dynamic>.from(
+                snapshot.data!.data() as Map<String, dynamic>);
           }
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              children: [
-                _buildProfileHeader(context),
-                const SizedBox(height: 16),
-                Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(flex: 1, child: _buildPersonalInfoCard(context)),
-                  const SizedBox(width: 16),
-                  Expanded(flex: 1, child: _buildAddressCard(context)),
-                ]),
-                const SizedBox(height: 16),
-                _buildPaymentOverviewCard(context, targetId, snapshot),
-                const SizedBox(height: 16),
-                _buildTestDateCard(context),
-                const SizedBox(height: 24),
-                const SizedBox(height: 20),
-              ],
+          final bottomInset = MediaQuery.of(context).padding.bottom;
+          return SafeArea(
+            bottom: true,
+            child: SingleChildScrollView(
+              padding:
+                  EdgeInsets.fromLTRB(16.0, 16.0, 16.0, 16.0 + bottomInset),
+              child: Column(
+                children: [
+                  _buildProfileHeader(context, targetId),
+                  const SizedBox(height: 16),
+                  _buildInfoGrid(context),
+                  const SizedBox(height: 16),
+                  _buildTabSection(
+                      context,
+                      targetId,
+                      snapshot.data
+                          as DocumentSnapshot<Map<String, dynamic>>?),
+                ],
+              ),
             ),
           );
         },
@@ -194,116 +244,11 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
 
   // ── Additional Info button for AppBar ──────────────────────────────────────
 
-  Widget _buildAdditionalInfoButton() {
-    final additionalInfo =
-        endorsementDetails['additionalInfo'] as Map<String, dynamic>?;
-    final hasData = additionalInfo != null && additionalInfo.isNotEmpty;
-
-    // Determine the correct collection based on record status
-    final isDeactivated = endorsementDetails['status'] == 'passed' ||
-        endorsementDetails['deactivated'] == true;
-    final collectionName =
-        isDeactivated ? 'deactivated_endorsement' : 'endorsement';
-
-    return IconButton(
-      icon: Icon(
-        hasData ? Icons.info : Icons.info_outline,
-        color: hasData ? kPrimaryColor : Colors.grey,
-      ),
-      onPressed: () async {
-        final result = await showAdditionalInfoSheet(
-          context: context,
-          type: AdditionalInfoType.student,
-          collection: collectionName,
-          documentId: _docId,
-          existingData: additionalInfo,
-        );
-        if (result == true) {
-          setState(() {});
-        }
-      },
-      tooltip: 'Additional Information',
-    );
-  }
-
-  Widget _buildTestDateCard(BuildContext context) {
+  Widget _buildProfileHeader(BuildContext context, String targetId) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
     final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     final cardColor = Theme.of(context).cardColor;
-    final llDate = AppDateUtils.formatDateForDisplay(
-        endorsementDetails['learnersTestDate']?.toString());
-    final dlDate = AppDateUtils.formatDateForDisplay(
-        endorsementDetails['drivingTestDate']?.toString());
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kAccentRed.withOpacity(0.5)),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5))
-              ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Test Date',
-                  style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16)),
-              IconButton(
-                icon: const Icon(IconlyLight.edit, color: kAccentRed, size: 20),
-                onPressed: () => TestUtils.showUpdateTestDateDialog(
-                    context: context,
-                    item: endorsementDetails,
-                    collection: 'endorsement',
-                    studentId: endorsementDetails['studentId'].toString()),
-                tooltip: 'Update Test Dates',
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (llDate.isEmpty && dlDate.isEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 4.0),
-              child: Text('No test dates. Pick test date',
-                  style: TextStyle(
-                      color: subTextColor.withOpacity(0.7),
-                      fontSize: 13,
-                      fontStyle: FontStyle.italic)),
-            )
-          else ...[
-            if (llDate.isNotEmpty)
-              _buildInfoRow(
-                  'Learners Test (LL)', llDate, textColor, subTextColor),
-            if (dlDate.isNotEmpty)
-              _buildInfoRow(
-                  'Driving Test (DL)', dlDate, textColor, subTextColor),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildProfileHeader(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
-    final cardColor = Theme.of(context).cardColor;
-    Timer? holdTimer;
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
@@ -322,64 +267,47 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
       ),
       child: Row(
         children: [
-          Builder(builder: (context) {
-            return GestureDetector(
-              onTapDown: (_) {
-                if (endorsementDetails['image'] != null &&
-                    endorsementDetails['image'].toString().isNotEmpty) {
-                  holdTimer = Timer(
-                      const Duration(seconds: 1),
-                      () => ImageUtils.showImagePopup(
-                          context,
-                          endorsementDetails['image'],
-                          endorsementDetails['fullName']));
-                }
-              },
-              onTapUp: (_) => holdTimer?.cancel(),
-              onTapCancel: () => holdTimer?.cancel(),
-              child: Container(
-                width: 100,
-                height: 100,
-                decoration: BoxDecoration(
-                    color: kAccentRed,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                        color: Theme.of(context).scaffoldBackgroundColor,
-                        width: 3)),
-                child: ClipOval(
-                  child: endorsementDetails['image'] != null && endorsementDetails['image'].toString().isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: endorsementDetails['image'],
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => Shimmer.fromColors(
-                              baseColor: isDark
-                                  ? Colors.grey[800]!
-                                  : Colors.grey[300]!,
-                              highlightColor: isDark
-                                  ? Colors.grey[700]!
-                                  : Colors.grey[100]!,
-                              child: Container(color: Colors.white)),
-                          errorWidget: (context, url, error) => Container(
-                              alignment: Alignment.center,
-                              child:
-                                  Text(endorsementDetails['fullName'] != null && endorsementDetails['fullName'].toString().isNotEmpty ? endorsementDetails['fullName'][0].toUpperCase() : '',
-                                      style: TextStyle(
-                                          fontSize: 40,
-                                          color: textColor,
-                                          height: 1.0),
-                                      textAlign: TextAlign.center)))
-                      : Container(
-                          alignment: Alignment.center,
-                          child: Text(
-                              endorsementDetails['fullName'] != null && endorsementDetails['fullName'].toString().isNotEmpty
-                                  ? endorsementDetails['fullName'][0].toUpperCase()
-                                  : '',
-                              style: TextStyle(fontSize: 40, color: textColor, height: 1.0),
-                              textAlign: TextAlign.center)),
+          Stack(
+            children: [
+              GestureDetector(
+                onTap: () {
+                  if (endorsementDetails['image'] != null &&
+                      endorsementDetails['image'].toString().isNotEmpty) {
+                    ImageUtils.showImagePopup(
+                        context,
+                        endorsementDetails['image'],
+                        endorsementDetails['fullName']);
+                  }
+                },
+                child: Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                      color: kAccentRed.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                      border: Border.all(color: kAccentRed, width: 2)),
+                  child: ClipOval(
+                    child: endorsementDetails['image'] != null &&
+                            endorsementDetails['image'].toString().isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: endorsementDetails['image'],
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => Shimmer.fromColors(
+                                baseColor: isDark
+                                    ? Colors.grey[800]!
+                                    : Colors.grey[300]!,
+                                highlightColor: isDark
+                                    ? Colors.grey[700]!
+                                    : Colors.grey[100]!,
+                                child: Container(color: Colors.white)),
+                            errorWidget: (context, url, error) =>
+                                _buildInitials())
+                        : _buildInitials(),
+                  ),
                 ),
               ),
-            );
-          }),
+            ],
+          ),
           const SizedBox(width: 20),
           Expanded(
             child: Column(
@@ -417,14 +345,145 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
     );
   }
 
-  Widget _buildPersonalInfoCard(BuildContext context) {
+  Widget _buildInitials() {
+    final name = endorsementDetails['fullName'] ?? '';
+    return Center(
+      child: Text(
+        name.isNotEmpty ? name[0].toUpperCase() : '?',
+        style: const TextStyle(
+            fontSize: 40, color: kAccentRed, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+
+  Future<void> _updateProfileImage(
+      BuildContext context, String targetId) async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image = await showModalBottomSheet<XFile?>(
+      context: context,
+      builder: (context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.photo_library),
+            title: const Text('Photo Gallery'),
+            onTap: () async => Navigator.pop(
+                context, await picker.pickImage(source: ImageSource.gallery)),
+          ),
+          ListTile(
+            leading: const Icon(Icons.camera_alt),
+            title: const Text('Camera'),
+            onTap: () async => Navigator.pop(
+                context, await picker.pickImage(source: ImageSource.camera)),
+          ),
+        ],
+      ),
+    );
+
+    if (image != null) {
+      try {
+        await LoadingUtils.wrapWithLoading(context, () async {
+          final url = await StorageService().uploadFile(
+            file: image,
+            path: 'profile_images/$_docId/${image.name}',
+          );
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(targetId)
+              .collection('endorsement')
+              .doc(_docId)
+              .update({'image': url});
+        });
+        Get.snackbar('Success', 'Profile image updated');
+      } catch (e) {
+        Get.snackbar('Error', 'Failed to update profile image: $e');
+      }
+    }
+  }
+
+  Widget _buildInfoGrid(BuildContext context) {
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _buildInfoCard(
+                context,
+                'Personal Information',
+                [
+                  {
+                    'label': 'Guardian',
+                    'value': endorsementDetails['guardianName'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'DOB',
+                    'value': formatDisplayDate(endorsementDetails['dob'])
+                  },
+                  {
+                    'label': 'Mobile',
+                    'value': endorsementDetails['mobileNumber'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'Emergency',
+                    'value': endorsementDetails['emergencyNumber'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'Blood Group',
+                    'value': endorsementDetails['bloodGroup'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'License No',
+                    'value': endorsementDetails['license'] ?? 'N/A'
+                  },
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: _buildInfoCard(
+                context,
+                'Address Details',
+                [
+                  {
+                    'label': 'House Name',
+                    'value': endorsementDetails['house'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'Place',
+                    'value': endorsementDetails['place'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'Post Office',
+                    'value': endorsementDetails['post'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'District',
+                    'value': endorsementDetails['district'] ?? 'N/A'
+                  },
+                  {
+                    'label': 'PIN Code',
+                    'value': endorsementDetails['pin'] ?? 'N/A'
+                  },
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildInfoCard(
+      BuildContext context, String title, List<Map<String, String>> data,
+      {Widget? extraContent}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     final cardColor = Theme.of(context).cardColor;
 
     return Container(
-      height: 200,
+      height: 220,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: cardColor,
@@ -434,593 +493,1081 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
             ? null
             : [
                 BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5))
+                  color: Colors.grey.withOpacity(0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
               ],
       ),
       child: SingleChildScrollView(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Personal Info',
-                style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16)),
+            Text(
+              title,
+              style: const TextStyle(
+                color: kAccentRed,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 12),
-            _buildInfoRow('Name', endorsementDetails['fullName'] ?? 'N/A',
-                textColor, subTextColor),
-            _buildInfoRow(
-                'Guardian Name',
-                endorsementDetails['guardianName'] ?? 'N/A',
-                textColor,
-                subTextColor),
-            _buildInfoRow('DOB', formatDisplayDate(endorsementDetails['dob']),
-                textColor, subTextColor),
-            // ── Tappable mobile number ──
-            _buildMobileRow(endorsementDetails['mobileNumber'] ?? 'N/A',
-                textColor, subTextColor, context),
-            _buildInfoRow(
-                'Emergency',
-                endorsementDetails['emergencyNumber'] ?? 'N/A',
-                textColor,
-                subTextColor),
-            _buildInfoRow(
-                'Blood Group',
-                endorsementDetails['bloodGroup'] ?? 'N/A',
-                textColor,
-                subTextColor),
-            _buildInfoRow(
-                'License Number',
-                endorsementDetails['license'] ?? 'N/A',
-                textColor,
-                subTextColor),
+            ...data
+                .where((d) =>
+                    d['value']!.toString().isNotEmpty && d['value'] != 'N/A')
+                .map((item) => Padding(
+                      padding: const EdgeInsets.only(bottom: 10.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item['label']!,
+                            style: TextStyle(color: subTextColor, fontSize: 11),
+                          ),
+                          const SizedBox(height: 2),
+                          item['label'] == 'Mobile'
+                              ? _buildMobileRow(item['value']!, textColor,
+                                  subTextColor, context)
+                              : Text(
+                                  item['value']!,
+                                  style: TextStyle(
+                                      color: textColor,
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w500),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                        ],
+                      ),
+                    )),
+            if (extraContent != null) extraContent,
           ],
         ),
       ),
     );
   }
 
-  Widget _buildAddressCard(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
-    final cardColor = Theme.of(context).cardColor;
+  int _activeTab = 0;
 
-    return Container(
-      height: 200,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kAccentRed.withOpacity(0.5)),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5))
-              ],
-      ),
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Address',
-                style: TextStyle(
-                    color: textColor,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16)),
-            const SizedBox(height: 12),
-            _buildInfoRow('House', endorsementDetails['house'] ?? '', textColor,
-                subTextColor),
-            _buildInfoRow('Place', endorsementDetails['place'] ?? '', textColor,
-                subTextColor),
-            _buildInfoRow('Post', endorsementDetails['post'] ?? '', textColor,
-                subTextColor),
-            _buildInfoRow('District', endorsementDetails['district'] ?? '',
-                textColor, subTextColor),
-            _buildInfoRow('PIN Code', endorsementDetails['pin'] ?? '',
-                textColor, subTextColor),
+  Widget _buildTabSection(BuildContext context, String targetId,
+      DocumentSnapshot<Map<String, dynamic>>? endorsementSnapshot) {
+    final tabs = [
+      {'label': 'Payment', 'icon': Icons.account_balance_wallet},
+      {'label': 'Tests', 'icon': Icons.assignment},
+      {'label': 'Documents', 'icon': Icons.description},
+      {'label': 'Notes', 'icon': Icons.note},
+      {'label': 'Additional', 'icon': Icons.info_outline},
+    ];
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      children: [
+        DetailsTabsBar(
+          tabs: const [
+            DetailsTabItem(
+                label: 'Payment', icon: Icons.account_balance_wallet),
+            DetailsTabItem(label: 'Documents', icon: Icons.description),
+            DetailsTabItem(label: 'Notes', icon: Icons.note),
+            DetailsTabItem(label: 'Additional', icon: Icons.info_outline),
           ],
+          activeIndex: _activeTab,
+          onChanged: (i) => setState(() => _activeTab = i),
         ),
-      ),
+        const SizedBox(height: 16),
+        Container(
+          constraints: const BoxConstraints(minHeight: 200),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: kAccentRed.withOpacity(0.5)),
+          ),
+          child: _getTabWidget(context, targetId, endorsementSnapshot),
+        ),
+      ],
     );
   }
 
-  Widget _buildPaymentOverviewCard(BuildContext context, String targetId,
-      AsyncSnapshot<DocumentSnapshot> snapshot) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
-    final cardColor = Theme.of(context).cardColor;
+  Widget _getTabWidget(BuildContext context, String targetId,
+      DocumentSnapshot<Map<String, dynamic>>? endorsementSnapshot) {
+    switch (_activeTab) {
+      case 0:
+        if (endorsementSnapshot == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        return _buildPaymentTab(context, targetId, endorsementSnapshot);
+      case 1:
+        return _buildTestsTab(context);
+      case 2:
+        return _buildDocumentsTab(context, targetId);
+      case 3:
+        return _buildNotesTab(context);
+      case 4:
+        return _buildAdditionalTab(context);
+      default:
+        return const SizedBox();
+    }
+  }
 
-    double total =
-        double.tryParse(endorsementDetails['totalAmount']?.toString() ?? '0') ??
-            0;
-    double balance = double.tryParse(
-            endorsementDetails['balanceAmount']?.toString() ?? '0') ??
-        0;
+  Widget _buildPaymentTab(BuildContext context, String targetId,
+      DocumentSnapshot<Map<String, dynamic>> endorsementSnapshot) {
+    final data = endorsementSnapshot.data() ?? {};
+    double total = double.tryParse(data['totalAmount']?.toString() ?? '0') ?? 0;
+    double balance =
+        double.tryParse(data['balanceAmount']?.toString() ?? '0') ?? 0;
     double paidAmount = total - balance;
     double progressValue = total > 0 ? paidAmount / total : 0;
 
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Payment Summary',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            ),
+            Row(
+              children: [
+                if (_selectedTransactionIds.isNotEmpty)
+                  IconButton(
+                    icon: const Icon(Icons.receipt_long, color: kAccentRed),
+                    onPressed: _generateSelectedReceipts,
+                  ),
+                IconButton(
+                  icon: const Icon(Icons.post_add, color: Colors.blue),
+                  onPressed: () {
+                    PaymentUtils.showAddExtraFeeDialog(
+                      context: context,
+                      doc: endorsementSnapshot,
+                      targetId: targetId,
+                      category: 'endorsement',
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.account_balance_wallet,
+                      color: Colors.green),
+                  onPressed: () => _showReceiveMoneyDialog(context, targetId),
+                  tooltip: 'Receive Money',
+                ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          children: [
+            Expanded(
+                child: _buildSummaryTile(
+                    context, 'Total Fee', '₹${total.toInt()}', Colors.grey)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: _buildSummaryTile(
+                    context, 'Paid', '₹${paidAmount.toInt()}', Colors.green)),
+            const SizedBox(width: 12),
+            Expanded(
+                child: _buildSummaryTile(
+                    context, 'Balance', '₹${balance.toInt()}', kAccentRed)),
+          ],
+        ),
+        const SizedBox(height: 24),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: LinearProgressIndicator(
+            value: progressValue.clamp(0.0, 1.0),
+            backgroundColor: Colors.grey[200],
+            valueColor: const AlwaysStoppedAnimation<Color>(kAccentRed),
+            minHeight: 10,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Center(
+          child: Text(
+            '${(progressValue * 100).round()}% Completed',
+            style: const TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ),
+        const SizedBox(height: 24),
+        _buildTransactionHistorySection(context, targetId),
+        const SizedBox(height: 24),
+        const Text(
+          'Additional Fees',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+        ),
+        const SizedBox(height: 12),
+        _buildExtraFeesSection(context, targetId),
+      ],
+    );
+  }
+
+  Widget _buildSummaryTile(
+      BuildContext context, String label, String value, Color color) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 4),
+        Text(value,
+            style: TextStyle(
+                fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+      ],
+    );
+  }
+
+  Widget _buildExtraFeesSection(BuildContext context, String targetId) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: _extraFeesStream,
+      builder: (context, snapshot) {
+        final docs = snapshot.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('No extra fees added.'),
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            ...docs.map((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final date = (data['date'] as Timestamp).toDate();
+              final isPaid =
+                  (data['status']?.toString() ?? '').toLowerCase() == 'paid';
+
+              return Card(
+                elevation: 0,
+                margin: const EdgeInsets.only(bottom: 8),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  side: BorderSide(
+                      color: isPaid
+                          ? Colors.green.withOpacity(0.5)
+                          : Colors.grey[200]!),
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: _selectedTransactionIds.contains(doc.id),
+                        onChanged: isPaid
+                            ? (val) {
+                                setState(() {
+                                  if (val == true)
+                                    _selectedTransactionIds.add(doc.id);
+                                  else
+                                    _selectedTransactionIds.remove(doc.id);
+                                });
+                              }
+                            : null,
+                      ),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(data['description'] ?? 'Fee',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.bold)),
+                            Text('Rs. ${data['amount']}',
+                                style: const TextStyle(
+                                    color: kAccentRed,
+                                    fontWeight: FontWeight.bold)),
+                            Text(DateFormat('dd MMM yyyy').format(date),
+                                style: TextStyle(
+                                    color: subTextColor, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                      if (!isPaid)
+                        TextButton(
+                          onPressed: () =>
+                              PaymentUtils.showCollectExtraFeeDialog(
+                            context: context,
+                            docRef: FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(targetId)
+                                .collection('endorsement')
+                                .doc(_docId),
+                            feeDoc: doc,
+                            targetId: targetId,
+                            branchId:
+                                _workspaceController.currentBranchId.value,
+                          ),
+                          child: const Text('Collect'),
+                        )
+                      else
+                        const Icon(Icons.check_circle,
+                            color: Colors.green, size: 20),
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined,
+                            color: Colors.blue, size: 20),
+                        onPressed: () => PaymentUtils.showEditExtraFeeDialog(
+                          context: context,
+                          docRef: FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(targetId)
+                              .collection('endorsement')
+                              .doc(_docId),
+                          feeDoc: doc,
+                          targetId: targetId,
+                          category: 'endorsement',
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline,
+                            color: Colors.red, size: 20),
+                        onPressed: () => PaymentUtils.deleteExtraFee(
+                          context: context,
+                          docRef: FirebaseFirestore.instance
+                              .collection('users')
+                              .doc(targetId)
+                              .collection('endorsement')
+                              .doc(_docId),
+                          feeDoc: doc,
+                          targetId: targetId,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTransactionHistorySection(
+      BuildContext context, String targetId) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Transaction History',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+        const SizedBox(height: 12),
+        StreamBuilder<QuerySnapshot>(
+          stream: _paymentsStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting &&
+                _cachedPayments.isEmpty) {
+              return const ShimmerLoadingList();
+            }
+            final docs = snapshot.data?.docs ?? [];
+            _cachedPayments = docs.map((d) {
+              final data = d.data() as Map<String, dynamic>;
+              data['id'] = d.id;
+              data['docRef'] = d;
+              return data;
+            }).toList();
+
+            if (_cachedPayments.isEmpty) {
+              return const Center(
+                  child: Text('No transactions yet',
+                      style: TextStyle(fontSize: 12, color: Colors.grey)));
+            }
+
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: _cachedPayments.length,
+              itemBuilder: (context, index) {
+                final data = _cachedPayments[index];
+                final date = (data['date'] as Timestamp).toDate();
+                final isSelected = _selectedTransactionIds.contains(data['id']);
+
+                return Card(
+                  elevation: 0,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                        color: isSelected ? kAccentRed : Colors.grey[200]!),
+                  ),
+                  child: CheckboxListTile(
+                    value: isSelected,
+                    onChanged: (val) {
+                      setState(() {
+                        if (val == true)
+                          _selectedTransactionIds.add(data['id']);
+                        else
+                          _selectedTransactionIds.remove(data['id']);
+                      });
+                    },
+                    title: Text('Rs. ${data['amount']}',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle:
+                        Text(DateFormat('dd MMM yyyy, hh:mm a').format(date)),
+                    secondary: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined,
+                              color: Colors.blue, size: 20),
+                          onPressed: () => PaymentUtils.showEditPaymentDialog(
+                            context: context,
+                            docRef: FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(targetId)
+                                .collection(_collectionName)
+                                .doc(_docId),
+                            paymentDoc: data['docRef'],
+                            targetId: targetId,
+                            category: 'endorsement',
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red, size: 20),
+                          onPressed: () => PaymentUtils.deletePayment(
+                            context: context,
+                            studentRef: FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(targetId)
+                                .collection(_collectionName)
+                                .doc(_docId),
+                            paymentDoc: data['docRef'],
+                            targetId: targetId,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDocumentsTab(BuildContext context, String targetId) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Documents',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            IconButton(
+              icon: const Icon(Icons.add_photo_alternate_outlined,
+                  color: kAccentRed),
+              onPressed: () => _uploadDocument(context, targetId),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        StreamBuilder<QuerySnapshot>(
+          stream: _documentsStream,
+          builder: (context, snapshot) {
+            final docs = snapshot.data?.docs ?? [];
+            if (docs.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Text(
+                    'No documents uploaded yet',
+                    style: TextStyle(color: Colors.grey),
+                  ),
+                ),
+              );
+            }
+
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: docs.length,
+              itemBuilder: (context, index) {
+                final data = docs[index].data() as Map<String, dynamic>;
+                final name = data['name'] ?? 'Document';
+                final timestamp = data['timestamp'] as Timestamp?;
+                final subtitle = timestamp != null
+                    ? DateFormat('dd MMM yyyy').format(timestamp.toDate())
+                    : null;
+
+                return Card(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: const Icon(Icons.file_present, color: kAccentRed),
+                    title: Text(name),
+                    subtitle: subtitle != null ? Text(subtitle) : null,
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () =>
+                          _deleteDocument(docs[index].id, targetId),
+                    ),
+                    onTap: () {
+                      final url = data['url']?.toString() ?? '';
+                      if (url.isEmpty) return;
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => DocumentPreviewScreen(
+                            docName: name,
+                            docUrl: url,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            );
+          },
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTestsTab(BuildContext context) {
+    // Safely get test dates, defaulting to empty string if null
+    final llDate = AppDateUtils.formatDateForDisplay(
+        endorsementDetails['learnersTestDate']?.toString() ?? '');
+    final dlDate = AppDateUtils.formatDateForDisplay(
+        endorsementDetails['drivingTestDate']?.toString() ?? '');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Test Schedule',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            IconButton(
+              icon: const Icon(Icons.edit_calendar, color: kAccentRed),
+              onPressed: () => TestUtils.showUpdateTestDateDialog(
+                context: context,
+                item: endorsementDetails,
+                collection: 'endorsement',
+                studentId: _docId,
+                onUpdate: () => setState(() {}),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _buildTestCard(context, 'Learners Test (LL)', llDate, Icons.assignment),
+        const SizedBox(height: 12),
+        _buildTestCard(
+            context, 'Driving Test (DL)', dlDate, Icons.directions_car),
+      ],
+    );
+  }
+
+  Widget _buildTestCard(
+      BuildContext context, String type, String date, IconData icon) {
+    final hasDate = date.isNotEmpty;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: cardColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: kAccentRed.withOpacity(0.5)),
-        boxShadow: isDark
-            ? null
-            : [
-                BoxShadow(
-                    color: Colors.grey.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 5))
-              ],
+        color: Colors.grey[50]!,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.grey[200]!),
       ),
+      child: Row(
+        children: [
+          Icon(icon, color: hasDate ? Colors.green : kAccentRed),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(type, style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(hasDate ? date : 'Not Scheduled',
+                    style: TextStyle(
+                        color: hasDate ? Colors.black87 : Colors.grey)),
+              ],
+            ),
+          ),
+          StatusBadge(
+              text: hasDate ? 'Scheduled' : 'Pending',
+              color: hasDate ? Colors.green : kAccentRed),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNotesTab(BuildContext context) {
+    final hasNotes =
+        (endorsementDetails['remarks'] ?? '').toString().trim().isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text('Notes & Remarks',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.add, size: 20, color: kAccentRed),
+                  tooltip: 'Add Notes',
+                  onPressed: () => _editNotes(context, isNew: true),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit, size: 20, color: kAccentRed),
+                  tooltip: hasNotes ? 'Edit Notes' : 'Add Notes',
+                  onPressed: () => _editNotes(context),
+                ),
+                if (hasNotes)
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline,
+                        size: 20, color: Colors.red),
+                    tooltip: 'Delete Notes',
+                    onPressed: () => _clearNotes(context),
+                  ),
+              ],
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.yellow[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.yellow[200]!),
+          ),
+          child: Text(
+            hasNotes ? endorsementDetails['remarks'] : 'No remarks added yet.',
+            style: const TextStyle(fontStyle: FontStyle.italic),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAdditionalTab(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
+    final additionalInfo =
+        endorsementDetails['additionalInfo'] as Map<String, dynamic>?;
+    final hasAdditionalInfo =
+        additionalInfo != null && additionalInfo.isNotEmpty;
+    final Map<String, dynamic> customFields =
+        (additionalInfo?['customFields'] as Map<String, dynamic>?) ?? {};
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text('Payment Overview',
-                  style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16)),
-              Row(children: [
-                if (_selectedTransactionIds.isNotEmpty)
-                  IconButton(
-                      icon: const Icon(Icons.receipt_long, color: kAccentRed),
-                      onPressed: _generateSelectedReceipts,
-                      tooltip: 'Generate Receipt for Selected'),
-                IconButton(
-                    icon: const Icon(Icons.post_add, color: Colors.blue),
-                    onPressed: () {
-                      if (snapshot.hasData)
-                        PaymentUtils.showAddExtraFeeDialog(
-                            context: context,
-                            doc: snapshot.data!
-                                as DocumentSnapshot<Map<String, dynamic>>,
-                            targetId: targetId,
-                            branchId:
-                                _workspaceController.currentBranchId.value,
-                            category: 'endorsement');
-                    },
-                    tooltip: 'Add Extra Fee'),
-                IconButton(
-                    icon: const Icon(Icons.add_circle, color: Colors.green),
-                    onPressed: () {
-                      if (snapshot.hasData)
-                        PaymentUtils.showAddPaymentDialog(
-                            context: context,
-                            doc: snapshot.data!
-                                as DocumentSnapshot<Map<String, dynamic>>,
-                            targetId: targetId,
-                            branchId:
-                                _workspaceController.currentBranchId.value,
-                            category: 'endorsement');
-                    },
-                    tooltip: 'Add Payment'),
-              ]),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Total Fee:',
-                    style: TextStyle(color: subTextColor, fontSize: 12)),
-                Text('Rs. $total',
-                    style: TextStyle(
-                        color: textColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16))
-              ]),
-              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text('Paid Amount',
-                    style: TextStyle(color: subTextColor, fontSize: 12)),
-                Text('Rs. $paidAmount',
-                    style: TextStyle(
-                        color: textColor,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16))
-              ]),
-            ],
-          ),
-          const SizedBox(height: 12),
-          LinearProgressIndicator(
-              value: progressValue.clamp(0.0, 1.0),
-              backgroundColor: isDark ? Colors.grey[800] : Colors.grey[300],
-              valueColor: const AlwaysStoppedAnimation<Color>(kAccentRed),
-              minHeight: 10,
-              borderRadius: BorderRadius.circular(5)),
-          const SizedBox(height: 8),
-          Align(
-              alignment: Alignment.centerRight,
-              child: Text('Outstanding Balance: Rs. $balance',
-                  style: TextStyle(color: subTextColor, fontSize: 12))),
-          const SizedBox(height: 16),
-          const Divider(),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('Transaction History',
-                  style: TextStyle(
-                      color: textColor,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14)),
-              if (_selectedTransactionIds.isNotEmpty)
-                IconButton(
-                    icon: const Icon(Icons.receipt_long, color: kAccentRed),
-                    onPressed: _generateSelectedReceipts,
-                    tooltip: 'Generate Receipt for Selected',
-                    visualDensity: VisualDensity.compact),
+              const Text(
+                'Additional Information',
+                style: TextStyle(
+                    color: kAccentRed,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold),
+              ),
+              TextButton.icon(
+                onPressed: () => _openEndorsementAdditionalInfoSheet(context),
+                icon: const Icon(Icons.edit, size: 18, color: kAccentRed),
+                label: Text(
+                  hasAdditionalInfo ? 'Edit' : 'Add',
+                  style: const TextStyle(color: kAccentRed, fontSize: 12),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 8),
-          StreamBuilder<QuerySnapshot>(
-            stream: _paymentsStream,
-            builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting)
-                return const ShimmerLoadingList();
-              final docs = snapshot.data?.docs ?? [];
-              List<Map<String, dynamic>> combinedDocs = docs.map((d) {
-                final map = d.data() as Map<String, dynamic>;
-                map['id'] = d.id;
-                map['docRef'] = d;
-                return map;
-              }).toList();
-
-              if (combinedDocs.isEmpty) {
-                final advAmt = double.tryParse(
-                        endorsementDetails['advanceAmount']?.toString() ??
-                            '0') ??
-                    0;
-                if (advAmt > 0) {
-                  final regDate = DateTime.tryParse(
-                          endorsementDetails['registrationDate']?.toString() ??
-                              '') ??
-                      DateTime(2000);
-                  combinedDocs.add({
-                    'id': 'legacy_adv',
-                    'amount': advAmt,
-                    'date': Timestamp.fromDate(regDate),
-                    'mode': endorsementDetails['paymentMode'] ?? 'Cash',
-                    'description': 'Initial Advance',
-                    'isLegacy': true
-                  });
-                }
-                for (int i = 1; i <= 5; i++) {
-                  final instAmt = double.tryParse(
-                          endorsementDetails['installment$i']?.toString() ??
-                              '0') ??
-                      0;
-                  if (instAmt > 0) {
-                    final instDate = DateTime.tryParse(
-                            endorsementDetails['installment${i}Time']
-                                    ?.toString() ??
-                                '') ??
-                        DateTime(2000);
-                    combinedDocs.add({
-                      'id': 'legacy_inst$i',
-                      'amount': instAmt,
-                      'date': Timestamp.fromDate(instDate),
-                      'mode': 'Cash',
-                      'description': 'Installment $i',
-                      'isLegacy': true
-                    });
-                  }
-                }
-              }
-
-              combinedDocs.sort((a, b) =>
-                  (b['date'] as Timestamp).compareTo(a['date'] as Timestamp));
-              if (combinedDocs.isEmpty)
-                return Center(
-                    child: Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: Text('No transactions yet',
-                            style:
-                                TextStyle(color: subTextColor, fontSize: 12))));
-
-              // Show only 2 items by default, expand to show all
-              final displayDocs = _isTransactionHistoryExpanded
-                  ? combinedDocs
-                  : combinedDocs.take(2).toList();
-              final hasMore = combinedDocs.length > 2;
-
-              return Column(
-                children: [
-                  ...displayDocs.map((data) {
-                    final date = (data['date'] as Timestamp).toDate();
-                    final isSelected =
-                        _selectedTransactionIds.contains(data['id']);
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                          color: isDark ? Colors.grey[900] : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
-                          border: isSelected
-                              ? Border.all(color: kAccentRed, width: 1)
-                              : null),
-                      child: CheckboxListTile(
-                        value: isSelected,
-                        activeColor: kAccentRed,
-                        controlAffinity: ListTileControlAffinity.leading,
-                        onChanged: (val) {
-                          setState(() {
-                            if (val == true)
-                              _selectedTransactionIds.add(data['id']);
-                            else
-                              _selectedTransactionIds.remove(data['id']);
-                          });
-                        },
-                        title: Text('Rs. ${data['amount']}',
-                            style: TextStyle(
-                                color: textColor,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 14)),
-                        subtitle: Text(
-                            '${DateFormat('dd MMM yyyy, hh:mm a').format(date)}\nMode: ${data['mode'] ?? 'N/A'}${data['note'] != null && data['note'].toString().trim().isNotEmpty ? '\nNote: ${data['note']}' : (data['description'] != null && data['description'].toString().trim().isNotEmpty ? '\n${data['description']}' : '')}',
-                            style:
-                                TextStyle(color: subTextColor, fontSize: 11)),
-                        secondary: data['isLegacy'] == true
-                            ? null
-                            : Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                      icon: const Icon(Icons.edit_outlined,
-                                          size: 20, color: Colors.blue),
-                                      onPressed: () =>
-                                          PaymentUtils.showEditPaymentDialog(
-                                              context: context,
-                                              docRef: FirebaseFirestore.instance
-                                                  .collection('users')
-                                                  .doc(targetId)
-                                                  .collection('endorsement')
-                                                  .doc(_docId),
-                                              paymentDoc: data['docRef'],
-                                              targetId: targetId,
-                                              category: 'endorsement'),
-                                      tooltip: 'Edit Payment'),
-                                  IconButton(
-                                      icon: const Icon(Icons.delete_outline,
-                                          size: 20, color: Colors.red),
-                                      onPressed: () =>
-                                          PaymentUtils.deletePayment(
-                                              context: context,
-                                              studentRef: FirebaseFirestore
-                                                  .instance
-                                                  .collection('users')
-                                                  .doc(targetId)
-                                                  .collection('endorsement')
-                                                  .doc(_docId),
-                                              paymentDoc: data['docRef'],
-                                              targetId: targetId),
-                                      tooltip: 'Delete Payment'),
-                                ],
-                              ),
-                        isThreeLine: true,
-                      ),
-                    );
-                  }).toList(),
-                  if (hasMore)
-                    TextButton.icon(
-                      onPressed: () {
-                        setState(() {
-                          _isTransactionHistoryExpanded =
-                              !_isTransactionHistoryExpanded;
-                        });
-                      },
-                      icon: Icon(
-                        _isTransactionHistoryExpanded
-                            ? Icons.expand_less
-                            : Icons.expand_more,
-                        color: kAccentRed,
-                      ),
-                      label: Text(
-                        _isTransactionHistoryExpanded
-                            ? 'Show Less'
-                            : 'Show ${combinedDocs.length - 2} More',
-                        style: const TextStyle(color: kAccentRed),
-                      ),
+          if (!hasAdditionalInfo)
+            Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.info_outline, size: 48, color: Colors.grey[400]),
+                    const SizedBox(height: 16),
+                    Text(
+                      'No additional information added',
+                      style: TextStyle(color: Colors.grey, fontSize: 14),
                     ),
-                ],
-              );
-            },
-          ),
-          StreamBuilder<QuerySnapshot>(
-            stream: _extraFeesStream,
-            builder: (context, feesSnapshot) {
-              if (!feesSnapshot.hasData || feesSnapshot.data!.docs.isEmpty)
-                return const SizedBox.shrink();
-              final feeDocs = feesSnapshot.data!.docs;
-              return Column(
+                  ],
+                ),
+              ),
+            )
+          else
+            SingleChildScrollView(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Divider(),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Additional Fees',
-                          style: TextStyle(
-                              color: textColor,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14)),
-                      if (_selectedTransactionIds.isNotEmpty)
-                        IconButton(
-                            icon: const Icon(Icons.receipt_long,
-                                color: kAccentRed),
-                            onPressed: _generateSelectedReceipts,
-                            tooltip: 'Generate Receipt for Selected',
-                            visualDensity: VisualDensity.compact),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ...feeDocs.map((doc) {
-                    final data = doc.data() as Map<String, dynamic>;
-                    final date = (data['date'] as Timestamp).toDate();
-                    final isPaid =
-                        (data['status']?.toString() ?? '').toLowerCase() ==
-                            'paid';
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: BoxDecoration(
-                          color: isDark ? Colors.grey[900] : Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
-                          border: _selectedTransactionIds.contains(doc.id)
-                              ? Border.all(color: kAccentRed, width: 1)
-                              : isPaid
-                                  ? Border.all(
-                                      color: Colors.green.withOpacity(0.4))
-                                  : null),
-                      child: Row(
-                        children: [
-                          Checkbox(
-                              value: _selectedTransactionIds.contains(doc.id),
-                              activeColor: kAccentRed,
-                              onChanged: isPaid
-                                  ? (val) {
-                                      setState(() {
-                                        if (val == true)
-                                          _selectedTransactionIds.add(doc.id);
-                                        else
-                                          _selectedTransactionIds
-                                              .remove(doc.id);
-                                      });
-                                    }
-                                  : null),
-                          Expanded(
-                              child: Padding(
-                                  padding:
-                                      const EdgeInsets.symmetric(vertical: 8.0),
-                                  child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(data['description'] ?? 'N/A',
-                                            style: TextStyle(
-                                                color: textColor,
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14)),
-                                        const SizedBox(height: 2),
-                                        Text('Rs. ${data['amount']}',
-                                            style: TextStyle(
-                                                color: textColor,
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 13)),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                            DateFormat('dd MMM yyyy')
-                                                .format(date),
-                                            style: TextStyle(
-                                                color: subTextColor,
-                                                fontSize: 11)),
-                                        if (isPaid &&
-                                            data['paymentMode'] != null) ...[
-                                          const SizedBox(height: 2),
-                                          Text('Mode: ${data['paymentMode']}',
-                                              style: TextStyle(
-                                                  color: subTextColor,
-                                                  fontSize: 11))
-                                        ],
-                                        if (data['note'] != null &&
-                                            data['note']
-                                                .toString()
-                                                .trim()
-                                                .isNotEmpty) ...[
-                                          const SizedBox(height: 2),
-                                          Text('Note: ${data['note']}',
-                                              style: TextStyle(
-                                                  color: subTextColor,
-                                                  fontSize: 11),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis)
-                                        ],
-                                      ]))),
-                          Column(mainAxisSize: MainAxisSize.min, children: [
-                            Row(mainAxisSize: MainAxisSize.min, children: [
-                              if (isPaid)
-                                const Padding(
-                                    padding: EdgeInsets.only(right: 8.0),
-                                    child: Chip(
-                                        label: Text('Paid',
-                                            style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 11)),
-                                        backgroundColor: Colors.green,
-                                        visualDensity: VisualDensity.compact,
-                                        padding: EdgeInsets.zero))
-                              else
-                                TextButton(
-                                    onPressed: () =>
-                                        PaymentUtils.showCollectExtraFeeDialog(
-                                            context: context,
-                                            docRef: FirebaseFirestore.instance
-                                                .collection('users')
-                                                .doc(targetId)
-                                                .collection('endorsement')
-                                                .doc(_docId),
-                                            feeDoc: doc,
-                                            targetId: targetId.toString(),
-                                            branchId: _workspaceController
-                                                .currentBranchId.value),
-                                    style: TextButton.styleFrom(
-                                        foregroundColor: Colors.green),
-                                    child: const Text('Collect',
-                                        style: TextStyle(fontSize: 12))),
-                            ]),
-                            Row(mainAxisSize: MainAxisSize.min, children: [
-                              IconButton(
-                                  icon: const Icon(Icons.edit_outlined,
-                                      size: 18, color: Colors.blue),
-                                  onPressed: () =>
-                                      PaymentUtils.showEditExtraFeeDialog(
-                                          context: context,
-                                          docRef: FirebaseFirestore.instance
-                                              .collection('users')
-                                              .doc(targetId)
-                                              .collection('endorsement')
-                                              .doc(_docId),
-                                          feeDoc: doc,
-                                          targetId: targetId.toString(),
-                                          category: 'endorsement'),
-                                  tooltip: 'Edit'),
-                              IconButton(
-                                  icon: const Icon(Icons.delete_outline,
-                                      size: 18, color: Colors.red),
-                                  onPressed: () => PaymentUtils.deleteExtraFee(
-                                      context: context,
-                                      docRef: FirebaseFirestore.instance
-                                          .collection('users')
-                                          .doc(targetId)
-                                          .collection('endorsement')
-                                          .doc(_docId),
-                                      feeDoc: doc,
-                                      targetId: targetId.toString()),
-                                  tooltip: 'Delete'),
-                            ]),
-                          ]),
-                        ],
+                  if ((additionalInfo['applicationNumber'] ?? '')
+                      .toString()
+                      .isNotEmpty)
+                    _buildInfoRow(
+                      'Application Number',
+                      additionalInfo['applicationNumber'].toString(),
+                      textColor,
+                      subTextColor,
+                    ),
+                  if ((additionalInfo['learnersLicenseNumber'] ?? '')
+                      .toString()
+                      .isNotEmpty)
+                    _buildInfoRow(
+                      "Learner's License Number",
+                      additionalInfo['learnersLicenseNumber'].toString(),
+                      textColor,
+                      subTextColor,
+                    ),
+                  if ((additionalInfo['learnersLicenseExpiry'] ?? '')
+                      .toString()
+                      .isNotEmpty)
+                    _buildInfoRow(
+                      "Learner's License Expiry",
+                      additionalInfo['learnersLicenseExpiry'].toString(),
+                      textColor,
+                      subTextColor,
+                    ),
+                  if ((additionalInfo['drivingLicenseNumber'] ?? '')
+                      .toString()
+                      .isNotEmpty)
+                    _buildInfoRow(
+                      'Driving License Number',
+                      additionalInfo['drivingLicenseNumber'].toString(),
+                      textColor,
+                      subTextColor,
+                    ),
+                  if ((additionalInfo['drivingLicenseExpiry'] ?? '')
+                      .toString()
+                      .isNotEmpty)
+                    _buildInfoRow(
+                      'Driving License Expiry',
+                      additionalInfo['drivingLicenseExpiry'].toString(),
+                      textColor,
+                      subTextColor,
+                    ),
+                  if (customFields.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Custom Fields',
+                      style:
+                          TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    const SizedBox(height: 8),
+                    ...customFields.entries.map(
+                      (e) => _buildInfoRow(
+                        e.key,
+                        e.value.toString(),
+                        textColor,
+                        subTextColor,
                       ),
-                    );
-                  }),
+                    ),
+                  ],
                 ],
-              );
-            },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(
+      String label, String value, Color textColor, Color subTextColor) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label.toUpperCase(),
+              style: TextStyle(
+                  color: subTextColor,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold)),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+                color: textColor, fontSize: 13, fontWeight: FontWeight.w500),
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _openEndorsementAdditionalInfoSheet(BuildContext context) async {
+    final additionalInfo =
+        endorsementDetails['additionalInfo'] as Map<String, dynamic>?;
+
+    final result = await showAdditionalInfoSheet(
+      context: context,
+      type: AdditionalInfoType.student,
+      collection: 'endorsement',
+      documentId: _docId,
+      existingData: additionalInfo,
+    );
+
+    if (result == true) {
+      try {
+        final service = AdditionalInfoService();
+        final updated = await service.getStudentTypeAdditionalInfo(
+          collection: 'endorsement',
+          documentId: _docId,
+        );
+        if (mounted && updated != null) {
+          setState(() {
+            endorsementDetails['additionalInfo'] = updated;
+          });
+        }
+      } catch (_) {
+        if (mounted) {
+          setState(() {});
+        }
+      }
+    }
+  }
+
+  void _showReceiveMoneyDialog(BuildContext context, String targetId) {
+    FirebaseFirestore.instance
+        .collection('users')
+        .doc(targetId)
+        .collection('endorsement')
+        .doc(_docId)
+        .get()
+        .then((snapshot) {
+      if (snapshot.exists) {
+        PaymentUtils.showReceiveMoneyDialog(
+          context: context,
+          doc: snapshot,
+          targetId: targetId,
+          branchId: _workspaceController.currentBranchId.value,
+          category: 'endorsement',
+        );
+      }
+    });
+  }
+
+  Future<void> _uploadDocument(BuildContext context, String targetId) async {
+    final ImagePicker picker = ImagePicker();
+    final XFile? image =
+        await picker.pickImage(source: ImageSource.gallery, imageQuality: 50);
+    if (image != null) {
+      final nameController = TextEditingController();
+      final bool? shouldUpload = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Document Name'),
+          content: TextField(
+            controller: nameController,
+            decoration: const InputDecoration(
+              hintText: 'Enter document name',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Upload'),
+            ),
+          ],
+        ),
+      );
+
+      if (shouldUpload == true && nameController.text.trim().isNotEmpty) {
+        try {
+          await LoadingUtils.wrapWithLoading(context, () async {
+            final url = await StorageService()
+                .uploadFile(file: image, path: 'service_docs/$_docId');
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(targetId)
+                .collection('endorsement')
+                .doc(_docId)
+                .collection('documents')
+                .add({
+              'name': nameController.text.trim(),
+              'url': url,
+              'timestamp': FieldValue.serverTimestamp(),
+              'status': 'Uploaded',
+            });
+          }, message: 'Uploading document...');
+          Get.snackbar('Success', 'Document uploaded.',
+              backgroundColor: Colors.green, colorText: Colors.white);
+        } catch (e) {
+          Get.snackbar('Error', 'Failed to upload document: $e');
+        }
+      }
+    }
+  }
+
+  Future<void> _deleteDocument(String docId, String targetId) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection('endorsement')
+          .doc(_docId)
+          .collection('documents')
+          .doc(docId)
+          .delete();
+      Get.snackbar('Success', 'Document deleted.',
+          backgroundColor: Colors.green, colorText: Colors.white);
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to delete document: $e');
+    }
+  }
+
+  Future<void> _editNotes(BuildContext context, {bool isNew = false}) async {
+    final controller = TextEditingController(
+      text: isNew ? '' : (endorsementDetails['remarks'] ?? ''),
+    );
+
+    final bool? shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Notes'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Enter notes or remarks',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSave != true) return;
+
+    final notes = controller.text.trim();
+    try {
+      final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+          ? _workspaceController.currentSchoolId.value
+          : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
+      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
+      var collection = 'endorsement';
+      var snap = await base.collection(collection).doc(_docId).get();
+      if (!snap.exists) {
+        final altSnap =
+            await base.collection('deactivated_endorsement').doc(_docId).get();
+        if (altSnap.exists) {
+          collection = 'deactivated_endorsement';
+        }
+      }
+      await base
+          .collection(collection)
+          .doc(_docId)
+          .set({'remarks': notes}, SetOptions(merge: true));
+
+      setState(() {
+        endorsementDetails['remarks'] = notes;
+      });
+
+      Get.snackbar(
+        'Success',
+        'Notes updated.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to update notes: $e',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
+  }
+
+  Future<void> _clearNotes(BuildContext context) async {
+    if ((endorsementDetails['remarks'] ?? '').toString().trim().isEmpty) {
+      return;
+    }
+
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Notes'),
+        content: const Text(
+          'Are you sure you want to delete all notes for this endorsement?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    try {
+      final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+          ? _workspaceController.currentSchoolId.value
+          : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
+      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
+      var collection = 'endorsement';
+      var snap = await base.collection(collection).doc(_docId).get();
+      if (!snap.exists) {
+        final altSnap =
+            await base.collection('deactivated_endorsement').doc(_docId).get();
+        if (altSnap.exists) {
+          collection = 'deactivated_endorsement';
+        }
+      }
+      await base
+          .collection(collection)
+          .doc(_docId)
+          .update({'remarks': FieldValue.delete()});
+
+      setState(() {
+        endorsementDetails.remove('remarks');
+      });
+
+      Get.snackbar(
+        'Success',
+        'Notes deleted.',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.green,
+        colorText: Colors.white,
+      );
+    } catch (e) {
+      Get.snackbar(
+        'Error',
+        'Failed to delete notes: $e',
+        snackPosition: SnackPosition.BOTTOM,
+        backgroundColor: Colors.red,
+        colorText: Colors.white,
+      );
+    }
   }
 
   Future<void> _generateSingleReceipt(Map<String, dynamic> transaction) async =>
@@ -1270,9 +1817,6 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
   }
 
   void _showPdfPreview(BuildContext context, Uint8List pdfBytes) {
-    final phone = endorsementDetails['mobileNumber'] ?? '';
-    final studentName = endorsementDetails['fullName'] ?? 'Student';
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1281,22 +1825,6 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
           studentName: endorsementDetails['fullName'],
           studentPhone: endorsementDetails['mobileNumber'],
           fileName: 'receipt_${endorsementDetails['fullName']}.pdf',
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInfoRow(
-      String label, String value, Color textColor, Color subTextColor) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: RichText(
-        text: TextSpan(
-          style: TextStyle(fontSize: 13, fontFamily: 'Inter', color: textColor),
-          children: [
-            TextSpan(text: '$label: ', style: TextStyle(color: subTextColor)),
-            TextSpan(text: value, style: TextStyle(color: textColor))
-          ],
         ),
       ),
     );
@@ -1393,5 +1921,24 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
       return;
     }
     if (pdfBytes != null && mounted) _showPdfPreview(context, pdfBytes);
+  }
+}
+
+class StatusBadge extends StatelessWidget {
+  final String text;
+  final Color color;
+  const StatusBadge({required this.text, required this.color, super.key});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: color.withOpacity(0.3))),
+      child: Text(text,
+          style: TextStyle(
+              color: color, fontSize: 10, fontWeight: FontWeight.bold)),
+    );
   }
 }

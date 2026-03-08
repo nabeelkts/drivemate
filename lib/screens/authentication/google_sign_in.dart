@@ -2,8 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:mds/utils/loading_utils.dart';
-import 'package:mds/screens/authentication/auth_page.dart';
+import 'package:drivemate/utils/loading_utils.dart';
+import 'package:drivemate/screens/authentication/auth_page.dart';
 import 'package:get/get.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 

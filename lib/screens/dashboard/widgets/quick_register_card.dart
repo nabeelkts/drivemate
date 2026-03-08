@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
+import 'package:drivemate/constants/colors.dart';
 import 'package:animate_do/animate_do.dart';
 
 class QuickRegisterCard extends StatelessWidget {

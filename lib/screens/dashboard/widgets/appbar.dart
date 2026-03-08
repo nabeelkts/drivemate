@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:iconly/iconly.dart';
-import 'package:mds/screens/dashboard/widgets/custom/custom_text.dart';
-import 'package:mds/screens/notification/notification_screen.dart';
+import 'package:drivemate/screens/dashboard/widgets/custom/custom_text.dart';
+import 'package:drivemate/screens/notification/notification_screen.dart';
 
 class DashAppBar extends StatelessWidget {
   // ignore: use_key_in_widget_constructors
@@ -14,9 +14,7 @@ class DashAppBar extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        CustomText(text: 'Drivemate',
-         textColor: textColor),
-
+        CustomText(text: 'Drivemate', textColor: textColor),
 
         // Text(
         //   'Drivemate',
@@ -33,7 +31,7 @@ class DashAppBar extends StatelessWidget {
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) =>  NotificationsScreen(), 
+                builder: (_) => NotificationsScreen(),
               ),
             );
           },

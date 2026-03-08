@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:mds/constants/constant.dart';
-import 'package:mds/controller/app_controller.dart';
-import 'package:mds/screens/dashboard/widgets/appbar.dart';
-import 'package:mds/screens/dashboard/widgets/monthly_revenue_card.dart';
-import 'package:mds/screens/dashboard/widgets/quick_register_card.dart';
-import 'package:mds/screens/dashboard/widgets/recent_activity_card.dart';
-import 'package:mds/screens/dashboard/widgets/school_news_card.dart';
-import 'package:mds/screens/dashboard/widgets/today_schedule_card.dart';
+import 'package:drivemate/constants/constant.dart';
+import 'package:drivemate/controller/app_controller.dart';
+import 'package:drivemate/screens/dashboard/widgets/appbar.dart';
+import 'package:drivemate/screens/dashboard/widgets/monthly_revenue_card.dart';
+import 'package:drivemate/screens/dashboard/widgets/quick_register_card.dart';
+import 'package:drivemate/screens/dashboard/widgets/recent_activity_card.dart';
+import 'package:drivemate/screens/dashboard/widgets/school_news_card.dart';
+import 'package:drivemate/screens/dashboard/widgets/today_schedule_card.dart';
 
 class Dashboard extends StatelessWidget {
   const Dashboard({super.key});

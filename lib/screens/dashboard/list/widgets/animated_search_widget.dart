@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
+import 'package:drivemate/constants/colors.dart';
 
 class AnimatedSearchWidget extends StatefulWidget {
   final TextEditingController controller;

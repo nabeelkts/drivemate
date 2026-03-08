@@ -1,13 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/dashboard/list/details/vehicle_details_page.dart';
-import 'package:mds/screens/profile/dialog_box.dart';
-import 'package:mds/screens/dashboard/list/widgets/list_item_card.dart';
-import 'package:mds/screens/widget/base_list_widget.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/dashboard/list/details/vehicle_details_page.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/list_item_card.dart';
+import 'package:drivemate/screens/widget/base_list_widget.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 import 'dart:math' as math;
 
 class DeactivatedVehicleDetailsList extends StatelessWidget {
@@ -19,7 +19,8 @@ class DeactivatedVehicleDetailsList extends StatelessWidget {
       title: 'Services Completed Vehicles',
       collectionName: 'deactivated_vehicleDetails',
       searchField: 'fullName',
-      secondarySearchField: 'mobileNumber', // Add mobile number search
+      secondarySearchField: 'mobileNumber',
+      summaryLabel: 'Total Completed:',
       onAddNew: null,
       onViewDeactivated: null,
       itemBuilder: (context, doc) {

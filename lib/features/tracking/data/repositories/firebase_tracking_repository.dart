@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'package:firebase_database/firebase_database.dart';
-import 'package:mds/features/tracking/data/models/driver_location_model.dart';
-import 'package:mds/features/tracking/data/repositories/tracking_repository.dart';
-import 'package:mds/features/tracking/domain/entities/driver_location.dart';
+import 'package:drivemate/features/tracking/data/models/driver_location_model.dart';
+import 'package:drivemate/features/tracking/data/repositories/tracking_repository.dart';
+import 'package:drivemate/features/tracking/domain/entities/driver_location.dart';
 
 class FirebaseTrackingRepository implements TrackingRepository {
   final FirebaseDatabase _database;

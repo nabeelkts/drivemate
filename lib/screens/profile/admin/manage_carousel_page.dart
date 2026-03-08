@@ -4,7 +4,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
 import 'package:get/get.dart';
-import 'package:mds/controller/theme_controller.dart';
+import 'package:drivemate/controller/theme_controller.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class ManageCarouselPage extends StatefulWidget {

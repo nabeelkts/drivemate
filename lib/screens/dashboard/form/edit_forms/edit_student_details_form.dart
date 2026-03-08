@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/screens/widget/common_form.dart';
-import 'package:mds/utils/date_utils.dart' as app_date_utils;
+import 'package:drivemate/screens/widget/common_form.dart';
+import 'package:drivemate/utils/date_utils.dart' as app_date_utils;
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 
 // ignore: must_be_immutable
 class EditStudentDetailsForm extends StatefulWidget {
@@ -300,9 +300,6 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
       if (user == null) {
         throw Exception('User not authenticated');
       }
-
-      final schoolId = workspaceController.currentSchoolId.value;
-      final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
 
       final studentId = widget.initialValues['studentId'];
       if (studentId == null || studentId.toString().isEmpty) {

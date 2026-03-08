@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/profile/admin/manage_staff_page.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/profile/admin/manage_staff_page.dart';
 
 class WorkspaceSection extends StatelessWidget {
   final Color cardColor;

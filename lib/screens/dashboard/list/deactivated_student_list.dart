@@ -5,16 +5,17 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/dashboard/form/edit_forms/edit_student_details_form.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/dashboard/form/edit_forms/edit_student_details_form.dart';
 import 'package:get/get.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
-import 'package:mds/screens/dashboard/list/widgets/animated_search_widget.dart';
-import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
-import 'package:mds/screens/dashboard/list/widgets/list_item_card.dart';
-import 'package:mds/screens/profile/dialog_box.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/dashboard/list/details/students_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/animated_search_widget.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/list_item_card.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/summary_header.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 
 class DeactivatedStudentList extends StatefulWidget {
   const DeactivatedStudentList({super.key});
@@ -88,6 +89,7 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final textColor = theme.textTheme.bodyLarge?.color ?? kBlack;
+    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
@@ -103,6 +105,31 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
       ),
       body: Column(
         children: [
+          // Summary Header - 40%-60% split
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection('users')
+                .doc(_workspaceController.currentSchoolId.value.isNotEmpty
+                    ? _workspaceController.currentSchoolId.value
+                    : FirebaseAuth.instance.currentUser?.uid)
+                .collection('deactivated_students')
+                .snapshots(),
+            builder: (context, snapshot) {
+              final docs = snapshot.data?.docs ?? [];
+              double totalDues = 0;
+              for (var doc in docs) {
+                totalDues += double.tryParse(
+                        doc.data()['balanceAmount']?.toString() ?? '0') ??
+                    0;
+              }
+              return ListSummaryHeader(
+                totalLabel: 'Total Completed:',
+                totalCount: docs.length,
+                pendingDues: totalDues,
+                isDark: isDark,
+              );
+            },
+          ),
           AnimatedSearchWidget(
             primaryPlaceholder: 'Search by Name',
             secondaryPlaceholder: 'Search by Mobile Number',

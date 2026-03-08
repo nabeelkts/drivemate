@@ -1,0 +1,15 @@
+{
+  "name": "firestore-supabase-backup",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Daily backup of Firestore data to Supabase Storage",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^7.10.0",
+    "@supabase/supabase-js": "^2.43.1"
+  }
+}

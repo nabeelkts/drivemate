@@ -44,7 +44,7 @@ When a document is soft deleted, the following fields are added:
 
 Add this to your routes configuration:
 ```dart
-import 'package:mds/screens/recycle_bin/recycle_bin_screen.dart';
+import 'package:drivemate/screens/recycle_bin/recycle_bin_screen.dart';
 
 // In your routes
 '/recycle-bin': (context) => const RecycleBinScreen(),
@@ -68,7 +68,7 @@ ListTile(
 Replace your existing delete buttons with `SoftDeleteButton`:
 
 ```dart
-import 'package:mds/widgets/soft_delete_button.dart';
+import 'package:drivemate/widgets/soft_delete_button.dart';
 
 // In your detail page app bar
 AppBar(

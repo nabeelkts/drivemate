@@ -5,8 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'dart:io';
 
 class TodaysTests extends StatefulWidget {

@@ -1,6 +1,6 @@
 import 'package:get/get.dart';
-import 'package:mds/carousel/home_binding.dart';
-import 'package:mds/screens/dashboard/dashboard.dart';
+import 'package:drivemate/carousel/home_binding.dart';
+import 'package:drivemate/screens/dashboard/dashboard.dart';
 
 import 'app_routes.dart';
 

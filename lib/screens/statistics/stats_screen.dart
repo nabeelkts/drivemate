@@ -1,24 +1,24 @@
 import 'package:async/async.dart'; // Import the async package
-import 'package:mds/utils/stream_utils.dart';
+import 'package:drivemate/utils/stream_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/constants/constant.dart';
-import 'package:mds/screens/dashboard/list/details/endorsement_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/license_only_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/rc_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/vehicle_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/dl_service_details_page.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/constants/constant.dart';
+import 'package:drivemate/screens/dashboard/list/details/endorsement_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/license_only_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/rc_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/students_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/vehicle_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/dl_service_details_page.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:mds/screens/dashboard/widgets/custom/custom_text.dart';
-import 'package:mds/screens/statistics/receive_money.dart';
+import 'package:drivemate/screens/dashboard/widgets/custom/custom_text.dart';
+import 'package:drivemate/screens/statistics/receive_money.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/utils/revenue_utils.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/utils/revenue_utils.dart';
 import 'package:shimmer/shimmer.dart';
 
 class StatsScreen extends StatefulWidget {

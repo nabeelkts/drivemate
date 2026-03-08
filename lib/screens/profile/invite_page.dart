@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_contacts/flutter_contacts.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -36,8 +36,10 @@ class _InvitePageState extends State<InvitePage> with TickerProviderStateMixin {
   List<Contact> _contacts = [];
   bool _hasPermission = false;
 
+  // Update this to your Play Store URL after publishing
+  // Format: https://play.google.com/store/apps/details?id=com.drivemate.mds
   static const String _appDownloadLink =
-      'https://github.com/nabeelkts/drivemate/releases/latest/download/drivemate.apk';
+      'https://play.google.com/store/apps/details?id=com.drivemate.mds';
 
   static const String _referralMessage =
       '🚗 Join me on Drivemate - the smart driving school management app!\n\n'

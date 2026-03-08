@@ -3,10 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/dashboard/list/details/vehicle_details_page.dart';
-import 'package:mds/screens/widget/base_form_widget.dart';
-import 'package:mds/screens/widget/utils.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/dashboard/list/details/vehicle_details_page.dart';
+import 'package:drivemate/screens/widget/base_form_widget.dart';
+import 'package:drivemate/screens/widget/utils.dart';
 
 class VehicleDetails extends StatefulWidget {
   const VehicleDetails({super.key});

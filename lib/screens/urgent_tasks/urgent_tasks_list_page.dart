@@ -1,17 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/models/urgent_task_model.dart';
-import 'package:mds/services/urgent_task_service.dart';
-import 'package:mds/screens/dashboard/list/details/students_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/license_only_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/endorsement_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/dl_service_details_page.dart';
-import 'package:mds/screens/dashboard/list/details/rc_details_page.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/models/urgent_task_model.dart';
+import 'package:drivemate/services/urgent_task_service.dart';
+import 'package:drivemate/screens/dashboard/list/details/students_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/license_only_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/endorsement_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/dl_service_details_page.dart';
+import 'package:drivemate/screens/dashboard/list/details/rc_details_page.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:drivemate/widgets/urgent_task_card.dart';
 
 /// Full list page showing all urgent tasks sorted by expiry date
 class UrgentTasksListPage extends StatefulWidget {
@@ -68,6 +69,9 @@ class _UrgentTasksListPageState extends State<UrgentTasksListPage>
         _allTasks = tasks;
         _isLoading = false;
       });
+
+      // Refresh the cached tasks in UrgentTaskCard
+      UrgentTaskCard.refreshTasks();
     } catch (e) {
       setState(() => _isLoading = false);
       ScaffoldMessenger.of(context).showSnackBar(

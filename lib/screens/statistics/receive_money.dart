@@ -3,12 +3,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
-import 'package:mds/screens/dashboard/list/widgets/search_widget.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/search_widget.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/utils/payment_utils.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/utils/payment_utils.dart';
 
 class ReceiveMoneyPage extends StatefulWidget {
   const ReceiveMoneyPage({super.key});

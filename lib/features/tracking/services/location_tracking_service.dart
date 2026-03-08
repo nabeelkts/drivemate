@@ -4,8 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
-import 'package:mds/features/tracking/data/repositories/tracking_repository.dart';
-import 'package:mds/features/tracking/domain/entities/driver_location.dart';
+import 'package:drivemate/features/tracking/data/repositories/tracking_repository.dart';
+import 'package:drivemate/features/tracking/domain/entities/driver_location.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 
 /// Service for tracking driver location in real-time
@@ -51,12 +51,6 @@ class LocationTrackingService extends GetxService {
   static const int _pathWriteIntervalSeconds = 15; // or every 15s
   double _distanceSinceLastPathWrite = 0.0;
   DateTime? _lastPathWriteTime;
-
-  @override
-  void onInit() {
-    super.onInit();
-    checkLocationPermission();
-  }
 
   Future<bool> checkLocationPermission() async {
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -261,8 +255,10 @@ class LocationTrackingService extends GetxService {
       ).then((position) {
         _lastPosition = position;
         _updateLocation(position);
-      }).catchError((e) => print(
-          'Initial position error: $e')); // ignore: invalid_return_type_for_catch_error
+      }).onError((e, _) {
+        print('Initial position error: $e');
+        return null; // ignore: invalid_return_type_for_catch_error
+      });
 
       _positionStreamSubscription =
           Geolocator.getPositionStream(locationSettings: locationSettings)

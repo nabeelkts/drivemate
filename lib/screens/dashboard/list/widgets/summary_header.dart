@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:mds/constants/colors.dart';
+import 'package:drivemate/constants/colors.dart';
 
 class ListSummaryHeader extends StatelessWidget {
   final String totalLabel;
@@ -26,7 +26,9 @@ class ListSummaryHeader extends StatelessWidget {
       padding: const EdgeInsets.all(16.0),
       child: Row(
         children: [
-          Expanded(
+          // Total Records - 40%
+          Flexible(
+            flex: 4,
             child: _buildSummaryCard(
               context: context,
               label: totalLabel,
@@ -37,7 +39,9 @@ class ListSummaryHeader extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Expanded(
+          // Pending Dues - 60%
+          Flexible(
+            flex: 6,
             child: _buildSummaryCard(
               context: context,
               label: 'Pending Dues:',

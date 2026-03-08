@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:mds/constants/constant.dart';
-import 'package:mds/screens/dashboard/widgets/registration_icons.dart';
-import 'package:mds/screens/dashboard/widgets/shortcut_icon.dart';
+import 'package:drivemate/constants/constant.dart';
+import 'package:drivemate/screens/dashboard/widgets/registration_icons.dart';
+import 'package:drivemate/screens/dashboard/widgets/shortcut_icon.dart';
 
 class RegistrationHeader extends StatelessWidget {
   const RegistrationHeader({super.key});
@@ -49,16 +49,16 @@ class RegistrationHeader extends StatelessWidget {
           ),
         ),
         kSizedBox,
-         Text(
-           'Recent Activity',
-           style: TextStyle(
-             color: textColor,
-             fontSize: 16,
-             fontFamily: 'Inter',
-             fontWeight: FontWeight.w600,
-             height: 0,
-           ),
-         ),
+        Text(
+          'Recent Activity',
+          style: TextStyle(
+            color: textColor,
+            fontSize: 16,
+            fontFamily: 'Inter',
+            fontWeight: FontWeight.w600,
+            height: 0,
+          ),
+        ),
         kSizedBox,
         const ShortcutIcon(),
         kSizedBox,

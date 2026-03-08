@@ -1,7 +1,7 @@
 ﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:get/get.dart';
-import 'package:mds/services/subscription_service.dart';
+import 'package:drivemate/services/subscription_service.dart';
 
 class WorkspaceController extends GetxController {
   final _firestore = FirebaseFirestore.instance;

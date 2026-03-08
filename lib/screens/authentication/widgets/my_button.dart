@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:mds/constants/colors.dart';
+import 'package:drivemate/constants/colors.dart';
 
 class MyButton extends StatelessWidget {
   final Function()? onTap;

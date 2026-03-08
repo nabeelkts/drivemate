@@ -4,23 +4,23 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:mds/constants/colors.dart';
-import 'package:mds/controller/app_controller.dart';
-import 'package:mds/controller/theme_controller.dart';
+import 'package:drivemate/constants/colors.dart';
+import 'package:drivemate/controller/app_controller.dart';
+import 'package:drivemate/controller/theme_controller.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import 'package:mds/screens/profile/widgets/profile_header.dart';
-import 'package:mds/screens/profile/widgets/subscription_card.dart';
-import 'package:mds/screens/profile/admin/organization_management_page.dart';
-import 'package:mds/controller/workspace_controller.dart';
+import 'package:drivemate/screens/profile/widgets/profile_header.dart';
+import 'package:drivemate/screens/profile/widgets/subscription_card.dart';
+import 'package:drivemate/screens/profile/admin/organization_management_page.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import 'package:mds/screens/profile/dialog_box.dart';
-import 'package:mds/services/subscription_service.dart';
-import 'package:mds/screens/profile/admin/admin_subscription_page.dart';
-import 'package:mds/screens/profile/settings_page.dart';
-import 'package:mds/screens/profile/about_page.dart'; // ← new
-import 'package:mds/screens/recycle_bin/recycle_bin_screen.dart'; // Recycle Bin
+import 'package:drivemate/screens/profile/dialog_box.dart';
+import 'package:drivemate/services/subscription_service.dart';
+import 'package:drivemate/screens/profile/admin/admin_subscription_page.dart';
+import 'package:drivemate/screens/profile/settings_page.dart';
+import 'package:drivemate/screens/profile/about_page.dart'; // ← new
+import 'package:drivemate/screens/recycle_bin/recycle_bin_screen.dart'; // Recycle Bin
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onSubscriptionRenewed;
@@ -38,8 +38,7 @@ class _ProfileScreenState extends State<ProfileScreen>
   final appController = Get.put(AppController());
   late final ThemeController themeController;
   bool isDarkMode = false;
-  bool notificationsEnabled = true;
-  bool biometricEnabled = false;
+  // Settings are now reactive via AppController
   bool canCheckBiometrics = false;
   User? _currentUser;
   String _lastLoginTime = '';
@@ -70,8 +69,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     _currentUser = FirebaseAuth.instance.currentUser;
     isDarkMode = box.read('isDarkMode') ??
         (themeController.themeMode.value == ThemeMode.dark);
-    notificationsEnabled = box.read('notificationsEnabled') ?? true;
-    biometricEnabled = box.read('biometricEnabled') ?? false;
+
+    // Settings are now handled by AppController reactive variables
+    canCheckBiometrics = await auth.canCheckBiometrics;
     _lastLoginTime = box.read('lastLoginTime') ??
         DateFormat('dd/MM/yyyy hh:mm a').format(DateTime.now());
 
@@ -131,10 +131,10 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   void toggleNotifications() {
     if (!mounted) return;
-    setState(() {
-      notificationsEnabled = !notificationsEnabled;
-      box.write('notificationsEnabled', notificationsEnabled);
-    });
+    appController.notificationsEnabled.value =
+        !appController.notificationsEnabled.value;
+    box.write('notificationsEnabled', appController.notificationsEnabled.value);
+    setState(() {}); // Keep local if used elsewhere, but reactive handles UI
   }
 
   Future<void> toggleBiometric() async {
@@ -149,7 +149,7 @@ class _ProfileScreenState extends State<ProfileScreen>
       return;
     }
 
-    if (!biometricEnabled) {
+    if (!appController.biometricEnabled.value) {
       try {
         final available = await auth.getAvailableBiometrics();
         if (available.isEmpty) {
@@ -172,10 +172,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         );
 
         if (authenticated && mounted) {
-          setState(() {
-            biometricEnabled = true;
-            box.write('biometricEnabled', true);
-          });
+          appController.biometricEnabled.value = true;
+          box.write('biometricEnabled', true);
+          setState(() {});
           ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
             content: Text('Biometric login enabled'),
             duration: Duration(seconds: 2),
@@ -190,10 +189,9 @@ class _ProfileScreenState extends State<ProfileScreen>
         }
       }
     } else if (mounted) {
-      setState(() {
-        biometricEnabled = false;
-        box.write('biometricEnabled', false);
-      });
+      appController.biometricEnabled.value = false;
+      box.write('biometricEnabled', false);
+      setState(() {});
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text('Biometric login disabled'),
         duration: Duration(seconds: 2),
@@ -326,14 +324,16 @@ class _ProfileScreenState extends State<ProfileScreen>
                         await Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (_) => SettingsPage(
-                              toggleTheme: toggleTheme,
-                              isDarkMode: isDarkMode,
-                              notificationsEnabled: notificationsEnabled,
-                              toggleNotifications: toggleNotifications,
-                              biometricEnabled: biometricEnabled,
-                              toggleBiometric: toggleBiometric,
-                            ),
+                            builder: (_) => Obx(() => SettingsPage(
+                                  toggleTheme: toggleTheme,
+                                  isDarkMode: isDarkMode,
+                                  notificationsEnabled:
+                                      appController.notificationsEnabled.value,
+                                  toggleNotifications: toggleNotifications,
+                                  biometricEnabled:
+                                      appController.biometricEnabled.value,
+                                  toggleBiometric: toggleBiometric,
+                                )),
                           ),
                         );
                         _workspaceController.refreshAppData();

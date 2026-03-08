@@ -3,13 +3,13 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:iconly/iconly.dart';
-import 'package:mds/utils/date_utils.dart';
+import 'package:drivemate/utils/date_utils.dart';
 import 'package:get/get.dart';
-import 'package:mds/screens/widget/custom_back_button.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/screens/dashboard/list/widgets/shimmer_loading_list.dart';
-import 'package:mds/screens/dashboard/list/widgets/animated_search_widget.dart';
-import 'package:mds/screens/dashboard/list/widgets/list_item_card.dart';
+import 'package:drivemate/screens/widget/custom_back_button.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/animated_search_widget.dart';
+import 'package:drivemate/screens/dashboard/list/widgets/list_item_card.dart';
 
 class TestDateUpdaterScreen extends StatefulWidget {
   const TestDateUpdaterScreen({super.key});
@@ -99,9 +99,6 @@ class _TestDateUpdaterScreenState extends State<TestDateUpdaterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Update Test Dates'),
@@ -198,8 +195,9 @@ class _TestDateUpdaterScreenState extends State<TestDateUpdaterScreen> {
                 child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
-                await _updateDates(item, tempLLStorage, tempDLStorage);
+                // Close dialog first, then update
                 Navigator.pop(context);
+                await _updateDates(item, tempLLStorage, tempDLStorage);
               },
               child: const Text('Update'),
             ),

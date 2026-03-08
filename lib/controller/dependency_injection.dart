@@ -1,14 +1,14 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:get/get.dart';
-import 'package:mds/controller/network_controller.dart';
-import 'package:mds/controller/app_controller.dart';
-import 'package:mds/controller/workspace_controller.dart';
-import 'package:mds/services/app_lifecycle_service.dart';
-import 'package:mds/features/tracking/data/repositories/firebase_tracking_repository.dart';
-import 'package:mds/features/tracking/data/repositories/tracking_repository.dart';
-import 'package:mds/features/tracking/services/location_tracking_service.dart';
-import 'package:mds/controller/permission_controller.dart';
+import 'package:drivemate/controller/network_controller.dart';
+import 'package:drivemate/controller/app_controller.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/services/app_lifecycle_service.dart';
+import 'package:drivemate/features/tracking/data/repositories/firebase_tracking_repository.dart';
+import 'package:drivemate/features/tracking/data/repositories/tracking_repository.dart';
+import 'package:drivemate/features/tracking/services/location_tracking_service.dart';
+import 'package:drivemate/controller/permission_controller.dart';
 
 class DependencyInjection {
   static void init() {
