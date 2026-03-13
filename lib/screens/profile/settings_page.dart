@@ -155,8 +155,7 @@ class SettingsPage extends StatelessWidget {
       'Logout',
       'Are you sure you want to logout?',
       () async {
-        // Close confirmation dialog first
-        Navigator.pop(context);
+        // Navigator.pop is now handled automatically by showCustomConfirmationDialog
         final provider =
             Provider.of<GoogleSignInProvider>(context, listen: false);
         await provider.signOut(context);

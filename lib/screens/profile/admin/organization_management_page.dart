@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:iconly/iconly.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:drivemate/constants/colors.dart';
@@ -625,24 +626,18 @@ class OrganizationManagementPage extends StatelessWidget {
   }
 
   void _confirmLeave(BuildContext context, WorkspaceController controller) {
-    Get.dialog(
-      AlertDialog(
-        title: const Text('Leave Branch?'),
-        content: const Text(
-            'Are you sure you want to leave this branch? You will need an invite to join again.'),
-        actions: [
-          TextButton(onPressed: () => Get.back(), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              await controller.leaveBranch();
-              Get.back();
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Leave'),
-          ),
-        ],
-      ),
+    showCustomConfirmationDialog(
+      context,
+      'Leave Branch?',
+      'Are you sure you want to leave this branch? You will need an invite to join again.',
+      () async {
+        await controller.leaveBranch();
+        // Navigator.pop(context) once will close the dialog
+        // showCustomConfirmationDialog will then automatically pop AGAIN, closing the page
+        Navigator.of(context).pop();
+      },
+      confirmText: 'Leave',
+      cancelText: 'Cancel',
     );
   }
 }

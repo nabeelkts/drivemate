@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:path_provider/path_provider.dart';
 import 'package:get/get.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'dart:io';
@@ -260,144 +261,133 @@ class _TodaysTestsState extends State<TodaysTests> {
                     .format(DateTime.parse(student['drivingTestDate']))
                 : '');
 
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Edit License Details'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: licenseNumberController,
-                decoration: const InputDecoration(labelText: 'License Number'),
+    final bool? confirmed = await showCustomStatefulDialogResult<bool>(
+      context,
+      'Edit License Details',
+      (ctx, setDialogState, choose) => SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: licenseNumberController,
+              decoration: const InputDecoration(labelText: 'License Number'),
+            ),
+            TextField(
+              controller: licenseExpiryController,
+              decoration: const InputDecoration(
+                labelText: 'License Expiry Date',
+                hintText: 'DD-MM-YYYY',
               ),
-              TextField(
-                controller: licenseExpiryController,
-                decoration: const InputDecoration(
-                  labelText: 'License Expiry Date',
-                  hintText: 'DD-MM-YYYY',
-                ),
-                readOnly: true,
-                onTap: () async {
-                  final date = await showDatePicker(
-                    context: context,
-                    initialDate: student['licenseExpiry'] != null
-                        ? DateTime.parse(student['licenseExpiry'])
-                        : DateTime.now(),
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
-                  );
-                  if (date != null) {
-                    licenseExpiryController.text =
-                        displayDateFormat.format(date);
-                  }
-                },
+              readOnly: true,
+              onTap: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: student['licenseExpiry'] != null
+                      ? DateTime.parse(student['licenseExpiry'])
+                      : DateTime.now(),
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                );
+                if (date != null) {
+                  licenseExpiryController.text = displayDateFormat.format(date);
+                }
+              },
+            ),
+            TextField(
+              controller: learnersDateController,
+              decoration: const InputDecoration(
+                labelText: 'Learners Test Date',
+                hintText: 'DD-MM-YYYY',
               ),
-              TextField(
-                controller: learnersDateController,
-                decoration: const InputDecoration(
-                  labelText: 'Learners Test Date',
-                  hintText: 'DD-MM-YYYY',
-                ),
-                readOnly: true,
-                onTap: () async {
-                  final date = await showDatePicker(
-                    context: context,
-                    initialDate: student['learnersTestDate'] != null
-                        ? DateTime.parse(student['learnersTestDate'])
-                        : DateTime.now(),
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
-                  );
-                  if (date != null) {
-                    learnersDateController.text =
-                        displayDateFormat.format(date);
-                  }
-                },
+              readOnly: true,
+              onTap: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: student['learnersTestDate'] != null
+                      ? DateTime.parse(student['learnersTestDate'])
+                      : DateTime.now(),
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                );
+                if (date != null) {
+                  learnersDateController.text = displayDateFormat.format(date);
+                }
+              },
+            ),
+            TextField(
+              controller: drivingTestDateController,
+              decoration: const InputDecoration(
+                labelText: 'Driving Test Date',
+                hintText: 'DD-MM-YYYY',
               ),
-              TextField(
-                controller: drivingTestDateController,
-                decoration: const InputDecoration(
-                  labelText: 'Driving Test Date',
-                  hintText: 'DD-MM-YYYY',
-                ),
-                readOnly: true,
-                onTap: () async {
-                  final date = await showDatePicker(
-                    context: context,
-                    initialDate: student['drivingTestDate'] != null
-                        ? DateTime.parse(student['drivingTestDate'])
-                        : DateTime.now(),
-                    firstDate: DateTime(2000),
-                    lastDate: DateTime(2100),
-                  );
-                  if (date != null) {
-                    drivingTestDateController.text =
-                        displayDateFormat.format(date);
-                  }
-                },
-              ),
-            ],
-          ),
+              readOnly: true,
+              onTap: () async {
+                final date = await showDatePicker(
+                  context: context,
+                  initialDate: student['drivingTestDate'] != null
+                      ? DateTime.parse(student['drivingTestDate'])
+                      : DateTime.now(),
+                  firstDate: DateTime(2000),
+                  lastDate: DateTime(2100),
+                );
+                if (date != null) {
+                  drivingTestDateController.text =
+                      displayDateFormat.format(date);
+                }
+              },
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () async {
-              try {
-                final user = FirebaseAuth.instance.currentUser;
-                final WorkspaceController workspaceController =
-                    Get.find<WorkspaceController>();
-                if (user == null) return;
-
-                final schoolId = workspaceController.currentSchoolId.value;
-                final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
-
-                await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(targetId)
-                    .collection(student['_collection'] ?? 'students')
-                    .doc(student['id'])
-                    .update({
-                  'licenseNumber': licenseNumberController.text,
-                  'licenseExpiry': licenseExpiryController.text.isNotEmpty
-                      ? storageDateFormat.format(
-                          displayDateFormat.parse(licenseExpiryController.text))
-                      : null,
-                  'learnersTestDate': learnersDateController.text.isNotEmpty
-                      ? storageDateFormat.format(
-                          displayDateFormat.parse(learnersDateController.text))
-                      : null,
-                  'drivingTestDate': drivingTestDateController.text.isNotEmpty
-                      ? storageDateFormat.format(displayDateFormat
-                          .parse(drivingTestDateController.text))
-                      : null,
-                });
-                if (mounted) {
-                  Navigator.pop(context);
-                  fetchStudents();
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text('License details updated successfully')),
-                  );
-                }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error updating license: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('Save'),
-          ),
-        ],
       ),
+      confirmText: 'Save',
+      cancelText: 'Cancel',
+      onConfirmResult: () => true,
     );
+    if (confirmed == true) {
+      try {
+        final user = FirebaseAuth.instance.currentUser;
+        final WorkspaceController workspaceController =
+            Get.find<WorkspaceController>();
+        if (user == null) return;
+
+        final schoolId = workspaceController.currentSchoolId.value;
+        final targetId = schoolId.isNotEmpty ? schoolId : user.uid;
+
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection(student['_collection'] ?? 'students')
+            .doc(student['id'])
+            .update({
+          'licenseNumber': licenseNumberController.text,
+          'licenseExpiry': licenseExpiryController.text.isNotEmpty
+              ? storageDateFormat
+                  .format(displayDateFormat.parse(licenseExpiryController.text))
+              : null,
+          'learnersTestDate': learnersDateController.text.isNotEmpty
+              ? storageDateFormat
+                  .format(displayDateFormat.parse(learnersDateController.text))
+              : null,
+          'drivingTestDate': drivingTestDateController.text.isNotEmpty
+              ? storageDateFormat.format(
+                  displayDateFormat.parse(drivingTestDateController.text))
+              : null,
+        });
+        if (mounted) {
+          fetchStudents();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content: Text('License details updated successfully')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Error updating license: $e')),
+          );
+        }
+      }
+    }
   }
 
   Future<void> _editEndorsementDetails(Map<String, dynamic> student) async {

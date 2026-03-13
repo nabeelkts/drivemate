@@ -284,13 +284,15 @@ class _DeactivatedVehicleListState extends State<DeactivatedVehicleList> {
       'Are you sure ?',
       () async {
         await _activateData(documentId);
-        Navigator.of(context).pop();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const DeactivatedVehicleList(),
-          ),
-        );
+        // Navigator.pop is now handled automatically by showCustomConfirmationDialog
+        if (context.mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DeactivatedVehicleList(),
+            ),
+          );
+        }
       },
     );
   }

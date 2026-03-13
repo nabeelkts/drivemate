@@ -984,6 +984,8 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
   Widget _buildNotesTab(BuildContext context) {
     final hasNotes =
         (vehicleDetails['remarks'] ?? '').toString().trim().isNotEmpty;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1020,13 +1022,18 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
           width: double.infinity,
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.yellow[50],
+            color: isDark ? Colors.grey[900] : Colors.yellow[50],
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.yellow[200]!),
+            border: Border.all(
+              color: isDark ? Colors.grey[800]! : Colors.yellow[200]!,
+            ),
           ),
           child: Text(
             hasNotes ? vehicleDetails['remarks'] : 'No remarks added yet.',
-            style: const TextStyle(fontStyle: FontStyle.italic),
+            style: TextStyle(
+              fontStyle: FontStyle.italic,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
           ),
         ),
       ],

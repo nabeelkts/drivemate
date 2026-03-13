@@ -1,3 +1,4 @@
+import 'package:drivemate/screens/dashboard/list/details/dl_service_details_page.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:drivemate/controller/workspace_controller.dart';
@@ -28,7 +29,12 @@ class DeactivatedDlServicesList extends StatelessWidget {
       summaryLabel: 'Total Completed:',
       // No add button for deactivated list
       itemBuilder: (context, doc) {
-        final data = doc.data();
+        final data = Map<String, dynamic>.from(doc.data());
+        // Inject document ID for navigation to details pages
+        data['studentId'] = doc.id;
+        data['recordId'] = doc.id;
+        data['id'] = doc.id;
+
         final isDark = Theme.of(context).brightness == Brightness.dark;
         return ListItemCard(
           title: data['fullName'] ?? 'N/A',
@@ -37,9 +43,14 @@ class DeactivatedDlServicesList extends StatelessWidget {
           imageUrl: data['image'],
           isDark: isDark,
           onTap: () {
-            // Optional: Show details or restore
-            // For now, just showing a dialog to restore
-            _showMenuOptions(context, doc, userId);
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => DlServiceDetailsPage(
+                  serviceDetails: data,
+                ),
+              ),
+            );
           },
           onMenuPressed: () {
             _showMenuOptions(context, doc, userId);
@@ -98,9 +109,7 @@ class DeactivatedDlServicesList extends StatelessWidget {
       'Are you sure you want to restore this service to active list?',
       () async {
         await _restoreData(documentId, serviceData, userId);
-        if (context.mounted) {
-          Navigator.of(context).pop();
-        }
+        // Navigator.pop is now handled automatically by showCustomConfirmationDialog
       },
     );
   }
@@ -113,9 +122,7 @@ class DeactivatedDlServicesList extends StatelessWidget {
       'Are you sure you want to PERMANENTLY delete this record?',
       () async {
         await _deleteForever(documentId, userId);
-        if (context.mounted) {
-          Navigator.of(context).pop();
-        }
+        // Navigator.pop is now handled automatically by showCustomConfirmationDialog
       },
     );
   }

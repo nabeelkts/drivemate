@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:drivemate/utils/revenue_utils.dart';
@@ -29,10 +30,20 @@ class DashboardLayout2 extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black87;
 
-    return SafeArea(
-      child: Scaffold(
-        backgroundColor: isDark ? const Color(0xFF1a1a1a) : Colors.grey.shade50,
-        body: Obx(() {
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF1a1a1a) : Colors.grey.shade50,
+      appBar: AppBar(
+        toolbarHeight: 0,
+        elevation: 0,
+        backgroundColor: isDark ? Colors.black : Colors.white,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        ),
+      ),
+      body: SafeArea(
+        child: Obx(() {
           // Re-derive targetId inside Obx to trigger rebuilds
           final schoolId = workspaceController.currentSchoolId.value;
           final user = FirebaseAuth.instance.currentUser;

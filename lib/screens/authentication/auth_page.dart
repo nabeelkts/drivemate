@@ -21,6 +21,10 @@ class AuthPage extends StatefulWidget {
 
 class _AuthPageState extends State<AuthPage> {
   bool isFirstTime = true;
+  bool _isAllowedDemoEmail(String? email) {
+    if (email == null) return false;
+    return email.toLowerCase() == 'demodrivemate@gmail.com';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -36,59 +40,63 @@ class _AuthPageState extends State<AuthPage> {
 
             if (snapshot.hasData) {
               final user = snapshot.data!;
-              if (user.emailVerified) {
-                return StreamBuilder<DocumentSnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('users')
-                      .doc(user.uid)
-                      .snapshots(),
-                  builder: (context, userSnapshot) {
-                    if (userSnapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return const Center(child: CircularProgressIndicator());
-                    }
+              return StreamBuilder<DocumentSnapshot>(
+                stream: FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(user.uid)
+                    .snapshots(),
+                builder: (context, userSnapshot) {
+                  if (userSnapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-                    if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+                  final hasUserDoc =
+                      userSnapshot.hasData && userSnapshot.data!.exists;
+                  final Map<String, dynamic> userData = hasUserDoc
+                      ? (userSnapshot.data!.data() as Map<String, dynamic>)
+                      : {};
+                  final bool canBypassVerification =
+                      user.emailVerified || _isAllowedDemoEmail(user.email);
+
+                  if (!canBypassVerification) {
+                    if (isFirstTime) {
+                      isFirstTime = false;
+                      return const EmailVerification();
+                    } else {
+                      return const LoginOrRegisterScreen();
+                    }
+                  }
+
+                  if (!hasUserDoc) {
+                    return const RoleSelectionPage();
+                  }
+
+                  final String? role = userData['role'];
+                  final bool hasRoleSelected =
+                      userData['hasRoleSelected'] ?? false;
+
+                  if (role == null || !hasRoleSelected) {
+                    return const RoleSelectionPage();
+                  }
+
+                  if (role == 'Owner') {
+                    final bool hasCompanyProfile =
+                        userData['hasCompanyProfile'] ?? false;
+                    if (!hasCompanyProfile) {
+                      return const EditCompanyProfile(isRegistration: true);
+                    }
+                  } else if (role == 'Staff') {
+                    final String? schoolId = userData['schoolId'];
+                    if (schoolId == null ||
+                        schoolId.isEmpty ||
+                        schoolId == user.uid) {
                       return const RoleSelectionPage();
                     }
+                  }
 
-                    final userData =
-                        userSnapshot.data!.data() as Map<String, dynamic>;
-                    final String? role = userData['role'];
-                    final bool hasRoleSelected =
-                        userData['hasRoleSelected'] ?? false;
-
-                    if (role == null || !hasRoleSelected) {
-                      return const RoleSelectionPage();
-                    }
-
-                    if (role == 'Owner') {
-                      final bool hasCompanyProfile =
-                          userData['hasCompanyProfile'] ?? false;
-                      if (!hasCompanyProfile) {
-                        return const EditCompanyProfile(isRegistration: true);
-                      }
-                    } else if (role == 'Staff') {
-                      final String? schoolId = userData['schoolId'];
-                      if (schoolId == null ||
-                          schoolId.isEmpty ||
-                          schoolId == user.uid) {
-                        return const RoleSelectionPage();
-                      }
-                    }
-
-                    // All checks passed, navigate to the home screen immediately
-                    return const BottomNavScreen();
-                  },
-                );
-              } else {
-                if (isFirstTime) {
-                  isFirstTime = false;
-                  return const EmailVerification();
-                } else {
-                  return const LoginOrRegisterScreen();
-                }
-              }
+                  return const BottomNavScreen();
+                },
+              );
             } else {
               return const LoginOrRegisterScreen();
             }

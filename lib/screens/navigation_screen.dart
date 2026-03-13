@@ -1,6 +1,7 @@
 // ignore_for_file: library_private_types_in_public_api
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:iconly/iconly.dart';
@@ -180,81 +181,96 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
     return Scaffold(
-      body: PopScope(
-        canPop: false,
-        child: Stack(
-          children: [
-            IndexedStack(
-              index: _currentIndex,
-              children: _screens,
-            ),
-            Obx(() {
-              // Only show overlay if isConnected is explicitly false AND initializeWorkspace has finished its first check
-              if (_workspaceController.isConnectedInitialized.value &&
-                  !_workspaceController.isConnected.value &&
-                  _currentIndex != (_isOwner ? 4 : 3)) {
-                return Container(
-                  color: theme.scaffoldBackgroundColor.withOpacity(0.95),
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 40),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.link_off, size: 80, color: kPrimaryColor),
-                          const SizedBox(height: 24),
-                          Text(
-                            'Workspace Required',
-                            style: theme.textTheme.headlineSmall
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 12),
-                          const Text(
-                            'You are logged in as a Staff member but not yet connected to a Driving School workspace.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(fontSize: 16),
-                          ),
-                          const SizedBox(height: 32),
-                          ElevatedButton(
-                            onPressed: () => setState(
-                                () => _currentIndex = _isOwner ? 4 : 3),
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 32, vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
+      appBar: AppBar(
+        toolbarHeight: 0,
+        elevation: 0,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        ),
+      ),
+      body: SafeArea(
+        child: PopScope(
+          canPop: false,
+          child: Stack(
+            children: [
+              IndexedStack(
+                index: _currentIndex,
+                children: _screens,
+              ),
+              Obx(() {
+                // Only show overlay if isConnected is explicitly false AND initializeWorkspace has finished its first check
+                if (_workspaceController.isConnectedInitialized.value &&
+                    !_workspaceController.isConnected.value &&
+                    _currentIndex != (_isOwner ? 4 : 3)) {
+                  return Container(
+                    color: theme.scaffoldBackgroundColor.withOpacity(0.95),
+                    child: Center(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 40),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.link_off,
+                                size: 80, color: kPrimaryColor),
+                            const SizedBox(height: 24),
+                            Text(
+                              'Workspace Required',
+                              style: theme.textTheme.headlineSmall
+                                  ?.copyWith(fontWeight: FontWeight.bold),
                             ),
-                            child: const Text('Go to Profile to Connect',
-                                style: TextStyle(color: Colors.white)),
-                          ),
-                        ],
+                            const SizedBox(height: 12),
+                            const Text(
+                              'You are logged in as a Staff member but not yet connected to a Driving School workspace.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: 16),
+                            ),
+                            const SizedBox(height: 32),
+                            ElevatedButton(
+                              onPressed: () => setState(
+                                  () => _currentIndex = _isOwner ? 4 : 3),
+                              style: ElevatedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 32, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12)),
+                              ),
+                              child: const Text('Go to Profile to Connect',
+                                  style: TextStyle(color: Colors.white)),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            }),
-            Obx(() {
-              final isLoading = _workspaceController.isLoading.value ||
-                  _workspaceController.isAppDataLoading.value;
-              if (isLoading) {
-                return Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: LinearProgressIndicator(
-                    minHeight: 2,
-                    backgroundColor: Colors.transparent,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                        kPrimaryColor.withOpacity(0.5)),
-                  ),
-                );
-              }
-              return const SizedBox.shrink();
-            }),
-          ],
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
+              Obx(() {
+                final isLoading = _workspaceController.isLoading.value ||
+                    _workspaceController.isAppDataLoading.value;
+                if (isLoading) {
+                  return Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: LinearProgressIndicator(
+                      minHeight: 2,
+                      backgroundColor: Colors.transparent,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                          kPrimaryColor.withOpacity(0.5)),
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              }),
+            ],
+          ),
         ),
       ),
       bottomNavigationBar:

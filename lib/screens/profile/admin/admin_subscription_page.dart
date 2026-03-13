@@ -5,6 +5,7 @@ import 'package:drivemate/constants/colors.dart';
 import 'package:drivemate/services/subscription_service.dart';
 import 'package:intl/intl.dart';
 import 'package:drivemate/screens/profile/admin/manage_carousel_page.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 
 class AdminSubscriptionPage extends StatefulWidget {
   const AdminSubscriptionPage({super.key});
@@ -282,27 +283,12 @@ class _AdminSubscriptionPageState extends State<AdminSubscriptionPage>
   }
 
   Future<bool?> _showConfirmDialog(String title, String message) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: isDark ? Colors.grey.shade900 : Colors.white,
-        title: Text(title,
-            style: TextStyle(color: isDark ? Colors.white : Colors.black87)),
-        content: Text(message,
-            style: TextStyle(color: isDark ? Colors.white70 : Colors.black54)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+    return showCustomConfirmBoolDialog(
+      context,
+      title,
+      message,
+      confirmText: 'Confirm',
+      cancelText: 'Cancel',
     );
   }
 

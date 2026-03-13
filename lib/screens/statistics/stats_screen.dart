@@ -3,6 +3,7 @@ import 'package:drivemate/utils/stream_utils.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:drivemate/constants/colors.dart';
 import 'package:drivemate/constants/constant.dart';
@@ -101,10 +102,20 @@ class _StatsScreenState extends State<StatsScreen> {
     final backgroundColor =
         isDark ? const Color(0xFF121212) : Colors.grey.shade100;
 
-    return SafeArea(
-      child: Scaffold(
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        toolbarHeight: 0,
         backgroundColor: backgroundColor,
-        body: Obx(() => SingleChildScrollView(
+        elevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        ),
+      ),
+      body: SafeArea(
+        child: Obx(() => SingleChildScrollView(
               child: Padding(
                 padding: const EdgeInsets.all(16.0),
                 child: Column(
@@ -439,6 +450,21 @@ class _StatsScreenState extends State<StatsScreen> {
       _workspaceController.getFilteredCollection('expenses').snapshots(),
       _workspaceController.getFilteredCollection('dl_services').snapshots(),
       paymentsQuery.snapshots(),
+      _workspaceController
+          .getFilteredCollection('deactivated_students')
+          .snapshots(),
+      _workspaceController
+          .getFilteredCollection('deactivated_licenseOnly')
+          .snapshots(),
+      _workspaceController
+          .getFilteredCollection('deactivated_endorsement')
+          .snapshots(),
+      _workspaceController
+          .getFilteredCollection('deactivated_dl_services')
+          .snapshots(),
+      _workspaceController
+          .getFilteredCollection('deactivated_rc_services')
+          .snapshots(),
     ]);
   }
 
@@ -476,7 +502,10 @@ class _StatsScreenState extends State<StatsScreen> {
             return _buildShimmerLoader(100, isDark);
           }
 
+          final List<Map<String, dynamic>> activeItems = [];
+          final List<Map<String, dynamic>> completedItems = [];
           final List<Map<String, dynamic>> allItems = [];
+
           final collections = [
             'students',
             'licenseonly',
@@ -484,26 +513,40 @@ class _StatsScreenState extends State<StatsScreen> {
             'vehicleDetails',
             'expenses',
             'dl_services',
-            'payments'
+            'payments',
+            'deactivated_students',
+            'deactivated_licenseOnly',
+            'deactivated_endorsement',
+            'deactivated_dl_services',
+            'deactivated_rc_services',
           ];
 
           for (int i = 0; i < snapshot.data!.length; i++) {
             final docs = snapshot.data![i].docs;
             final source = collections[i];
-            // We only aggregate main record collections for "Total Learners" and "Outstanding"
+
             // expenses (4) and payments (6) are handled separately for revenue calculations
             if (i == 4 || i == 6) continue;
 
+            final isDeactivated = source.startsWith('deactivated_');
+
             for (var doc in docs) {
-              allItems.add({
+              final item = {
                 'data': doc.data(),
                 'id': doc.id,
                 'source': source,
-              });
+              };
+              allItems.add(item);
+              if (isDeactivated) {
+                completedItems.add(item);
+              } else {
+                activeItems.add(item);
+              }
             }
           }
 
-          int totalLearners = allItems.length;
+          int totalActive = activeItems.length;
+          int totalCompleted = completedItems.length;
           double totalBalance = 0;
           final revenueStats = RevenueUtils.calculateMonthlyRevenue(
             snapshots: snapshot.data!,
@@ -525,9 +568,9 @@ class _StatsScreenState extends State<StatsScreen> {
               DateTime(selectedDate.year, selectedDate.month, 0);
 
           int learnersLastMonthEnd = 0;
-          int learnersCurrentTotal = totalLearners;
+          int learnersCurrentTotal = activeItems.length;
 
-          for (var item in allItems) {
+          for (var item in activeItems) {
             final data = item['data'] as Map<String, dynamic>;
             DateTime? regDate =
                 DateTime.tryParse(data['registrationDate'] ?? '');
@@ -557,12 +600,110 @@ class _StatsScreenState extends State<StatsScreen> {
             children: [
               GestureDetector(
                 onTap: () => _showLearnersSummary(context, snapshot.data!),
-                child: _buildMetricCard(
-                  'Total Learners',
-                  totalLearners.toString(),
-                  growthLabel,
-                  growthColor, // Pass color
-                  isDark,
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      if (!isDark)
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.04),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Total Learners',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: (isDark ? Colors.white : Colors.black)
+                                  .withOpacity(0.5),
+                            ),
+                          ),
+                          if (growthLabel.isNotEmpty)
+                            Text(
+                              growthLabel,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: growthColor,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'ACTIVE',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                    color: kOrange,
+                                    letterSpacing: 0.5,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  totalActive.toString(),
+                                  style: const TextStyle(
+                                    fontSize: 20,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Container(
+                            height: 30,
+                            width: 1,
+                            color: (isDark ? Colors.white : Colors.black)
+                                .withOpacity(0.1),
+                          ),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 16.0),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'COMPLETED',
+                                    style: TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.green,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    totalCompleted.toString(),
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -576,7 +717,7 @@ class _StatsScreenState extends State<StatsScreen> {
                         'Revenue (${DateFormat('MMM').format(selectedDate)})',
                         'Rs. ${currentMonthRevenue.toStringAsFixed(0)}',
                         null,
-                        kOrange,
+                        Colors.greenAccent,
                         isDark,
                       ),
                     ),
@@ -850,31 +991,69 @@ class _StatsScreenState extends State<StatsScreen> {
       List<QuerySnapshot<Map<String, dynamic>>> snapshots) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) {
-        final labels = ['Students', 'License Only', 'Endorsement', 'Vehicles'];
-        final colors = [kOrange, Colors.blue, Colors.green, Colors.purple];
-        return Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Learners Summary',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 20),
-              ...List.generate(labels.length, (i) {
-                final count = snapshots[i].docs.length;
-                return ListTile(
-                  leading: CircleAvatar(backgroundColor: colors[i], radius: 6),
-                  title: Text(labels[i]),
-                  trailing: Text(count.toString(),
-                      style: const TextStyle(fontWeight: FontWeight.bold)),
-                );
-              }),
-            ],
+        return DefaultTabController(
+          length: 2,
+          child: Container(
+            height: MediaQuery.of(context).size.height * 0.4,
+            padding: const EdgeInsets.symmetric(vertical: 20),
+            child: Column(
+              children: [
+                const Text('Total Customer Summary',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 10),
+                const TabBar(
+                  tabs: [
+                    Tab(text: 'ACTIVE'),
+                    Tab(text: 'COMPLETED'),
+                  ],
+                  labelColor: kOrange,
+                  unselectedLabelColor: Colors.grey,
+                  indicatorColor: kOrange,
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _buildLearnerList(snapshots, false),
+                      _buildLearnerList(snapshots, true),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildLearnerList(
+      List<QuerySnapshot<Map<String, dynamic>>> snapshots, bool isDeactivated) {
+    final labels = ['Students', 'License Only', 'Endorsement', 'Vehicles'];
+    final colors = [kOrange, Colors.blue, Colors.green, Colors.purple];
+
+    // snapshots 0-3 and 5 are active (students, licenseonly, endorsement, vehicleDetails, dl_services)
+    // snapshots 7-11 are deactivated
+    final indices = isDeactivated ? [7, 8, 9, 11] : [0, 1, 2, 3];
+
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: labels.length,
+      itemBuilder: (context, i) {
+        final snapshotIndex = indices[i];
+        final count = snapshots.length > snapshotIndex
+            ? snapshots[snapshotIndex].docs.length
+            : 0;
+        return ListTile(
+          leading: CircleAvatar(backgroundColor: colors[i], radius: 6),
+          title: Text(labels[i]),
+          trailing: Text(count.toString(),
+              style: const TextStyle(fontWeight: FontWeight.bold)),
         );
       },
     );
@@ -926,12 +1105,29 @@ class _StatsScreenState extends State<StatsScreen> {
           0;
     }).map((item) {
       final data = item['data'] as Map<String, dynamic>;
+      DateTime parsedDate;
+      final reg = data['registrationDate']?.toString() ?? '';
+      if (reg.isNotEmpty) {
+        parsedDate = DateTime.tryParse(reg) ??
+            (() {
+              try {
+                return DateFormat('dd/MM/yyyy').parse(reg);
+              } catch (_) {
+                try {
+                  return DateFormat('yyyy-MM-dd').parse(reg);
+                } catch (_) {
+                  return DateTime(2000);
+                }
+              }
+            })();
+      } else {
+        parsedDate = DateTime(2000);
+      }
       return {
         'name': data['fullName'] ?? data['vehicleNumber'] ?? 'N/A',
         'amount':
             double.tryParse(data['balanceAmount']?.toString() ?? '0') ?? 0.0,
-        'date':
-            DateTime.tryParse(data['registrationDate'] ?? '') ?? DateTime(2000),
+        'date': parsedDate,
         'label': data['mobileNumber'] ?? '',
         'source': item['source'],
         'id': item['id'],
@@ -1135,57 +1331,66 @@ class _StatsScreenState extends State<StatsScreen> {
       height: MediaQuery.of(context).size.height * 0.8,
       padding: const EdgeInsets.all(16),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Stack(
+            alignment: Alignment.center,
             children: [
               Text(title,
                   style: const TextStyle(
                       fontSize: 18, fontWeight: FontWeight.bold)),
-              IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close)),
+              Align(
+                alignment: Alignment.centerRight,
+                child: IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close)),
+              ),
             ],
           ),
           const SizedBox(height: 8),
           Text('Total: Rs. ${total.toStringAsFixed(2)}',
+              textAlign: TextAlign.center,
               style: TextStyle(
                   fontSize: 20, fontWeight: FontWeight.bold, color: kOrange)),
           const SizedBox(height: 16),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: ['Day', 'Month', 'Year']
-                        .map((f) => Padding(
-                              padding: const EdgeInsets.only(right: 8),
-                              child: ChoiceChip(
-                                label: Text(f),
-                                selected: currentFilter == f,
-                                onSelected: (v) => onFilterChanged(f),
-                              ),
-                            ))
-                        .toList(),
-                  ),
+              ...['Day', 'Month', 'Year', 'All'].map(
+                (f) => ChoiceChip(
+                  label: Text(f),
+                  selected: currentFilter == f,
+                  onSelected: (v) => onFilterChanged(f),
                 ),
               ),
               ElevatedButton.icon(
                 onPressed: () async {
                   final picked = await showDatePicker(
-                      context: context,
-                      initialDate: currentDate,
-                      firstDate: DateTime(2000),
-                      lastDate: DateTime.now());
+                    context: context,
+                    initialDate: currentDate,
+                    firstDate: DateTime(2000),
+                    lastDate: DateTime.now(),
+                  );
                   if (picked != null) onDateChanged(picked);
                 },
+                style: ElevatedButton.styleFrom(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                ),
                 icon: const Icon(Icons.calendar_today, size: 16),
-                label: Text(currentFilter == 'Year'
-                    ? DateFormat('yyyy').format(currentDate)
-                    : currentFilter == 'Month'
-                        ? DateFormat('MMM yyyy').format(currentDate)
-                        : DateFormat('dd/MM/yyyy').format(currentDate)),
+                label: Text(
+                  currentFilter == 'Year'
+                      ? DateFormat('yyyy').format(currentDate)
+                      : currentFilter == 'Month'
+                          ? DateFormat('MMM yyyy').format(currentDate)
+                          : DateFormat('dd/MM/yyyy').format(currentDate),
+                ),
               ),
             ],
           ),

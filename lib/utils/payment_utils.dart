@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:drivemate/constants/colors.dart';
 import 'package:drivemate/services/pdf_service.dart';
 import 'package:drivemate/screens/dashboard/list/details/pdf_preview_screen.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 
 class PaymentUtils {
   static Future<void> showReceiveMoneyDialog({
@@ -39,268 +40,246 @@ class PaymentUtils {
       'Other'
     ];
 
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Receive Money'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+    await showCustomStatefulDialog(
+      context,
+      'Receive Money',
+      (ctx, setDialogState) => SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Record: $name',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text('Balance due: Rs. $balance'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: amountController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Amount (Rs.)'),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: selectedMode,
+              decoration: const InputDecoration(labelText: 'Payment Mode'),
+              items: modes
+                  .map((mode) =>
+                      DropdownMenuItem(value: mode, child: Text(mode)))
+                  .toList(),
+              onChanged: (v) =>
+                  setDialogState(() => selectedMode = v ?? 'Cash'),
+            ),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                Text('Record: $name',
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text('Balance due: Rs. $balance'),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: amountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Amount (Rs.)'),
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.calendar_today, size: 18),
+                    label: Text(DateFormat('dd MMM yyyy').format(selectedDate)),
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setDialogState(() => selectedDate = date);
+                      }
+                    },
+                  ),
                 ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: selectedMode,
-                  decoration: const InputDecoration(labelText: 'Payment Mode'),
-                  items: modes
-                      .map((mode) =>
-                          DropdownMenuItem(value: mode, child: Text(mode)))
-                      .toList(),
-                  onChanged: (v) =>
-                      setDialogState(() => selectedMode = v ?? 'Cash'),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.calendar_today, size: 18),
-                        label: Text(
-                            DateFormat('dd MMM yyyy').format(selectedDate)),
-                        onPressed: () async {
-                          final date = await showDatePicker(
-                            context: context,
-                            initialDate: selectedDate,
-                            firstDate: DateTime(2000),
-                            lastDate:
-                                DateTime.now().add(const Duration(days: 365)),
-                          );
-                          if (date != null) {
-                            setDialogState(() => selectedDate = date);
-                          }
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.access_time, size: 18),
-                        label: Text(selectedTime.format(context)),
-                        onPressed: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: selectedTime,
-                          );
-                          if (time != null) {
-                            setDialogState(() => selectedTime = time);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: noteController,
-                  decoration: const InputDecoration(
-                      labelText: 'Note / Remarks (Optional)'),
-                  maxLines: 2,
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.access_time, size: 18),
+                    label: Text(selectedTime.format(context)),
+                    onPressed: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: selectedTime,
+                      );
+                      if (time != null) {
+                        setDialogState(() => selectedTime = time);
+                      }
+                    },
+                  ),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                final amount = double.tryParse(amountController.text.trim());
-                if (amount == null || amount <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Enter valid amount')));
-                  return;
-                }
-
-                if (balance <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text(
-                          'Student has already paid in full. To accept more, add as "Additional Fee".')));
-                  return;
-                }
-
-                if (amount > balance) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(
-                          'Payment cannot exceed balance. Max: Rs. $balance')));
-                  return;
-                }
-
-                // Combine date and time
-                final combinedDateTime = DateTime(
-                  selectedDate.year,
-                  selectedDate.month,
-                  selectedDate.day,
-                  selectedTime.hour,
-                  selectedTime.minute,
-                );
-
-                final dateStr =
-                    '${combinedDateTime.year}-${combinedDateTime.month.toString().padLeft(2, '0')}-${combinedDateTime.day.toString().padLeft(2, '0')}';
-
-                try {
-                  final firestore = FirebaseFirestore.instance;
-                  final batch = firestore.batch();
-
-                  final updateData = <String, dynamic>{
-                    'balanceAmount':
-                        (balance - amount).clamp(0.0, double.infinity),
-                  };
-
-                  // Determine which installment number to use (supports unlimited installments)
-                  // Get all existing installment fields dynamically
-                  final existingInstallments = <int, double>{};
-
-                  // Check for numbered installments (installment1, installment2, etc.)
-                  for (int i = 1; i <= 20; i++) {
-                    final key = 'installment$i';
-                    final value =
-                        double.tryParse(data[key]?.toString() ?? '0') ?? 0;
-                    if (value > 0) {
-                      existingInstallments[i] = value;
-                    }
-                  }
-
-                  // Also check legacy secondInstallment and thirdInstallment fields
-                  final secondInstallment = double.tryParse(
-                          data['secondInstallment']?.toString() ?? '0') ??
-                      0;
-                  final thirdInstallment = double.tryParse(
-                          data['thirdInstallment']?.toString() ?? '0') ??
-                      0;
-
-                  // Map legacy fields to numbered installments
-                  if (secondInstallment > 0 &&
-                      !existingInstallments.containsKey(2)) {
-                    existingInstallments[2] = secondInstallment;
-                  }
-                  if (thirdInstallment > 0 &&
-                      !existingInstallments.containsKey(3)) {
-                    existingInstallments[3] = thirdInstallment;
-                  }
-
-                  // Find the next available installment number
-                  int nextInstallmentNumber = 1;
-                  while (
-                      existingInstallments.containsKey(nextInstallmentNumber) &&
-                          existingInstallments[nextInstallmentNumber]! > 0) {
-                    nextInstallmentNumber++;
-                  }
-
-                  // If we've reached the limit, use the last one
-                  if (nextInstallmentNumber > 20) {
-                    nextInstallmentNumber = 20;
-                  }
-
-                  // Get current value for this installment (if any)
-                  final currentValue =
-                      existingInstallments[nextInstallmentNumber] ?? 0;
-                  final newValue = currentValue + amount;
-
-                  // Update the appropriate field
-                  if (nextInstallmentNumber == 2) {
-                    // Use legacy field for backward compatibility
-                    updateData['secondInstallment'] = newValue;
-                    updateData['secondInstallmentTime'] = dateStr;
-                  } else if (nextInstallmentNumber == 3) {
-                    // Use legacy field for backward compatibility
-                    updateData['thirdInstallment'] = newValue;
-                    updateData['thirdInstallmentTime'] = dateStr;
-                  } else {
-                    // Use numbered installment field
-                    updateData['installment$nextInstallmentNumber'] = newValue;
-                    updateData['installment${nextInstallmentNumber}Time'] =
-                        dateStr;
-                  }
-
-                  final description = 'Installment $nextInstallmentNumber';
-
-                  // Add timestamp to trigger real-time updates
-                  updateData['lastPaymentUpdate'] =
-                      FieldValue.serverTimestamp();
-
-                  batch.update(doc.reference, updateData);
-
-                  // Add to payments subcollection with metadata for collection group query
-                  final paymentRef = doc.reference.collection('payments').doc();
-                  batch.set(paymentRef, {
-                    'amount': amount,
-                    'mode': selectedMode,
-                    'date': Timestamp.fromDate(combinedDateTime),
-                    'description': description,
-                    'createdAt': FieldValue.serverTimestamp(),
-                    'targetId': targetId,
-                    'recordId': doc.id,
-                    'recordName': name,
-                    'category': category,
-                    'branchId': branchId ?? targetId,
-                    'note': noteController.text.trim(),
-                  });
-
-                  // Add to recent activity
-                  final activityRef = firestore
-                      .collection('users')
-                      .doc(targetId)
-                      .collection('recentActivity')
-                      .doc();
-                  batch.set(activityRef, {
-                    'title': '$description Received',
-                    'details': '$name\nRs. ${amount.toStringAsFixed(0)}',
-                    'timestamp': FieldValue.serverTimestamp(),
-                    'type': category,
-                    'recordId': doc.id,
-                    'imageUrl': doc['image'],
-                    'branchId': branchId ?? targetId,
-                  });
-
-                  await batch.commit();
-
-                  // Sync extra fee statuses based on new balance
-                  final finalBatch = firestore.batch();
-                  await _syncExtraFeeStatuses(
-                    docRef: doc.reference,
-                    batch: finalBatch,
-                  );
-                  await finalBatch.commit();
-
-                  if (context.mounted) {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Payment recorded')));
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
-              child: const Text('Save', style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteController,
+              decoration:
+                  const InputDecoration(labelText: 'Note / Remarks (Optional)'),
+              maxLines: 2,
             ),
           ],
         ),
       ),
+      confirmText: 'Save',
+      cancelText: 'Cancel',
+      onConfirm: () async {
+        final amount = double.tryParse(amountController.text.trim());
+        if (amount == null || amount <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Enter valid amount')));
+          return;
+        }
+
+        if (balance <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'Student has already paid in full. To accept more, add as "Additional Fee".')));
+          return;
+        }
+
+        if (amount > balance) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content:
+                  Text('Payment cannot exceed balance. Max: Rs. $balance')));
+          return;
+        }
+
+        // Combine date and time
+        final combinedDateTime = DateTime(
+          selectedDate.year,
+          selectedDate.month,
+          selectedDate.day,
+          selectedTime.hour,
+          selectedTime.minute,
+        );
+
+        final dateStr =
+            '${combinedDateTime.year}-${combinedDateTime.month.toString().padLeft(2, '0')}-${combinedDateTime.day.toString().padLeft(2, '0')}';
+
+        try {
+          final firestore = FirebaseFirestore.instance;
+          final batch = firestore.batch();
+
+          final updateData = <String, dynamic>{
+            'balanceAmount': (balance - amount).clamp(0.0, double.infinity),
+          };
+
+          // Determine which installment number to use (supports unlimited installments)
+          // Get all existing installment fields dynamically
+          final existingInstallments = <int, double>{};
+
+          // Check for numbered installments (installment1, installment2, etc.)
+          for (int i = 1; i <= 20; i++) {
+            final key = 'installment$i';
+            final value = double.tryParse(data[key]?.toString() ?? '0') ?? 0;
+            if (value > 0) {
+              existingInstallments[i] = value;
+            }
+          }
+
+          // Also check legacy secondInstallment and thirdInstallment fields
+          final secondInstallment =
+              double.tryParse(data['secondInstallment']?.toString() ?? '0') ??
+                  0;
+          final thirdInstallment =
+              double.tryParse(data['thirdInstallment']?.toString() ?? '0') ?? 0;
+
+          // Map legacy fields to numbered installments
+          if (secondInstallment > 0 && !existingInstallments.containsKey(2)) {
+            existingInstallments[2] = secondInstallment;
+          }
+          if (thirdInstallment > 0 && !existingInstallments.containsKey(3)) {
+            existingInstallments[3] = thirdInstallment;
+          }
+
+          // Find the next available installment number
+          int nextInstallmentNumber = 1;
+          while (existingInstallments.containsKey(nextInstallmentNumber) &&
+              existingInstallments[nextInstallmentNumber]! > 0) {
+            nextInstallmentNumber++;
+          }
+
+          // If we've reached the limit, use the last one
+          if (nextInstallmentNumber > 20) {
+            nextInstallmentNumber = 20;
+          }
+
+          // Get current value for this installment (if any)
+          final currentValue = existingInstallments[nextInstallmentNumber] ?? 0;
+          final newValue = currentValue + amount;
+
+          // Update the appropriate field
+          if (nextInstallmentNumber == 2) {
+            // Use legacy field for backward compatibility
+            updateData['secondInstallment'] = newValue;
+            updateData['secondInstallmentTime'] = dateStr;
+          } else if (nextInstallmentNumber == 3) {
+            // Use legacy field for backward compatibility
+            updateData['thirdInstallment'] = newValue;
+            updateData['thirdInstallmentTime'] = dateStr;
+          } else {
+            // Use numbered installment field
+            updateData['installment$nextInstallmentNumber'] = newValue;
+            updateData['installment${nextInstallmentNumber}Time'] = dateStr;
+          }
+
+          final description = 'Installment $nextInstallmentNumber';
+
+          // Add timestamp to trigger real-time updates
+          updateData['lastPaymentUpdate'] = FieldValue.serverTimestamp();
+
+          batch.update(doc.reference, updateData);
+
+          // Add to payments subcollection with metadata for collection group query
+          final paymentRef = doc.reference.collection('payments').doc();
+          batch.set(paymentRef, {
+            'amount': amount,
+            'mode': selectedMode,
+            'date': Timestamp.fromDate(combinedDateTime),
+            'description': description,
+            'createdAt': FieldValue.serverTimestamp(),
+            'targetId': targetId,
+            'recordId': doc.id,
+            'recordName': name,
+            'category': category,
+            'branchId': branchId ?? targetId,
+            'note': noteController.text.trim(),
+          });
+
+          // Add to recent activity
+          final activityRef = firestore
+              .collection('users')
+              .doc(targetId)
+              .collection('recentActivity')
+              .doc();
+          batch.set(activityRef, {
+            'title': '$description Received',
+            'details': '$name\nRs. ${amount.toStringAsFixed(0)}',
+            'timestamp': FieldValue.serverTimestamp(),
+            'type': category,
+            'recordId': doc.id,
+            'imageUrl': doc['image'],
+            'branchId': branchId ?? targetId,
+          });
+
+          await batch.commit();
+
+          // Sync extra fee statuses based on new balance
+          final finalBatch = firestore.batch();
+          await _syncExtraFeeStatuses(
+            docRef: doc.reference,
+            batch: finalBatch,
+          );
+          await finalBatch.commit();
+
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Payment recorded')));
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('Error: $e')));
+          }
+        }
+      },
     );
   }
 
@@ -338,197 +317,182 @@ class PaymentUtils {
       'Other'
     ];
 
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Add Payment'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+    await showCustomStatefulDialog(
+      context,
+      'Add Payment',
+      (ctx, setDialogState) => SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Record: $name',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            Text('Balance due: Rs. $balance'),
+            const SizedBox(height: 16),
+            TextField(
+              controller: amountController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                  labelText: 'Amount (Rs.)', prefixText: 'Rs. '),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: selectedMode,
+              decoration: const InputDecoration(labelText: 'Payment Mode'),
+              items: modes
+                  .map((mode) =>
+                      DropdownMenuItem(value: mode, child: Text(mode)))
+                  .toList(),
+              onChanged: (val) => setDialogState(() => selectedMode = val!),
+            ),
+            const SizedBox(height: 16),
+            Row(
               children: [
-                Text('Record: $name',
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                Text('Balance due: Rs. $balance'),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: amountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                      labelText: 'Amount (Rs.)', prefixText: 'Rs. '),
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.calendar_today, size: 18),
+                    label: Text(DateFormat('dd MMM yyyy').format(selectedDate)),
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setDialogState(() => selectedDate = date);
+                      }
+                    },
+                  ),
                 ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedMode,
-                  decoration: const InputDecoration(labelText: 'Payment Mode'),
-                  items: modes
-                      .map((mode) =>
-                          DropdownMenuItem(value: mode, child: Text(mode)))
-                      .toList(),
-                  onChanged: (val) => setDialogState(() => selectedMode = val!),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.calendar_today, size: 18),
-                        label: Text(
-                            DateFormat('dd MMM yyyy').format(selectedDate)),
-                        onPressed: () async {
-                          final date = await showDatePicker(
-                            context: context,
-                            initialDate: selectedDate,
-                            firstDate: DateTime(2000),
-                            lastDate:
-                                DateTime.now().add(const Duration(days: 365)),
-                          );
-                          if (date != null) {
-                            setDialogState(() => selectedDate = date);
-                          }
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.access_time, size: 18),
-                        label: Text(selectedTime.format(context)),
-                        onPressed: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: selectedTime,
-                          );
-                          if (time != null) {
-                            setDialogState(() => selectedTime = time);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: noteController,
-                  decoration: const InputDecoration(
-                      labelText: 'Note / Remarks (Optional)'),
-                  maxLines: 2,
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.access_time, size: 18),
+                    label: Text(selectedTime.format(context)),
+                    onPressed: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: selectedTime,
+                      );
+                      if (time != null) {
+                        setDialogState(() => selectedTime = time);
+                      }
+                    },
+                  ),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                final amount = double.tryParse(amountController.text.trim());
-                if (amount == null || amount <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Enter valid amount')));
-                  return;
-                }
-
-                if (balance <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                      content: Text(
-                          'Student has already paid in full. To accept more, add as "Additional Fee".')));
-                  return;
-                }
-
-                if (amount > balance) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(
-                          'Payment cannot exceed balance. Max: Rs. $balance')));
-                  return;
-                }
-
-                final combinedDateTime = DateTime(
-                  selectedDate.year,
-                  selectedDate.month,
-                  selectedDate.day,
-                  selectedTime.hour,
-                  selectedTime.minute,
-                );
-
-                try {
-                  final firestore = FirebaseFirestore.instance;
-                  final batch = firestore.batch();
-
-                  final currentAdvance = double.tryParse(
-                          data['advanceAmount']?.toString() ?? '0') ??
-                      0.0;
-                  final newAdvance = currentAdvance + amount;
-                  final newBalance =
-                      (balance - amount).clamp(0.0, double.infinity);
-
-                  batch.update(doc.reference, {
-                    'advanceAmount': newAdvance,
-                    'balanceAmount': newBalance,
-                    // Add timestamp to trigger real-time updates
-                    'lastPaymentUpdate': FieldValue.serverTimestamp(),
-                  });
-
-                  final paymentRef = doc.reference.collection('payments').doc();
-                  batch.set(paymentRef, {
-                    'amount': amount,
-                    'mode': selectedMode,
-                    'date': Timestamp.fromDate(combinedDateTime),
-                    'description': description,
-                    'createdAt': FieldValue.serverTimestamp(),
-                    'targetId': targetId,
-                    'recordId': doc.id,
-                    'recordName': name,
-                    'category': category,
-                    'branchId': branchId ?? targetId,
-                    'note': noteController.text.trim(),
-                  });
-
-                  // Add to recent activity
-                  final activityRef = firestore
-                      .collection('users')
-                      .doc(targetId)
-                      .collection('recentActivity')
-                      .doc();
-                  batch.set(activityRef, {
-                    'title': description,
-                    'details': '$name\nRs. ${amount.toStringAsFixed(0)}',
-                    'timestamp': FieldValue.serverTimestamp(),
-                    'type': category,
-                    'recordId': doc.id,
-                    'imageUrl': data['image'],
-                    'branchId': branchId ?? targetId,
-                  });
-
-                  await batch.commit();
-
-                  // Sync extra fee statuses based on new balance
-                  final finalBatch = firestore.batch();
-                  await _syncExtraFeeStatuses(
-                    docRef: doc.reference,
-                    batch: finalBatch,
-                  );
-                  await finalBatch.commit();
-                  if (context.mounted) {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Payment added successfully')));
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
-              child: const Text('Add', style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: noteController,
+              decoration:
+                  const InputDecoration(labelText: 'Note / Remarks (Optional)'),
+              maxLines: 2,
             ),
           ],
         ),
       ),
+      confirmText: 'Add',
+      cancelText: 'Cancel',
+      onConfirm: () async {
+        final amount = double.tryParse(amountController.text.trim());
+        if (amount == null || amount <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Enter valid amount')));
+          return;
+        }
+
+        if (balance <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text(
+                  'Student has already paid in full. To accept more, add as "Additional Fee".')));
+          return;
+        }
+
+        if (amount > balance) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content:
+                  Text('Payment cannot exceed balance. Max: Rs. $balance')));
+          return;
+        }
+
+        final combinedDateTime = DateTime(
+          selectedDate.year,
+          selectedDate.month,
+          selectedDate.day,
+          selectedTime.hour,
+          selectedTime.minute,
+        );
+
+        try {
+          final firestore = FirebaseFirestore.instance;
+          final batch = firestore.batch();
+
+          final currentAdvance =
+              double.tryParse(data['advanceAmount']?.toString() ?? '0') ?? 0.0;
+          final newAdvance = currentAdvance + amount;
+          final newBalance = (balance - amount).clamp(0.0, double.infinity);
+
+          batch.update(doc.reference, {
+            'advanceAmount': newAdvance,
+            'balanceAmount': newBalance,
+            // Add timestamp to trigger real-time updates
+            'lastPaymentUpdate': FieldValue.serverTimestamp(),
+          });
+
+          final paymentRef = doc.reference.collection('payments').doc();
+          batch.set(paymentRef, {
+            'amount': amount,
+            'mode': selectedMode,
+            'date': Timestamp.fromDate(combinedDateTime),
+            'description': description,
+            'createdAt': FieldValue.serverTimestamp(),
+            'targetId': targetId,
+            'recordId': doc.id,
+            'recordName': name,
+            'category': category,
+            'branchId': branchId ?? targetId,
+            'note': noteController.text.trim(),
+          });
+
+          // Add to recent activity
+          final activityRef = firestore
+              .collection('users')
+              .doc(targetId)
+              .collection('recentActivity')
+              .doc();
+          batch.set(activityRef, {
+            'title': description,
+            'details': '$name\nRs. ${amount.toStringAsFixed(0)}',
+            'timestamp': FieldValue.serverTimestamp(),
+            'type': category,
+            'recordId': doc.id,
+            'imageUrl': data['image'],
+            'branchId': branchId ?? targetId,
+          });
+
+          await batch.commit();
+
+          // Sync extra fee statuses based on new balance
+          final finalBatch = firestore.batch();
+          await _syncExtraFeeStatuses(
+            docRef: doc.reference,
+            batch: finalBatch,
+          );
+          await finalBatch.commit();
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Payment added successfully')));
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('Error: $e')));
+          }
+        }
+      },
     );
   }
 
@@ -564,199 +528,181 @@ class PaymentUtils {
       'Other'
     ];
 
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Edit Payment'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+    await showCustomStatefulDialog(
+      context,
+      'Edit Payment',
+      (ctx, setDialogState) => SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Update payment details:',
+                style: TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: amountController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                  labelText: 'Amount (Rs.)', prefixText: 'Rs. '),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: selectedMode,
+              decoration: const InputDecoration(labelText: 'Payment Mode'),
+              items: modes
+                  .map((mode) =>
+                      DropdownMenuItem(value: mode, child: Text(mode)))
+                  .toList(),
+              onChanged: (val) => setDialogState(() => selectedMode = val!),
+            ),
+            const SizedBox(height: 16),
+            Row(
               children: [
-                const Text('Update payment details:',
-                    style: TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: amountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                      labelText: 'Amount (Rs.)', prefixText: 'Rs. '),
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.calendar_today, size: 18),
+                    label: Text(DateFormat('dd MMM yyyy').format(selectedDate)),
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setDialogState(() => selectedDate = date);
+                      }
+                    },
+                  ),
                 ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedMode,
-                  decoration: const InputDecoration(labelText: 'Payment Mode'),
-                  items: modes
-                      .map((mode) =>
-                          DropdownMenuItem(value: mode, child: Text(mode)))
-                      .toList(),
-                  onChanged: (val) => setDialogState(() => selectedMode = val!),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.calendar_today, size: 18),
-                        label: Text(
-                            DateFormat('dd MMM yyyy').format(selectedDate)),
-                        onPressed: () async {
-                          final date = await showDatePicker(
-                            context: context,
-                            initialDate: selectedDate,
-                            firstDate: DateTime(2000),
-                            lastDate:
-                                DateTime.now().add(const Duration(days: 365)),
-                          );
-                          if (date != null) {
-                            setDialogState(() => selectedDate = date);
-                          }
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.access_time, size: 18),
-                        label: Text(selectedTime.format(context)),
-                        onPressed: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: selectedTime,
-                          );
-                          if (time != null) {
-                            setDialogState(() => selectedTime = time);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: noteController,
-                  decoration: const InputDecoration(
-                      labelText: 'Note / Remarks (Optional)'),
-                  maxLines: 2,
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.access_time, size: 18),
+                    label: Text(selectedTime.format(context)),
+                    onPressed: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: selectedTime,
+                      );
+                      if (time != null) {
+                        setDialogState(() => selectedTime = time);
+                      }
+                    },
+                  ),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                final newAmount =
-                    double.tryParse(amountController.text.trim()) ?? 0;
-                if (newAmount <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Enter valid amount')));
-                  return;
-                }
-
-                final combinedDateTime = DateTime(
-                  selectedDate.year,
-                  selectedDate.month,
-                  selectedDate.day,
-                  selectedTime.hour,
-                  selectedTime.minute,
-                );
-
-                try {
-                  final firestore = FirebaseFirestore.instance;
-                  final batch = firestore.batch();
-
-                  // Get parent document to update balance
-                  final parentDoc = await docRef.get();
-                  if (!parentDoc.exists) throw 'Parent record not found';
-                  final parentData = parentDoc.data() as Map<String, dynamic>;
-
-                  final currentBalance = double.tryParse(
-                          parentData['balanceAmount']?.toString() ?? '0') ??
-                      0.0;
-                  // Adjust balance: newBalance = currentBalance + (oldAmount - newAmount)
-                  final newBalance = (currentBalance + oldAmount - newAmount)
-                      .clamp(0.0, double.infinity);
-
-                  final updateData = <String, dynamic>{
-                    'balanceAmount': newBalance,
-                    'lastPaymentUpdate': FieldValue.serverTimestamp(),
-                  };
-
-                  final description = paymentData['description'] ?? '';
-                  if (description == 'Second Installment') {
-                    updateData['secondInstallment'] = newAmount;
-                  } else if (description == 'Third Installment') {
-                    updateData['thirdInstallment'] = newAmount;
-                  } else if (description
-                      .toString()
-                      .startsWith('Installment ')) {
-                    final match =
-                        RegExp(r'Installment (\d+)').firstMatch(description);
-                    if (match != null) {
-                      final n = match.group(1);
-                      updateData['installment$n'] = newAmount;
-                    }
-                  } else {
-                    final currentAdvance = double.tryParse(
-                            parentData['advanceAmount']?.toString() ?? '0') ??
-                        0.0;
-                    updateData['advanceAmount'] =
-                        (currentAdvance - oldAmount + newAmount)
-                            .clamp(0.0, double.infinity);
-                  }
-
-                  batch.update(docRef, updateData);
-
-                  // Update payment document
-                  batch.update(paymentDoc.reference, {
-                    'amount': newAmount,
-                    'mode': selectedMode,
-                    'date': Timestamp.fromDate(combinedDateTime),
-                    'note': noteController.text.trim(),
-                    'updatedAt': FieldValue.serverTimestamp(),
-                  });
-
-                  // Add activity
-                  final activityRef = firestore
-                      .collection('users')
-                      .doc(targetId)
-                      .collection('recentActivity')
-                      .doc();
-                  batch.set(activityRef, {
-                    'title': 'Payment Updated',
-                    'details':
-                        '${parentData['fullName'] ?? parentData['vehicleNumber'] ?? 'N/A'}\nRs. ${newAmount.toStringAsFixed(0)}',
-                    'timestamp': FieldValue.serverTimestamp(),
-                    'type': 'editing',
-                    'recordId': parentDoc.id,
-                    'imageUrl': parentData['image'],
-                    'branchId': branchId ?? targetId,
-                  });
-
-                  await batch.commit();
-                  if (context.mounted) {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Payment updated successfully')));
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
-              child:
-                  const Text('Update', style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: noteController,
+              decoration:
+                  const InputDecoration(labelText: 'Note / Remarks (Optional)'),
+              maxLines: 2,
             ),
           ],
         ),
       ),
+      confirmText: 'Update',
+      cancelText: 'Cancel',
+      onConfirm: () async {
+        final newAmount = double.tryParse(amountController.text.trim()) ?? 0;
+        if (newAmount <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Enter valid amount')));
+          return;
+        }
+
+        final combinedDateTime = DateTime(
+          selectedDate.year,
+          selectedDate.month,
+          selectedDate.day,
+          selectedTime.hour,
+          selectedTime.minute,
+        );
+
+        try {
+          final firestore = FirebaseFirestore.instance;
+          final batch = firestore.batch();
+
+          // Get parent document to update balance
+          final parentDoc = await docRef.get();
+          if (!parentDoc.exists) throw 'Parent record not found';
+          final parentData = parentDoc.data() as Map<String, dynamic>;
+
+          final currentBalance =
+              double.tryParse(parentData['balanceAmount']?.toString() ?? '0') ??
+                  0.0;
+          // Adjust balance: newBalance = currentBalance + (oldAmount - newAmount)
+          final newBalance = (currentBalance + oldAmount - newAmount)
+              .clamp(0.0, double.infinity);
+
+          final updateData = <String, dynamic>{
+            'balanceAmount': newBalance,
+            'lastPaymentUpdate': FieldValue.serverTimestamp(),
+          };
+
+          final description = paymentData['description'] ?? '';
+          if (description == 'Second Installment') {
+            updateData['secondInstallment'] = newAmount;
+          } else if (description == 'Third Installment') {
+            updateData['thirdInstallment'] = newAmount;
+          } else if (description.toString().startsWith('Installment ')) {
+            final match = RegExp(r'Installment (\d+)').firstMatch(description);
+            if (match != null) {
+              final n = match.group(1);
+              updateData['installment$n'] = newAmount;
+            }
+          } else {
+            final currentAdvance = double.tryParse(
+                    parentData['advanceAmount']?.toString() ?? '0') ??
+                0.0;
+            updateData['advanceAmount'] =
+                (currentAdvance - oldAmount + newAmount)
+                    .clamp(0.0, double.infinity);
+          }
+
+          batch.update(docRef, updateData);
+
+          // Update payment document
+          batch.update(paymentDoc.reference, {
+            'amount': newAmount,
+            'mode': selectedMode,
+            'date': Timestamp.fromDate(combinedDateTime),
+            'note': noteController.text.trim(),
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+
+          // Add activity
+          final activityRef = firestore
+              .collection('users')
+              .doc(targetId)
+              .collection('recentActivity')
+              .doc();
+          batch.set(activityRef, {
+            'title': 'Payment Updated',
+            'details':
+                '${parentData['fullName'] ?? parentData['vehicleNumber'] ?? 'N/A'}\nRs. ${newAmount.toStringAsFixed(0)}',
+            'timestamp': FieldValue.serverTimestamp(),
+            'type': 'editing',
+            'recordId': parentDoc.id,
+            'imageUrl': parentData['image'],
+            'branchId': branchId ?? targetId,
+          });
+
+          await batch.commit();
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Payment updated successfully')));
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('Error: $e')));
+          }
+        }
+      },
     );
   }
 
@@ -766,24 +712,12 @@ class PaymentUtils {
     required DocumentSnapshot paymentDoc,
     required String targetId,
   }) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Payment'),
-        content: const Text(
-            'Are you sure you want to delete this payment? This will update the student\'s balance.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showCustomConfirmBoolDialog(
+      context,
+      'Delete Payment',
+      'Are you sure you want to delete this payment? This will update the student\'s balance.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
     );
 
     if (confirmed != true) return;
@@ -917,142 +851,126 @@ class PaymentUtils {
       'Other'
     ];
 
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Edit $label'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+    await showCustomStatefulDialog(
+      context,
+      'Edit $label',
+      (ctx, setDialogState) => SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: amountController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                  labelText: 'Amount (Rs.)', prefixText: 'Rs. '),
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: selectedMode,
+              decoration: const InputDecoration(labelText: 'Payment Mode'),
+              items: modes
+                  .map((mode) =>
+                      DropdownMenuItem(value: mode, child: Text(mode)))
+                  .toList(),
+              onChanged: (val) => setDialogState(() => selectedMode = val!),
+            ),
+            const SizedBox(height: 16),
+            Row(
               children: [
-                TextField(
-                  controller: amountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                      labelText: 'Amount (Rs.)', prefixText: 'Rs. '),
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.calendar_today, size: 18),
+                    label: Text(DateFormat('dd MMM').format(selectedDate)),
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setDialogState(() => selectedDate = date);
+                      }
+                    },
+                  ),
                 ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedMode,
-                  decoration: const InputDecoration(labelText: 'Payment Mode'),
-                  items: modes
-                      .map((mode) =>
-                          DropdownMenuItem(value: mode, child: Text(mode)))
-                      .toList(),
-                  onChanged: (val) => setDialogState(() => selectedMode = val!),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.calendar_today, size: 18),
-                        label: Text(DateFormat('dd MMM').format(selectedDate)),
-                        onPressed: () async {
-                          final date = await showDatePicker(
-                            context: context,
-                            initialDate: selectedDate,
-                            firstDate: DateTime(2000),
-                            lastDate:
-                                DateTime.now().add(const Duration(days: 365)),
-                          );
-                          if (date != null) {
-                            setDialogState(() => selectedDate = date);
-                          }
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.access_time, size: 18),
-                        label: Text(selectedTime.format(context)),
-                        onPressed: () async {
-                          final time = await showTimePicker(
-                              context: context, initialTime: selectedTime);
-                          if (time != null) {
-                            setDialogState(() => selectedTime = time);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.access_time, size: 18),
+                    label: Text(selectedTime.format(context)),
+                    onPressed: () async {
+                      final time = await showTimePicker(
+                          context: context, initialTime: selectedTime);
+                      if (time != null) {
+                        setDialogState(() => selectedTime = time);
+                      }
+                    },
+                  ),
                 ),
               ],
-            ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                final newAmount =
-                    double.tryParse(amountController.text.trim()) ?? 0;
-                final combinedDateTime = DateTime(
-                    selectedDate.year,
-                    selectedDate.month,
-                    selectedDate.day,
-                    selectedTime.hour,
-                    selectedTime.minute);
-
-                try {
-                  final firestore = FirebaseFirestore.instance;
-                  final batch = firestore.batch();
-
-                  final currentBalance = double.tryParse(
-                          parentData['balanceAmount']?.toString() ?? '0') ??
-                      0.0;
-                  final newBalance = (currentBalance + oldAmount - newAmount)
-                      .clamp(0.0, double.infinity);
-
-                  final Map<String, dynamic> updateData = {
-                    'balanceAmount': newBalance,
-                    fieldName: newAmount,
-                    dateFieldName: combinedDateTime.toIso8601String(),
-                    'lastPaymentUpdate': FieldValue.serverTimestamp(),
-                  };
-                  if (legacyId == 'legacy_adv') {
-                    updateData['paymentMode'] = selectedMode;
-                  }
-
-                  batch.update(docRef, updateData);
-
-                  final activityRef = firestore
-                      .collection('users')
-                      .doc(targetId)
-                      .collection('recentActivity')
-                      .doc();
-                  batch.set(activityRef, {
-                    'title': 'Legacy Payment Updated',
-                    'details':
-                        '${parentData['fullName'] ?? parentData['vehicleNumber'] ?? 'N/A'}\n$label updated to Rs. ${newAmount.toStringAsFixed(0)}',
-                    'timestamp': FieldValue.serverTimestamp(),
-                    'type': 'editing',
-                    'recordId': docRef.id,
-                    'imageUrl': parentData['image'],
-                    'branchId': branchId ?? targetId,
-                  });
-
-                  await batch.commit();
-                  if (context.mounted) {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Payment updated successfully')));
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
-                }
-              },
-              child: const Text('Update'),
             ),
           ],
         ),
       ),
+      confirmText: 'Update',
+      cancelText: 'Cancel',
+      onConfirm: () async {
+        final newAmount = double.tryParse(amountController.text.trim()) ?? 0;
+        final combinedDateTime = DateTime(selectedDate.year, selectedDate.month,
+            selectedDate.day, selectedTime.hour, selectedTime.minute);
+
+        try {
+          final firestore = FirebaseFirestore.instance;
+          final batch = firestore.batch();
+
+          final currentBalance =
+              double.tryParse(parentData['balanceAmount']?.toString() ?? '0') ??
+                  0.0;
+          final newBalance = (currentBalance + oldAmount - newAmount)
+              .clamp(0.0, double.infinity);
+
+          final Map<String, dynamic> updateData = {
+            'balanceAmount': newBalance,
+            fieldName: newAmount,
+            dateFieldName: combinedDateTime.toIso8601String(),
+            'lastPaymentUpdate': FieldValue.serverTimestamp(),
+          };
+          if (legacyId == 'legacy_adv') {
+            updateData['paymentMode'] = selectedMode;
+          }
+
+          batch.update(docRef, updateData);
+
+          final activityRef = firestore
+              .collection('users')
+              .doc(targetId)
+              .collection('recentActivity')
+              .doc();
+          batch.set(activityRef, {
+            'title': 'Legacy Payment Updated',
+            'details':
+                '${parentData['fullName'] ?? parentData['vehicleNumber'] ?? 'N/A'}\n$label updated to Rs. ${newAmount.toStringAsFixed(0)}',
+            'timestamp': FieldValue.serverTimestamp(),
+            'type': 'editing',
+            'recordId': docRef.id,
+            'imageUrl': parentData['image'],
+            'branchId': branchId ?? targetId,
+          });
+
+          await batch.commit();
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Payment updated successfully')));
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('Error: $e')));
+          }
+        }
+      },
     );
   }
 
@@ -1063,23 +981,12 @@ class PaymentUtils {
     required Map<String, dynamic> parentData,
     required String targetId,
   }) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Payment'),
-        content: const Text(
-            'Are you sure you want to delete this legacy payment? This will update the balance.'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showCustomConfirmBoolDialog(
+      context,
+      'Delete Payment',
+      'Are you sure you want to delete this legacy payment? This will update the balance.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
     );
 
     if (confirmed != true) return;
@@ -1165,181 +1072,165 @@ class PaymentUtils {
     DateTime selectedDate = DateTime.now();
     TimeOfDay selectedTime = TimeOfDay.now();
 
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Add Extra Fee'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
+    await showCustomStatefulDialog(
+      context,
+      'Add Extra Fee',
+      (ctx, setDialogState) => SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Record: $name',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Fee Type',
+                hintText: 'Faild fees, Additional Class, Learners Renewal ect.',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: amountController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Amount (Rs.)'),
+            ),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                Text('Record: $name',
-                    style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Fee Type',
-                    hintText:
-                        'Faild fees, Additional Class, Learners Renewal ect.',
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.calendar_today, size: 18),
+                    label: Text(DateFormat('dd MMM yyyy').format(selectedDate)),
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setDialogState(() => selectedDate = date);
+                      }
+                    },
                   ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: amountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Amount (Rs.)'),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.calendar_today, size: 18),
-                        label: Text(
-                            DateFormat('dd MMM yyyy').format(selectedDate)),
-                        onPressed: () async {
-                          final date = await showDatePicker(
-                            context: context,
-                            initialDate: selectedDate,
-                            firstDate: DateTime(2000),
-                            lastDate:
-                                DateTime.now().add(const Duration(days: 365)),
-                          );
-                          if (date != null) {
-                            setDialogState(() => selectedDate = date);
-                          }
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.access_time, size: 18),
-                        label: Text(selectedTime.format(context)),
-                        onPressed: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: selectedTime,
-                          );
-                          if (time != null) {
-                            setDialogState(() => selectedTime = time);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: noteController,
-                  decoration: const InputDecoration(
-                      labelText: 'Note / Remarks (Optional)'),
-                  maxLines: 2,
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.access_time, size: 18),
+                    label: Text(selectedTime.format(context)),
+                    onPressed: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: selectedTime,
+                      );
+                      if (time != null) {
+                        setDialogState(() => selectedTime = time);
+                      }
+                    },
+                  ),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                final amount = double.tryParse(amountController.text.trim());
-                if (amount == null || amount <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Enter valid amount')));
-                  return;
-                }
-
-                final combinedDateTime = DateTime(
-                  selectedDate.year,
-                  selectedDate.month,
-                  selectedDate.day,
-                  selectedTime.hour,
-                  selectedTime.minute,
-                );
-
-                try {
-                  final firestore = FirebaseFirestore.instance;
-                  final batch = firestore.batch();
-
-                  // Increase totalAmount and balanceAmount
-                  final currentTotal =
-                      double.tryParse(data['totalAmount']?.toString() ?? '0') ??
-                          0.0;
-                  final currentBalance = double.tryParse(
-                          data['balanceAmount']?.toString() ?? '0') ??
-                      0.0;
-
-                  batch.update(doc.reference, {
-                    'totalAmount': currentTotal + amount,
-                    'balanceAmount': currentBalance + amount,
-                  });
-
-                  // Add extra fee document
-                  final feeRef = doc.reference.collection('extra_fees').doc();
-                  batch.set(feeRef, {
-                    'amount': amount,
-                    'description': descriptionController.text.trim(),
-                    'date': Timestamp.fromDate(combinedDateTime),
-                    'note': noteController.text.trim(),
-                    'createdAt': FieldValue.serverTimestamp(),
-                    'targetId': targetId,
-                    'recordId': doc.id,
-                    'recordName': name,
-                    'category': category,
-                    'branchId': branchId ?? targetId,
-                    'status': 'unpaid',
-                  });
-
-                  // Log activity
-                  final activityRef = firestore
-                      .collection('users')
-                      .doc(targetId)
-                      .collection('recentActivity')
-                      .doc();
-                  batch.set(activityRef, {
-                    'title': 'Extra Fee Added',
-                    'details':
-                        '$name\n${descriptionController.text.trim()}: Rs. ${amount.toStringAsFixed(0)}',
-                    'timestamp': FieldValue.serverTimestamp(),
-                    'type': 'addition',
-                    'recordId': doc.id,
-                    'imageUrl': data['image'],
-                    'branchId': branchId ?? targetId,
-                  });
-
-                  await batch.commit();
-
-                  // Sync extra fee statuses based on new balance
-                  final finalBatch = firestore.batch();
-                  await _syncExtraFeeStatuses(
-                    docRef: doc.reference,
-                    batch: finalBatch,
-                  );
-                  await finalBatch.commit();
-                  if (context.mounted) {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Extra fee added successfully')));
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
-              child: const Text('Add', style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: noteController,
+              decoration:
+                  const InputDecoration(labelText: 'Note / Remarks (Optional)'),
+              maxLines: 2,
             ),
           ],
         ),
       ),
+      confirmText: 'Add',
+      cancelText: 'Cancel',
+      onConfirm: () async {
+        final amount = double.tryParse(amountController.text.trim());
+        if (amount == null || amount <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Enter valid amount')));
+          return;
+        }
+
+        final combinedDateTime = DateTime(
+          selectedDate.year,
+          selectedDate.month,
+          selectedDate.day,
+          selectedTime.hour,
+          selectedTime.minute,
+        );
+
+        try {
+          final firestore = FirebaseFirestore.instance;
+          final batch = firestore.batch();
+
+          // Increase totalAmount and balanceAmount
+          final currentTotal =
+              double.tryParse(data['totalAmount']?.toString() ?? '0') ?? 0.0;
+          final currentBalance =
+              double.tryParse(data['balanceAmount']?.toString() ?? '0') ?? 0.0;
+
+          batch.update(doc.reference, {
+            'totalAmount': currentTotal + amount,
+            'balanceAmount': currentBalance + amount,
+          });
+
+          // Add extra fee document
+          final feeRef = doc.reference.collection('extra_fees').doc();
+          batch.set(feeRef, {
+            'amount': amount,
+            'description': descriptionController.text.trim(),
+            'date': Timestamp.fromDate(combinedDateTime),
+            'note': noteController.text.trim(),
+            'createdAt': FieldValue.serverTimestamp(),
+            'targetId': targetId,
+            'recordId': doc.id,
+            'recordName': name,
+            'category': category,
+            'branchId': branchId ?? targetId,
+            'status': 'unpaid',
+          });
+
+          // Log activity
+          final activityRef = firestore
+              .collection('users')
+              .doc(targetId)
+              .collection('recentActivity')
+              .doc();
+          batch.set(activityRef, {
+            'title': 'Extra Fee Added',
+            'details':
+                '$name\n${descriptionController.text.trim()}: Rs. ${amount.toStringAsFixed(0)}',
+            'timestamp': FieldValue.serverTimestamp(),
+            'type': 'addition',
+            'recordId': doc.id,
+            'imageUrl': data['image'],
+            'branchId': branchId ?? targetId,
+          });
+
+          await batch.commit();
+
+          // Sync extra fee statuses based on new balance
+          final finalBatch = firestore.batch();
+          await _syncExtraFeeStatuses(
+            docRef: doc.reference,
+            batch: finalBatch,
+          );
+          await finalBatch.commit();
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Extra fee added successfully')));
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('Error: $e')));
+          }
+        }
+      },
     );
   }
 
@@ -1365,172 +1256,159 @@ class PaymentUtils {
     DateTime selectedDate = oldDate;
     TimeOfDay selectedTime = TimeOfDay.fromDateTime(oldDate);
 
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Edit Extra Fee'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+    await showCustomStatefulDialog(
+      context,
+      'Edit Extra Fee',
+      (ctx, setDialogState) => SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: descriptionController,
+              decoration: const InputDecoration(labelText: 'Fee Type'),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: amountController,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: 'Amount (Rs.)'),
+            ),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                TextField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(labelText: 'Fee Type'),
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.calendar_today, size: 18),
+                    label: Text(DateFormat('dd MMM yyyy').format(selectedDate)),
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setDialogState(() => selectedDate = date);
+                      }
+                    },
+                  ),
                 ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: amountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(labelText: 'Amount (Rs.)'),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.calendar_today, size: 18),
-                        label: Text(
-                            DateFormat('dd MMM yyyy').format(selectedDate)),
-                        onPressed: () async {
-                          final date = await showDatePicker(
-                            context: context,
-                            initialDate: selectedDate,
-                            firstDate: DateTime(2000),
-                            lastDate:
-                                DateTime.now().add(const Duration(days: 365)),
-                          );
-                          if (date != null) {
-                            setDialogState(() => selectedDate = date);
-                          }
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.access_time, size: 18),
-                        label: Text(selectedTime.format(context)),
-                        onPressed: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: selectedTime,
-                          );
-                          if (time != null) {
-                            setDialogState(() => selectedTime = time);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: noteController,
-                  decoration: const InputDecoration(
-                      labelText: 'Note / Remarks (Optional)'),
-                  maxLines: 2,
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.access_time, size: 18),
+                    label: Text(selectedTime.format(context)),
+                    onPressed: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: selectedTime,
+                      );
+                      if (time != null) {
+                        setDialogState(() => selectedTime = time);
+                      }
+                    },
+                  ),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                final newAmount = double.tryParse(amountController.text.trim());
-                if (newAmount == null || newAmount <= 0) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Enter valid amount')));
-                  return;
-                }
-
-                final combinedDateTime = DateTime(
-                  selectedDate.year,
-                  selectedDate.month,
-                  selectedDate.day,
-                  selectedTime.hour,
-                  selectedTime.minute,
-                );
-
-                try {
-                  final firestore = FirebaseFirestore.instance;
-                  final batch = firestore.batch();
-
-                  final parentDoc = await docRef.get();
-                  if (!parentDoc.exists) throw 'Parent record not found';
-
-                  final parentData = parentDoc.data() as Map<String, dynamic>;
-                  final currentTotal = double.tryParse(
-                          parentData['totalAmount']?.toString() ?? '0') ??
-                      0.0;
-                  final currentBalance = double.tryParse(
-                          parentData['balanceAmount']?.toString() ?? '0') ??
-                      0.0;
-
-                  // Adjust totalAmount and balanceAmount by the diff
-                  final amountDiff = newAmount - oldAmount;
-
-                  batch.update(docRef, {
-                    'totalAmount': currentTotal + amountDiff,
-                    'balanceAmount': currentBalance + amountDiff,
-                  });
-
-                  batch.update(feeDoc.reference, {
-                    'amount': newAmount,
-                    'description': descriptionController.text.trim(),
-                    'date': Timestamp.fromDate(combinedDateTime),
-                    'note': noteController.text.trim(),
-                    'lastUpdated': FieldValue.serverTimestamp(),
-                  });
-
-                  // Log activity
-                  final activityRef = firestore
-                      .collection('users')
-                      .doc(targetId)
-                      .collection('recentActivity')
-                      .doc();
-                  batch.set(activityRef, {
-                    'title': 'Extra Fee Edited',
-                    'details':
-                        '${parentData['fullName'] ?? parentData['vehicleNumber'] ?? 'N/A'}\nUpdated to Rs. ${newAmount.toStringAsFixed(0)}',
-                    'timestamp': FieldValue.serverTimestamp(),
-                    'type': 'edit',
-                    'recordId': parentDoc.id,
-                    'imageUrl': parentData['image'],
-                    'branchId': branchId ?? targetId,
-                  });
-
-                  await batch.commit();
-
-                  // Sync extra fee statuses based on new balance
-                  final finalBatch = firestore.batch();
-                  await _syncExtraFeeStatuses(
-                    docRef: docRef,
-                    batch: finalBatch,
-                  );
-                  await finalBatch.commit();
-
-                  if (context.mounted) {
-                    Navigator.pop(ctx);
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Extra fee updated successfully')));
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
-              child: const Text('Save', style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 16),
+            TextField(
+              controller: noteController,
+              decoration:
+                  const InputDecoration(labelText: 'Note / Remarks (Optional)'),
+              maxLines: 2,
             ),
           ],
         ),
       ),
+      confirmText: 'Save',
+      cancelText: 'Cancel',
+      onConfirm: () async {
+        final newAmount = double.tryParse(amountController.text.trim());
+        if (newAmount == null || newAmount <= 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Enter valid amount')));
+          return;
+        }
+
+        final combinedDateTime = DateTime(
+          selectedDate.year,
+          selectedDate.month,
+          selectedDate.day,
+          selectedTime.hour,
+          selectedTime.minute,
+        );
+
+        try {
+          final firestore = FirebaseFirestore.instance;
+          final batch = firestore.batch();
+
+          final parentDoc = await docRef.get();
+          if (!parentDoc.exists) throw 'Parent record not found';
+
+          final parentData = parentDoc.data() as Map<String, dynamic>;
+          final currentTotal =
+              double.tryParse(parentData['totalAmount']?.toString() ?? '0') ??
+                  0.0;
+          final currentBalance =
+              double.tryParse(parentData['balanceAmount']?.toString() ?? '0') ??
+                  0.0;
+
+          // Adjust totalAmount and balanceAmount by the diff
+          final amountDiff = newAmount - oldAmount;
+
+          batch.update(docRef, {
+            'totalAmount': currentTotal + amountDiff,
+            'balanceAmount': currentBalance + amountDiff,
+          });
+
+          batch.update(feeDoc.reference, {
+            'amount': newAmount,
+            'description': descriptionController.text.trim(),
+            'date': Timestamp.fromDate(combinedDateTime),
+            'note': noteController.text.trim(),
+            'lastUpdated': FieldValue.serverTimestamp(),
+          });
+
+          // Log activity
+          final activityRef = firestore
+              .collection('users')
+              .doc(targetId)
+              .collection('recentActivity')
+              .doc();
+          batch.set(activityRef, {
+            'title': 'Extra Fee Edited',
+            'details':
+                '${parentData['fullName'] ?? parentData['vehicleNumber'] ?? 'N/A'}\nUpdated to Rs. ${newAmount.toStringAsFixed(0)}',
+            'timestamp': FieldValue.serverTimestamp(),
+            'type': 'edit',
+            'recordId': parentDoc.id,
+            'imageUrl': parentData['image'],
+            'branchId': branchId ?? targetId,
+          });
+
+          await batch.commit();
+
+          // Sync extra fee statuses based on new balance
+          final finalBatch = firestore.batch();
+          await _syncExtraFeeStatuses(
+            docRef: docRef,
+            batch: finalBatch,
+          );
+          await finalBatch.commit();
+
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                content: Text('Extra fee updated successfully')));
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('Error: $e')));
+          }
+        }
+      },
     );
   }
 
@@ -1560,250 +1438,231 @@ class PaymentUtils {
     TimeOfDay selectedTime = TimeOfDay.now();
     bool generateReceipt = false;
 
-    await showDialog(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: Text('Collect: $feeDescription'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+    await showCustomStatefulDialog(
+      context,
+      'Collect: $feeDescription',
+      (ctx, setDialogState) => SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Amount: Rs. ${feeAmount.toStringAsFixed(0)}',
+                style:
+                    const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              value: selectedMode,
+              decoration: const InputDecoration(labelText: 'Payment Mode'),
+              items: paymentModes
+                  .map((m) => DropdownMenuItem(value: m, child: Text(m)))
+                  .toList(),
+              onChanged: (val) => setDialogState(() => selectedMode = val!),
+            ),
+            const SizedBox(height: 12),
+            Row(
               children: [
-                Text('Amount: Rs. ${feeAmount.toStringAsFixed(0)}',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 16)),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<String>(
-                  value: selectedMode,
-                  decoration: const InputDecoration(labelText: 'Payment Mode'),
-                  items: paymentModes
-                      .map((m) => DropdownMenuItem(value: m, child: Text(m)))
-                      .toList(),
-                  onChanged: (val) => setDialogState(() => selectedMode = val!),
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.calendar_today, size: 18),
+                    label: Text(DateFormat('dd MMM yyyy').format(selectedDate)),
+                    onPressed: () async {
+                      final date = await showDatePicker(
+                        context: context,
+                        initialDate: selectedDate,
+                        firstDate: DateTime(2000),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
+                      );
+                      if (date != null) {
+                        setDialogState(() => selectedDate = date);
+                      }
+                    },
+                  ),
                 ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.calendar_today, size: 18),
-                        label: Text(
-                            DateFormat('dd MMM yyyy').format(selectedDate)),
-                        onPressed: () async {
-                          final date = await showDatePicker(
-                            context: context,
-                            initialDate: selectedDate,
-                            firstDate: DateTime(2000),
-                            lastDate:
-                                DateTime.now().add(const Duration(days: 365)),
-                          );
-                          if (date != null) {
-                            setDialogState(() => selectedDate = date);
-                          }
-                        },
-                      ),
-                    ),
-                    Expanded(
-                      child: TextButton.icon(
-                        icon: const Icon(Icons.access_time, size: 18),
-                        label: Text(selectedTime.format(ctx)),
-                        onPressed: () async {
-                          final time = await showTimePicker(
-                            context: context,
-                            initialTime: selectedTime,
-                          );
-                          if (time != null) {
-                            setDialogState(() => selectedTime = time);
-                          }
-                        },
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: noteController,
-                  decoration:
-                      const InputDecoration(labelText: 'Note (Optional)'),
-                  maxLines: 2,
-                ),
-                const SizedBox(height: 12),
-                CheckboxListTile(
-                  title: const Text('Generate Receipt',
-                      style: TextStyle(fontSize: 14)),
-                  value: generateReceipt,
-                  dense: true,
-                  onChanged: (val) =>
-                      setDialogState(() => generateReceipt = val!),
-                  controlAffinity: ListTileControlAffinity.leading,
-                  contentPadding: EdgeInsets.zero,
+                Expanded(
+                  child: TextButton.icon(
+                    icon: const Icon(Icons.access_time, size: 18),
+                    label: Text(selectedTime.format(ctx)),
+                    onPressed: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: selectedTime,
+                      );
+                      if (time != null) {
+                        setDialogState(() => selectedTime = time);
+                      }
+                    },
+                  ),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                final combinedDateTime = DateTime(
-                  selectedDate.year,
-                  selectedDate.month,
-                  selectedDate.day,
-                  selectedTime.hour,
-                  selectedTime.minute,
-                );
-
-                try {
-                  final firestore = FirebaseFirestore.instance;
-                  final batch = firestore.batch();
-
-                  final parentDoc = await docRef.get();
-                  if (!parentDoc.exists) throw 'Parent record not found';
-                  final parentData = parentDoc.data() as Map<String, dynamic>;
-
-                  final currentBalance = double.tryParse(
-                          parentData['balanceAmount']?.toString() ?? '0') ??
-                      0.0;
-
-                  // Reduce balance
-                  batch.update(docRef, {
-                    'balanceAmount': currentBalance - feeAmount,
-                    'lastPaymentUpdate': FieldValue.serverTimestamp(),
-                  });
-
-                  // Mark fee as paid
-                  batch.update(feeDoc.reference, {
-                    'status': 'paid',
-                    'collectedAt': FieldValue.serverTimestamp(),
-                    'paymentMode': selectedMode,
-                    'paymentDate': Timestamp.fromDate(combinedDateTime),
-                    'paymentNote': noteController.text.trim(),
-                  });
-
-                  // Add payment record to payments subcollection to ensure it appears in revenue and transaction history
-                  // Extract the parent collection name from the reference path
-                  String parentPath = docRef
-                      .parent.path; // e.g., users/{userId}/students/{docId}
-                  List<String> pathParts = parentPath.split('/');
-                  // Get the collection name (second to last element)
-                  String parentCollection = '';
-                  if (pathParts.length >= 3) {
-                    parentCollection = pathParts[pathParts.length - 2];
-                  } else {
-                    parentCollection = 'unknown';
-                  }
-                  final paymentRef = docRef.collection('payments').doc();
-                  batch.set(paymentRef, {
-                    'amount': feeAmount,
-                    'mode': selectedMode,
-                    'date': Timestamp.fromDate(combinedDateTime),
-                    'description': 'Additional Fee',
-                    'createdAt': FieldValue.serverTimestamp(),
-                    'targetId': targetId,
-                    'recordId': parentDoc.id,
-                    'recordName': parentData['fullName'] ??
-                        parentData['vehicleNumber'] ??
-                        'N/A',
-                    'category': parentCollection,
-                    'branchId': branchId ?? targetId,
-                    'note': noteController.text.trim(),
-                  });
-
-                  // Log activity
-                  final activityRef = firestore
-                      .collection('users')
-                      .doc(targetId)
-                      .collection('recentActivity')
-                      .doc();
-                  batch.set(activityRef, {
-                    'title': 'Extra Fee Collected',
-                    'details':
-                        '${parentData['fullName'] ?? parentData['vehicleNumber'] ?? 'N/A'}\n$feeDescription: Rs. ${feeAmount.toStringAsFixed(0)}',
-                    'timestamp': FieldValue.serverTimestamp(),
-                    'type': 'payment',
-                    'recordId': parentDoc.id,
-                    'imageUrl': parentData['image'],
-                    'branchId': branchId ?? targetId,
-                  });
-
-                  await batch.commit();
-
-                  // Sync extra fee statuses based on new balance
-                  final finalBatch = firestore.batch();
-                  await _syncExtraFeeStatuses(
-                    docRef: docRef,
-                    batch: finalBatch,
-                  );
-                  await finalBatch.commit();
-
-                  if (generateReceipt && context.mounted) {
-                    try {
-                      final companySnap = await FirebaseFirestore.instance
-                          .collection('users')
-                          .doc(targetId)
-                          .get();
-                      final companyData = companySnap.data() ?? {};
-
-                      final txData = {
-                        'amount': feeAmount,
-                        'description': feeDescription,
-                        'mode': selectedMode,
-                        'date': combinedDateTime,
-                        'note': noteController.text.trim(),
-                      };
-
-                      final Uint8List pdfBytes =
-                          await PdfService.generateReceipt(
-                        companyData: companyData,
-                        studentDetails: parentData,
-                        transactions: [txData],
-                      );
-
-                      if (context.mounted) {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => PdfPreviewScreen(
-                              pdfBytes: pdfBytes,
-                              fileName:
-                                  'Receipt_${parentData['fullName'] ?? 'User'}.pdf',
-                            ),
-                          ),
-                        );
-                      }
-                    } catch (pdfError) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text('Error generating PDF: $pdfError')),
-                        );
-                      }
-                    }
-                  }
-
-                  if (context.mounted) {
-                    if (!generateReceipt) {
-                      Navigator.pop(ctx);
-                    }
-                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('Fee collected successfully')));
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context)
-                        .showSnackBar(SnackBar(content: Text('Error: $e')));
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
-              child:
-                  const Text('Collect', style: TextStyle(color: Colors.white)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: noteController,
+              decoration: const InputDecoration(labelText: 'Note (Optional)'),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 12),
+            CheckboxListTile(
+              title: const Text('Generate Receipt',
+                  style: TextStyle(fontSize: 14)),
+              value: generateReceipt,
+              dense: true,
+              onChanged: (val) => setDialogState(() => generateReceipt = val!),
+              controlAffinity: ListTileControlAffinity.leading,
+              contentPadding: EdgeInsets.zero,
             ),
           ],
         ),
       ),
+      confirmText: 'Collect',
+      cancelText: 'Cancel',
+      onConfirm: () async {
+        final combinedDateTime = DateTime(
+          selectedDate.year,
+          selectedDate.month,
+          selectedDate.day,
+          selectedTime.hour,
+          selectedTime.minute,
+        );
+
+        try {
+          final firestore = FirebaseFirestore.instance;
+          final batch = firestore.batch();
+
+          final parentDoc = await docRef.get();
+          if (!parentDoc.exists) throw 'Parent record not found';
+          final parentData = parentDoc.data() as Map<String, dynamic>;
+
+          final currentBalance =
+              double.tryParse(parentData['balanceAmount']?.toString() ?? '0') ??
+                  0.0;
+
+          // Reduce balance
+          batch.update(docRef, {
+            'balanceAmount': currentBalance - feeAmount,
+            'lastPaymentUpdate': FieldValue.serverTimestamp(),
+          });
+
+          // Mark fee as paid
+          batch.update(feeDoc.reference, {
+            'status': 'paid',
+            'collectedAt': FieldValue.serverTimestamp(),
+            'paymentMode': selectedMode,
+            'paymentDate': Timestamp.fromDate(combinedDateTime),
+            'paymentNote': noteController.text.trim(),
+          });
+
+          // Add payment record to payments subcollection to ensure it appears in revenue and transaction history
+          // Extract the parent collection name from the reference path
+          String parentPath =
+              docRef.parent.path; // e.g., users/{userId}/students/{docId}
+          List<String> pathParts = parentPath.split('/');
+          // Get the collection name (second to last element)
+          String parentCollection = '';
+          if (pathParts.length >= 3) {
+            parentCollection = pathParts[pathParts.length - 2];
+          } else {
+            parentCollection = 'unknown';
+          }
+          final paymentRef = docRef.collection('payments').doc();
+          batch.set(paymentRef, {
+            'amount': feeAmount,
+            'mode': selectedMode,
+            'date': Timestamp.fromDate(combinedDateTime),
+            'description': 'Additional Fee',
+            'createdAt': FieldValue.serverTimestamp(),
+            'targetId': targetId,
+            'recordId': parentDoc.id,
+            'recordName':
+                parentData['fullName'] ?? parentData['vehicleNumber'] ?? 'N/A',
+            'category': parentCollection,
+            'branchId': branchId ?? targetId,
+            'note': noteController.text.trim(),
+          });
+
+          // Log activity
+          final activityRef = firestore
+              .collection('users')
+              .doc(targetId)
+              .collection('recentActivity')
+              .doc();
+          batch.set(activityRef, {
+            'title': 'Extra Fee Collected',
+            'details':
+                '${parentData['fullName'] ?? parentData['vehicleNumber'] ?? 'N/A'}\n$feeDescription: Rs. ${feeAmount.toStringAsFixed(0)}',
+            'timestamp': FieldValue.serverTimestamp(),
+            'type': 'payment',
+            'recordId': parentDoc.id,
+            'imageUrl': parentData['image'],
+            'branchId': branchId ?? targetId,
+          });
+
+          await batch.commit();
+
+          // Sync extra fee statuses based on new balance
+          final finalBatch = firestore.batch();
+          await _syncExtraFeeStatuses(
+            docRef: docRef,
+            batch: finalBatch,
+          );
+          await finalBatch.commit();
+
+          if (generateReceipt && context.mounted) {
+            try {
+              final companySnap = await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(targetId)
+                  .get();
+              final companyData = companySnap.data() ?? {};
+
+              final txData = {
+                'amount': feeAmount,
+                'description': feeDescription,
+                'mode': selectedMode,
+                'date': combinedDateTime,
+                'note': noteController.text.trim(),
+              };
+
+              final Uint8List pdfBytes = await PdfService.generateReceipt(
+                companyData: companyData,
+                studentDetails: parentData,
+                transactions: [txData],
+              );
+
+              if (context.mounted) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PdfPreviewScreen(
+                      pdfBytes: pdfBytes,
+                      fileName:
+                          'Receipt_${parentData['fullName'] ?? 'User'}.pdf',
+                    ),
+                  ),
+                );
+              }
+            } catch (pdfError) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error generating PDF: $pdfError')),
+                );
+              }
+            }
+          }
+
+          if (context.mounted) {
+            if (!generateReceipt) {
+              Navigator.pop(context);
+            }
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Fee collected successfully')));
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text('Error: $e')));
+          }
+        }
+      },
     );
   }
 
@@ -1813,24 +1672,12 @@ class PaymentUtils {
     required DocumentSnapshot feeDoc,
     required String targetId,
   }) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Extra Fee'),
-        content: const Text(
-            'Are you sure you want to delete this extra fee? The total amount and balance will be reduced.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
+    final confirmed = await showCustomConfirmBoolDialog(
+      context,
+      'Delete Extra Fee',
+      'Are you sure you want to delete this extra fee? The total amount and balance will be reduced.',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
     );
 
     if (confirmed != true) return;
@@ -1998,34 +1845,21 @@ class PaymentUtils {
     String? branchId,
     String category,
   ) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Payment Completed'),
-        content: const Text(
-            'This student has no outstanding balance. To accept more money, please add an "Additional Fee".'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              showAddExtraFeeDialog(
-                context: context,
-                doc: doc as DocumentSnapshot<Map<String, dynamic>>,
-                targetId: targetId,
-                category: category,
-                branchId: branchId,
-              );
-            },
-            style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
-            child: const Text('Add Extra Fee',
-                style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
+    showCustomConfirmationDialog(
+      context,
+      'Payment Completed',
+      'This student has no outstanding balance. To accept more money, please add an "Additional Fee".',
+      () {
+        showAddExtraFeeDialog(
+          context: context,
+          doc: doc as DocumentSnapshot<Map<String, dynamic>>,
+          targetId: targetId,
+          category: category,
+          branchId: branchId,
+        );
+      },
+      confirmText: 'Add Extra Fee',
+      cancelText: 'Cancel',
     );
   }
 } // End of PaymentUtils class

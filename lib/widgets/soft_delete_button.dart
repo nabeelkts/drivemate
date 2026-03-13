@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:get/get.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:drivemate/constants/colors.dart';
@@ -28,31 +29,15 @@ class SoftDeleteButton extends StatelessWidget {
   }
 
   void _confirmSoftDelete(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Move to Recycle Bin?'),
-        content: Text(
-            'Move "$documentName" to recycle bin?\n\nIt will be automatically deleted after 90 days if not restored.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _performSoftDelete();
-            },
-            icon: const Icon(Icons.delete),
-            label: const Text('Move to Recycle Bin'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: kPrimaryColor,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
+    showCustomConfirmationDialog(
+      context,
+      'Move to Recycle Bin?',
+      'Move "$documentName" to recycle bin?\n\nIt will be automatically deleted after 90 days if not restored.',
+      () {
+        _performSoftDelete();
+      },
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
     );
   }
 
@@ -84,7 +69,7 @@ class SoftDeleteButton extends StatelessWidget {
     } catch (e) {
       Get.snackbar(
         'Error',
-        'Failed to move to recycle bin: $e',
+        'Failed to Delete: $e',
         snackPosition: SnackPosition.BOTTOM,
         backgroundColor: Colors.red,
         colorText: Colors.white,

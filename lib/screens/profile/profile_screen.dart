@@ -2,6 +2,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
+import 'package:drivemate/utils/loading_utils.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:drivemate/constants/colors.dart';
@@ -218,10 +220,21 @@ class _ProfileScreenState extends State<ProfileScreen>
     final bgColor = isDark ? const Color(0xFF000000) : const Color(0xFFF2F2F7);
     final subColor = isDark ? Colors.white38 : Colors.black38;
 
-    return SafeArea(
-      child: Scaffold(
+    return Scaffold(
+      backgroundColor: bgColor,
+      appBar: AppBar(
+        toolbarHeight: 0,
+        elevation: 0,
         backgroundColor: bgColor,
-        body: FadeTransition(
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness:
+              isDark ? Brightness.light : Brightness.dark,
+          statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
+        ),
+      ),
+      body: SafeArea(
+        child: FadeTransition(
           opacity: _fadeAnim,
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -487,196 +500,89 @@ class _ProfileScreenState extends State<ProfileScreen>
 
   // ── Dialogs ────────────────────────────────────────────────────────────────
 
-  void _showJoinSchoolDialog() {
+  Future<void> _showJoinSchoolDialog() async {
     final TextEditingController idController = TextEditingController();
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    bool isLoading = false;
-    String? errorMessage;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setState) {
-          return Dialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: isDark ? Colors.grey.shade900 : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      color: kPrimaryColor.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(Icons.add_business_outlined,
-                        color: kPrimaryColor, size: 28),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Join School Workspace',
-                    style: TextStyle(
-                      color: isDark ? Colors.white : Colors.black87,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Enter the School ID provided by your administrator.',
-                    style: TextStyle(
-                        color: isDark ? Colors.white70 : Colors.black54,
-                        fontSize: 13),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 20),
-                  TextField(
-                    controller: idController,
-                    enabled: !isLoading,
-                    style: TextStyle(
-                        color: isDark ? Colors.white : Colors.black87),
-                    decoration: InputDecoration(
-                      hintText: 'Enter School ID',
-                      hintStyle: TextStyle(
-                          color: isDark
-                              ? Colors.white.withOpacity(0.3)
-                              : Colors.black.withOpacity(0.3)),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12)),
-                      errorText: errorMessage,
-                      errorMaxLines: 2,
-                    ),
-                    onChanged: (_) {
-                      if (errorMessage != null) {
-                        setState(() => errorMessage = null);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextButton(
-                          onPressed:
-                              isLoading ? null : () => Navigator.pop(context),
-                          child: const Text('Cancel'),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: isLoading
-                              ? null
-                              : () async {
-                                  final id = idController.text.trim();
-                                  if (id.isEmpty) {
-                                    setState(() => errorMessage =
-                                        'Please enter a School ID');
-                                    return;
-                                  }
-                                  setState(() {
-                                    isLoading = true;
-                                    errorMessage = null;
-                                  });
-                                  final result =
-                                      await _workspaceController.joinSchool(id);
-                                  if (mounted) {
-                                    if (result['success'] == true) {
-                                      Navigator.pop(context);
-                                      Get.snackbar(
-                                        'Success',
-                                        result['message'] ??
-                                            'Joined school workspace successfully',
-                                        snackPosition: SnackPosition.BOTTOM,
-                                        backgroundColor:
-                                            Colors.green.withOpacity(0.1),
-                                        colorText: isDark
-                                            ? Colors.white
-                                            : Colors.black87,
-                                        duration: const Duration(seconds: 2),
-                                      );
-                                    } else {
-                                      setState(() {
-                                        isLoading = false;
-                                        errorMessage = result['message'] ??
-                                            'Failed to join school';
-                                      });
-                                    }
-                                  }
-                                },
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: kPrimaryColor,
-                            shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12)),
-                          ),
-                          child: isLoading
-                              ? const SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    valueColor: AlwaysStoppedAnimation<Color>(
-                                        Colors.white),
-                                  ),
-                                )
-                              : const Text('Join',
-                                  style: TextStyle(color: Colors.white)),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _showSubscribeDialog() {
-    final TextEditingController codeController = TextEditingController();
-
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Enter Activation Code'),
-        content: TextField(
-          controller: codeController,
-          decoration: const InputDecoration(hintText: 'XXXX-XXXX-XXXX-XXXX'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+    final bool? confirmed = await showCustomStatefulDialogResult<bool>(
+      context,
+      'Join School Workspace',
+      (ctx, setDialogState, choose) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 8),
+          const Text(
+            'Enter the School ID provided by your administrator.',
+            textAlign: TextAlign.center,
           ),
-          ElevatedButton(
-            onPressed: () async {
-              final code = codeController.text.trim().toUpperCase();
-              if (code.isEmpty) return;
-              final res = await SubscriptionService().redeemCode(
-                _workspaceController.currentSchoolId.value,
-                code,
-                redeemerUid: _currentUser!.uid,
-              );
-              if (mounted) {
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                    content: Text(res['message'] ?? 'Status updated')));
-                _workspaceController.refreshAppData();
-              }
-            },
-            child: const Text('Activate'),
+          const SizedBox(height: 16),
+          TextField(
+            controller: idController,
+            decoration: InputDecoration(
+              hintText: 'Enter School ID',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
           ),
         ],
       ),
+      confirmText: 'Join',
+      cancelText: 'Cancel',
+      onConfirmResult: () => true,
     );
+    if (confirmed == true) {
+      final id = idController.text.trim();
+      if (id.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please enter a School ID')));
+        return;
+      }
+      final result = await LoadingUtils.wrapWithLoading(context, () async {
+        return await _workspaceController.joinSchool(id);
+      }, message: 'Joining workspace...');
+      if (!mounted) return;
+      if (result['success'] == true) {
+        Get.snackbar(
+          'Success',
+          result['message'] ?? 'Joined school workspace successfully',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green.withOpacity(0.1),
+          duration: const Duration(seconds: 2),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Failed to join school')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showSubscribeDialog() async {
+    final TextEditingController codeController = TextEditingController();
+
+    final bool? confirmed = await showCustomStatefulDialogResult<bool>(
+      context,
+      'Enter Activation Code',
+      (ctx, setDialogState, choose) => TextField(
+        controller: codeController,
+        decoration: const InputDecoration(hintText: 'XXXX-XXXX-XXXX-XXXX'),
+      ),
+      confirmText: 'Activate',
+      cancelText: 'Cancel',
+      onConfirmResult: () => true,
+    );
+    if (confirmed == true) {
+      final code = codeController.text.trim().toUpperCase();
+      if (code.isEmpty) return;
+      final res = await LoadingUtils.wrapWithLoading(context, () async {
+        return await SubscriptionService().redeemCode(
+          _workspaceController.currentSchoolId.value,
+          code,
+          redeemerUid: _currentUser!.uid,
+        );
+      }, message: 'Activating...');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(res['message'] ?? 'Status updated')));
+      _workspaceController.refreshAppData();
+    }
   }
 
   void _showAdminLoginDialog() async {

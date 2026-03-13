@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -363,25 +364,15 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
   }
 
   void _confirmRestore(DeletedItem item) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Restore Item?'),
-        content: Text('Restore "${item.name}" to its original location?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _restoreItem(item);
-            },
-            child: const Text('Restore'),
-          ),
-        ],
-      ),
+    showCustomConfirmationDialog(
+      context,
+      'Restore Item?',
+      'Restore "${item.name}" to its original location?',
+      () {
+        _restoreItem(item);
+      },
+      confirmText: 'Restore',
+      cancelText: 'Cancel',
     );
   }
 

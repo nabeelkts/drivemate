@@ -32,6 +32,7 @@ class DetailsTabsBar extends StatelessWidget {
             child: ChoiceChip(
               label: Text(tabs[index].label),
               selected: isActive,
+              showCheckmark: false, // Remove the tick mark
               onSelected: (selected) {
                 if (selected) onChanged(index);
               },

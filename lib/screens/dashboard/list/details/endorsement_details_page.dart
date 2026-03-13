@@ -21,6 +21,7 @@ import 'package:drivemate/screens/widget/utils.dart';
 import 'package:drivemate/widgets/additional_info_sheet.dart';
 import 'package:drivemate/services/additional_info_service.dart';
 import 'package:get/get.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:iconly/iconly.dart';
 import 'package:drivemate/utils/test_utils.dart';
 import 'package:drivemate/utils/image_utils.dart';
@@ -35,6 +36,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:drivemate/widgets/soft_delete_button.dart';
+import 'package:drivemate/services/soft_delete_service.dart';
 import 'package:drivemate/screens/dashboard/list/details/document_preview_screen.dart';
 import 'package:drivemate/screens/dashboard/list/widgets/details_tabs_bar.dart';
 
@@ -82,10 +84,11 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
     _initStreams();
   }
 
-  Stream<DocumentSnapshot> _mainStream = const Stream.empty();
-  Stream<QuerySnapshot> _paymentsStream = const Stream.empty();
-  Stream<QuerySnapshot> _extraFeesStream = const Stream.empty();
-  Stream<QuerySnapshot> _documentsStream = const Stream.empty();
+  late Stream<DocumentSnapshot> _mainStream;
+  late Stream<QuerySnapshot> _paymentsStream;
+  late Stream<QuerySnapshot> _extraFeesStream;
+  late Stream<QuerySnapshot> _documentsStream;
+  late Stream<QuerySnapshot> _notesStream;
   String _collectionName = 'endorsement';
 
   void _initStreams() {
@@ -93,36 +96,67 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
         ? _workspaceController.currentSchoolId.value
         : (FirebaseAuth.instance.currentUser?.uid ?? '');
 
-    if (_docId.isEmpty) {
-      // Initialize with empty streams to avoid late initialization errors
-      _mainStream = const Stream.empty();
-      _paymentsStream = const Stream.empty();
-      _extraFeesStream = const Stream.empty();
-      _documentsStream = const Stream.empty();
-      return;
-    }
+    // Initialize with empty streams immediately to avoid late initialization errors
+    _mainStream = Stream<DocumentSnapshot>.empty();
+    _paymentsStream = Stream<QuerySnapshot>.empty();
+    _extraFeesStream = Stream<QuerySnapshot>.empty();
+    _documentsStream = Stream<QuerySnapshot>.empty();
+    _notesStream = Stream<QuerySnapshot>.empty();
+
+    if (_docId.isEmpty) return;
 
     final base = FirebaseFirestore.instance.collection('users').doc(targetId);
-    base.collection('endorsement').doc(_docId).get().then((snap) {
+    base.collection('endorsement').doc(_docId).get().then((snap) async {
       _collectionName = snap.exists ? 'endorsement' : 'deactivated_endorsement';
 
       _mainStream = base.collection(_collectionName).doc(_docId).snapshots();
+
+      // Check if subcollections were moved or still in original collection
+      String subCollectionName = _collectionName;
+      if (_collectionName == 'deactivated_endorsement') {
+        // Check if payments exist in deactivated collection
+        final paymentSnap = await base
+            .collection('deactivated_endorsement')
+            .doc(_docId)
+            .collection('payments')
+            .limit(1)
+            .get();
+        if (paymentSnap.docs.isEmpty) {
+          // If no payments in deactivated, check if they are still in endorsement
+          final originalPaymentSnap = await base
+              .collection('endorsement')
+              .doc(_docId)
+              .collection('payments')
+              .limit(1)
+              .get();
+          if (originalPaymentSnap.docs.isNotEmpty) {
+            subCollectionName = 'endorsement';
+          }
+        }
+      }
+
       _paymentsStream = base
-          .collection(_collectionName)
+          .collection(subCollectionName)
           .doc(_docId)
           .collection('payments')
           .orderBy('date', descending: true)
           .snapshots();
       _extraFeesStream = base
-          .collection(_collectionName)
+          .collection(subCollectionName)
           .doc(_docId)
           .collection('extra_fees')
           .orderBy('date', descending: true)
           .snapshots();
       _documentsStream = base
-          .collection(_collectionName)
+          .collection(subCollectionName)
           .doc(_docId)
           .collection('documents')
+          .orderBy('timestamp', descending: true)
+          .snapshots();
+      _notesStream = base
+          .collection(subCollectionName)
+          .doc(_docId)
+          .collection('notes')
           .orderBy('timestamp', descending: true)
           .snapshots();
       if (mounted) setState(() {});
@@ -154,58 +188,69 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
         elevation: 0,
         leading: const CustomBackButton(),
         actions: [
-          IconButton(
-              icon: Icon(Icons.picture_as_pdf, color: subTextColor),
-              onPressed: () => _shareEndorsementDetails(context)),
-          // Soft Delete Button - Move to Recycle Bin
-          SoftDeleteButton(
-            docRef: FirebaseFirestore.instance
-                .collection('users')
-                .doc(targetId)
-                .collection('endorsement')
-                .doc(_docId),
-            documentName: endorsementDetails['fullName'] ?? 'Endorsement',
-            onDeleteSuccess: () {
-              // Get.back() is already called by SoftDeleteButton
-              // Just show success message
-              Get.snackbar(
-                'Success',
-                'Endorsement moved to recycle bin',
-                snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: Colors.green,
-                colorText: Colors.white,
-                duration: const Duration(seconds: 2),
-              );
-            },
-          ),
-          IconButton(
-            icon: Icon(Icons.edit, color: subTextColor),
-            onPressed: () {
-              Navigator.push(
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: subTextColor),
+            onSelected: (value) {
+              if (value == 'pdf') {
+                _shareEndorsementDetails(context);
+              } else if (value == 'edit') {
+                Navigator.push(
                   context,
                   MaterialPageRoute(
-                      builder: (context) => EditEndorsementDetailsForm(
-                            initialValues: endorsementDetails,
-                            items: const [
-                              'MC',
-                              'MCWOG',
-                              'LMV',
-                              'LMV + MC ',
-                              'LMV + MCWOG',
-                              'ADAPTED VEHICLE',
-                              'TRANS',
-                              'TRANS + MC',
-                              'TRANS + MCWOG',
-                              'EXCAVATOR',
-                              'CRANE',
-                              'FORKLIFT',
-                              'CONSTRUCTION EQUIPMENT',
-                              'TOW TRUCK',
-                              'TRAILER',
-                              'AGRICULTURAL TRACTOR'
-                            ],
-                          )));
+                    builder: (context) => EditEndorsementDetailsForm(
+                      initialValues: endorsementDetails,
+                      items: const [
+                        'MC',
+                        'MCWOG',
+                        'LMV',
+                        'LMV + MC ',
+                        'LMV + MCWOG',
+                        'ADAPTED VEHICLE',
+                        'TRANS',
+                        'TRANS + MC',
+                        'TRANS + MCWOG',
+                        'EXCAVATOR',
+                        'CRANE',
+                        'FORKLIFT',
+                        'CONSTRUCTION EQUIPMENT',
+                        'TOW TRUCK',
+                        'TRAILER',
+                        'AGRICULTURAL TRACTOR'
+                      ],
+                    ),
+                  ),
+                );
+              } else if (value == 'delete') {
+                _confirmSoftDelete(context, targetId);
+              }
             },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: ListTile(
+                  leading: Icon(Icons.edit_outlined, size: 20),
+                  title: Text('Edit Details'),
+                  dense: true,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'pdf',
+                child: ListTile(
+                  leading: Icon(Icons.picture_as_pdf_outlined, size: 20),
+                  title: Text('Generate PDF'),
+                  dense: true,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  leading:
+                      Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                  title: Text('Delete', style: TextStyle(color: Colors.red)),
+                  dense: true,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -228,11 +273,8 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                   const SizedBox(height: 16),
                   _buildInfoGrid(context),
                   const SizedBox(height: 16),
-                  _buildTabSection(
-                      context,
-                      targetId,
-                      snapshot.data
-                          as DocumentSnapshot<Map<String, dynamic>>?),
+                  _buildTabSection(context, targetId,
+                      snapshot.data as DocumentSnapshot<Map<String, dynamic>>?),
                 ],
               ),
             ),
@@ -243,6 +285,54 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
   }
 
   // ── Additional Info button for AppBar ──────────────────────────────────────
+
+  void _confirmSoftDelete(BuildContext context, String targetId) {
+    showCustomConfirmationDialog(
+      context,
+      'Move to Recycle Bin?',
+      'Move "${endorsementDetails['fullName'] ?? 'Endorsement'}" to recycle bin?\n\nIt will be automatically deleted after 90 days if not restored.',
+      () async {
+        try {
+          final user = FirebaseAuth.instance.currentUser;
+          if (user == null) throw Exception('User not logged in');
+
+          final docRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(targetId)
+              .collection(_collectionName)
+              .doc(_docId);
+
+          await SoftDeleteService.softDelete(
+            docRef: docRef,
+            userId: user.uid,
+            documentName: endorsementDetails['fullName'] ?? 'Endorsement',
+          );
+
+          if (mounted) {
+            Get.snackbar(
+              'Success',
+              'Moved to recycle bin',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 2),
+            );
+            Navigator.pop(context); // Close details page
+          }
+        } catch (e) {
+          Get.snackbar(
+            'Error',
+            'Failed to Delete: $e',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        }
+      },
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+    );
+  }
 
   Widget _buildProfileHeader(BuildContext context, String targetId) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -525,7 +615,8 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                             style: TextStyle(color: subTextColor, fontSize: 11),
                           ),
                           const SizedBox(height: 2),
-                          item['label'] == 'Mobile'
+                          (item['label'] == 'Mobile' ||
+                                  item['label'] == 'Emergency')
                               ? _buildMobileRow(item['value']!, textColor,
                                   subTextColor, context)
                               : Text(
@@ -551,21 +642,13 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
 
   Widget _buildTabSection(BuildContext context, String targetId,
       DocumentSnapshot<Map<String, dynamic>>? endorsementSnapshot) {
-    final tabs = [
-      {'label': 'Payment', 'icon': Icons.account_balance_wallet},
-      {'label': 'Tests', 'icon': Icons.assignment},
-      {'label': 'Documents', 'icon': Icons.description},
-      {'label': 'Notes', 'icon': Icons.note},
-      {'label': 'Additional', 'icon': Icons.info_outline},
-    ];
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Column(
       children: [
         DetailsTabsBar(
           tabs: const [
             DetailsTabItem(
                 label: 'Payment', icon: Icons.account_balance_wallet),
+            DetailsTabItem(label: 'Tests', icon: Icons.assignment),
             DetailsTabItem(label: 'Documents', icon: Icons.description),
             DetailsTabItem(label: 'Notes', icon: Icons.note),
             DetailsTabItem(label: 'Additional', icon: Icons.info_outline),
@@ -894,6 +977,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                   ),
                   child: CheckboxListTile(
                     value: isSelected,
+                    controlAffinity: ListTileControlAffinity.leading,
                     onChanged: (val) {
                       setState(() {
                         if (val == true)
@@ -1099,8 +1183,11 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
   }
 
   Widget _buildNotesTab(BuildContext context) {
-    final hasNotes =
-        (endorsementDetails['remarks'] ?? '').toString().trim().isNotEmpty;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+        ? _workspaceController.currentSchoolId.value
+        : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1109,45 +1196,321 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
           children: [
             const Text('Notes & Remarks',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.add, size: 20, color: kAccentRed),
-                  tooltip: 'Add Notes',
-                  onPressed: () => _editNotes(context, isNew: true),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, size: 20, color: kAccentRed),
-                  tooltip: hasNotes ? 'Edit Notes' : 'Add Notes',
-                  onPressed: () => _editNotes(context),
-                ),
-                if (hasNotes)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline,
-                        size: 20, color: Colors.red),
-                    tooltip: 'Delete Notes',
-                    onPressed: () => _clearNotes(context),
-                  ),
-              ],
+            IconButton(
+              icon: const Icon(Icons.add_comment_outlined, color: kAccentRed),
+              tooltip: 'Add Note',
+              onPressed: () => _addNote(context, targetId),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.yellow[50],
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.yellow[200]!),
-          ),
-          child: Text(
-            hasNotes ? endorsementDetails['remarks'] : 'No remarks added yet.',
-            style: const TextStyle(fontStyle: FontStyle.italic),
-          ),
+        StreamBuilder<QuerySnapshot>(
+          stream: _notesStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final docs = snapshot.data?.docs ?? [];
+
+            // If subcollection is empty, check if there's a legacy remark
+            final legacyRemark =
+                (endorsementDetails['remarks'] ?? '').toString().trim();
+
+            if (docs.isEmpty && legacyRemark.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Text(
+                    'No notes added yet.',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ),
+              );
+            }
+
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: docs.length + (legacyRemark.isNotEmpty ? 1 : 0),
+              itemBuilder: (context, index) {
+                // Show legacy remark first if it exists
+                if (legacyRemark.isNotEmpty && index == 0) {
+                  return _buildNoteItem(
+                    context,
+                    id: 'legacy',
+                    content: legacyRemark,
+                    timestamp: null,
+                    isDark: isDark,
+                    targetId: targetId,
+                    isLegacy: true,
+                  );
+                }
+
+                final noteDoc =
+                    docs[legacyRemark.isNotEmpty ? index - 1 : index];
+                final data = noteDoc.data() as Map<String, dynamic>;
+                final content = data['content'] ?? '';
+                final timestamp = data['timestamp'] as Timestamp?;
+
+                return _buildNoteItem(
+                  context,
+                  id: noteDoc.id,
+                  content: content,
+                  timestamp: timestamp,
+                  isDark: isDark,
+                  targetId: targetId,
+                );
+              },
+            );
+          },
         ),
       ],
     );
+  }
+
+  Widget _buildNoteItem(
+    BuildContext context, {
+    required String id,
+    required String content,
+    required Timestamp? timestamp,
+    required bool isDark,
+    required String targetId,
+    bool isLegacy = false,
+  }) {
+    final dateStr = timestamp != null
+        ? DateFormat('dd MMM yyyy, hh:mm a').format(timestamp.toDate())
+        : 'Legacy Note';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[900] : Colors.yellow[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.grey[800]! : Colors.yellow[200]!,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                dateStr,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.white54 : Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined,
+                        size: 18, color: Colors.blue),
+                    onPressed: () => _editNoteDialog(
+                      context,
+                      targetId,
+                      id: id,
+                      existingContent: content,
+                      isLegacy: isLegacy,
+                    ),
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline,
+                        size: 18, color: Colors.red),
+                    onPressed: () => _deleteNoteDialog(
+                      context,
+                      targetId,
+                      id: id,
+                      isLegacy: isLegacy,
+                    ),
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            content,
+            style: TextStyle(
+              fontStyle: FontStyle.italic,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addNote(BuildContext context, String targetId) async {
+    final controller = TextEditingController();
+
+    final bool? shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Note'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Enter notes or remarks',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSave != true || controller.text.trim().isEmpty) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection(_collectionName)
+          .doc(_docId)
+          .collection('notes')
+          .add({
+        'content': controller.text.trim(),
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      Get.snackbar('Success', 'Note added.',
+          backgroundColor: Colors.green, colorText: Colors.white);
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to add note: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+    }
+  }
+
+  Future<void> _editNoteDialog(
+    BuildContext context,
+    String targetId, {
+    required String id,
+    required String existingContent,
+    bool isLegacy = false,
+  }) async {
+    final controller = TextEditingController(text: existingContent);
+
+    final bool? shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Note'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Enter notes or remarks',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSave != true) return;
+
+    try {
+      final base = FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection(_collectionName)
+          .doc(_docId);
+
+      if (isLegacy) {
+        await base.update({'remarks': controller.text.trim()});
+        setState(() {
+          endorsementDetails['remarks'] = controller.text.trim();
+        });
+      } else {
+        await base.collection('notes').doc(id).update({
+          'content': controller.text.trim(),
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      }
+
+      Get.snackbar('Success', 'Note updated.',
+          backgroundColor: Colors.green, colorText: Colors.white);
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to update note: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+    }
+  }
+
+  Future<void> _deleteNoteDialog(
+    BuildContext context,
+    String targetId, {
+    required String id,
+    bool isLegacy = false,
+  }) async {
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Note'),
+        content: const Text('Are you sure you want to delete this note?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    try {
+      final base = FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection(_collectionName)
+          .doc(_docId);
+
+      if (isLegacy) {
+        await base.update({'remarks': FieldValue.delete()});
+        setState(() {
+          endorsementDetails.remove('remarks');
+        });
+      } else {
+        await base.collection('notes').doc(id).delete();
+      }
+
+      Get.snackbar('Success', 'Note deleted.',
+          backgroundColor: Colors.green, colorText: Colors.white);
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to delete note: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+    }
   }
 
   Widget _buildAdditionalTab(BuildContext context) {
@@ -1338,7 +1701,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
     FirebaseFirestore.instance
         .collection('users')
         .doc(targetId)
-        .collection('endorsement')
+        .collection(_collectionName)
         .doc(_docId)
         .get()
         .then((snapshot) {
@@ -1424,149 +1787,6 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
           backgroundColor: Colors.green, colorText: Colors.white);
     } catch (e) {
       Get.snackbar('Error', 'Failed to delete document: $e');
-    }
-  }
-
-  Future<void> _editNotes(BuildContext context, {bool isNew = false}) async {
-    final controller = TextEditingController(
-      text: isNew ? '' : (endorsementDetails['remarks'] ?? ''),
-    );
-
-    final bool? shouldSave = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Notes'),
-        content: TextField(
-          controller: controller,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            hintText: 'Enter notes or remarks',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldSave != true) return;
-
-    final notes = controller.text.trim();
-    try {
-      final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
-          ? _workspaceController.currentSchoolId.value
-          : (FirebaseAuth.instance.currentUser?.uid ?? '');
-
-      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
-      var collection = 'endorsement';
-      var snap = await base.collection(collection).doc(_docId).get();
-      if (!snap.exists) {
-        final altSnap =
-            await base.collection('deactivated_endorsement').doc(_docId).get();
-        if (altSnap.exists) {
-          collection = 'deactivated_endorsement';
-        }
-      }
-      await base
-          .collection(collection)
-          .doc(_docId)
-          .set({'remarks': notes}, SetOptions(merge: true));
-
-      setState(() {
-        endorsementDetails['remarks'] = notes;
-      });
-
-      Get.snackbar(
-        'Success',
-        'Notes updated.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update notes: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
-  }
-
-  Future<void> _clearNotes(BuildContext context) async {
-    if ((endorsementDetails['remarks'] ?? '').toString().trim().isEmpty) {
-      return;
-    }
-
-    final bool? shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Notes'),
-        content: const Text(
-          'Are you sure you want to delete all notes for this endorsement?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldDelete != true) return;
-
-    try {
-      final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
-          ? _workspaceController.currentSchoolId.value
-          : (FirebaseAuth.instance.currentUser?.uid ?? '');
-
-      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
-      var collection = 'endorsement';
-      var snap = await base.collection(collection).doc(_docId).get();
-      if (!snap.exists) {
-        final altSnap =
-            await base.collection('deactivated_endorsement').doc(_docId).get();
-        if (altSnap.exists) {
-          collection = 'deactivated_endorsement';
-        }
-      }
-      await base
-          .collection(collection)
-          .doc(_docId)
-          .update({'remarks': FieldValue.delete()});
-
-      setState(() {
-        endorsementDetails.remove('remarks');
-      });
-
-      Get.snackbar(
-        'Success',
-        'Notes deleted.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to delete notes: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
     }
   }
 
@@ -1703,7 +1923,6 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
             style:
                 TextStyle(fontSize: 13, fontFamily: 'Inter', color: textColor),
             children: [
-              TextSpan(text: 'Mobile: ', style: TextStyle(color: subTextColor)),
               TextSpan(
                   text: phone,
                   style: const TextStyle(

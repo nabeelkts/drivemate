@@ -301,7 +301,18 @@ class _TodaySchedulePageState extends State<TodaySchedulePage>
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => StudentDetailsPage(studentDetails: s),
+                    builder: (context) {
+                      final enriched = Map<String, dynamic>.from(s);
+                      if (!enriched.containsKey('id') &&
+                          enriched['id']?.toString().isEmpty != false) {
+                        // Try to pass through recordId if present
+                        if (enriched['id'] == null &&
+                            enriched['recordId'] != null) {
+                          enriched['id'] = enriched['recordId'];
+                        }
+                      }
+                      return StudentDetailsPage(studentDetails: enriched);
+                    },
                   ),
                 );
               } else if (collection == 'licenseonly') {

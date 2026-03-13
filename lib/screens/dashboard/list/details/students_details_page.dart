@@ -43,6 +43,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:drivemate/services/storage_service.dart';
 import 'package:drivemate/screens/dashboard/list/details/document_preview_screen.dart';
 import 'package:drivemate/screens/dashboard/list/widgets/details_tabs_bar.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
+import 'package:drivemate/services/soft_delete_service.dart';
 
 class StudentDetailsPage extends StatefulWidget {
   final Map<String, dynamic> studentDetails;
@@ -65,11 +67,12 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       studentDetails['id']?.toString() ??
       studentDetails['studentId']?.toString() ??
       '';
-  late final Stream<DocumentSnapshot> _mainStream;
-  late final Stream<QuerySnapshot> _paymentsStream;
-  late final Stream<QuerySnapshot> _attendanceHistoryStream;
-  late final Stream<QuerySnapshot> _extraFeesStream;
-  late final Stream<QuerySnapshot> _documentsStream;
+  late Stream<DocumentSnapshot> _mainStream;
+  late Stream<QuerySnapshot> _paymentsStream;
+  late Stream<QuerySnapshot> _attendanceHistoryStream;
+  late Stream<QuerySnapshot> _extraFeesStream;
+  late Stream<QuerySnapshot> _documentsStream;
+  late Stream<QuerySnapshot> _notesStream;
   String _collectionName = 'students';
 
   @override
@@ -84,47 +87,180 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         ? _workspaceController.currentSchoolId.value
         : (FirebaseAuth.instance.currentUser?.uid ?? '');
 
-    // Initialize with empty streams to prevent late init errors during first build
-    _mainStream = const Stream.empty();
-    _paymentsStream = const Stream.empty();
-    _attendanceHistoryStream = const Stream.empty();
-    _extraFeesStream = const Stream.empty();
-    _documentsStream = const Stream.empty();
-
     final base = FirebaseFirestore.instance.collection('users').doc(targetId);
-    final activeSnap = await base.collection('students').doc(_docId).get();
-    _collectionName = activeSnap.exists ? 'students' : 'deactivated_students';
+    String docIdForStreams = _docId;
+    String collectionForStreams = 'students';
 
-    _mainStream = base.collection(_collectionName).doc(_docId).snapshots();
+    // Initialize with empty streams immediately to avoid LateInitializationError
+    _mainStream = Stream<DocumentSnapshot>.empty();
+    _paymentsStream = Stream<QuerySnapshot>.empty();
+    _attendanceHistoryStream = Stream<QuerySnapshot>.empty();
+    _extraFeesStream = Stream<QuerySnapshot>.empty();
+    _documentsStream = Stream<QuerySnapshot>.empty();
+    _notesStream = Stream<QuerySnapshot>.empty();
 
+    if (docIdForStreams.isEmpty) {
+      debugPrint('StudentDetailsPage: _docId is empty');
+      return;
+    }
+
+    // Initialize with default 'students' collection streams immediately
+    // so they start loading while we check for deactivation/alternative IDs
+    _mainStream =
+        base.collection(collectionForStreams).doc(docIdForStreams).snapshots();
     _paymentsStream = base
-        .collection(_collectionName)
-        .doc(_docId)
+        .collection(collectionForStreams)
+        .doc(docIdForStreams)
         .collection('payments')
         .orderBy('date', descending: true)
         .snapshots();
-
     _attendanceHistoryStream = base
-        .collection(_collectionName)
-        .doc(_docId)
+        .collection(collectionForStreams)
+        .doc(docIdForStreams)
         .collection('attendance')
         .orderBy('date', descending: true)
         .snapshots();
-
     _extraFeesStream = base
-        .collection(_collectionName)
-        .doc(_docId)
+        .collection(collectionForStreams)
+        .doc(docIdForStreams)
         .collection('extra_fees')
         .orderBy('date', descending: true)
         .snapshots();
-
     _documentsStream = base
-        .collection(_collectionName)
-        .doc(_docId)
+        .collection(collectionForStreams)
+        .doc(docIdForStreams)
         .collection('documents')
         .orderBy('timestamp', descending: true)
         .snapshots();
-    if (mounted) setState(() {});
+    _notesStream = base
+        .collection(collectionForStreams)
+        .doc(docIdForStreams)
+        .collection('notes')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
+
+    try {
+      // Try exact doc in students to confirm collection
+      var snap = await base.collection('students').doc(docIdForStreams).get();
+      bool collectionChanged = false;
+
+      if (!snap.exists) {
+        // Try lookup by studentId field in students
+        final sid = studentDetails['studentId']?.toString();
+        if (sid != null && sid.isNotEmpty) {
+          final q = await base
+              .collection('students')
+              .where('studentId', isEqualTo: sid)
+              .limit(1)
+              .get();
+          if (q.docs.isNotEmpty) {
+            docIdForStreams = q.docs.first.id;
+            collectionForStreams = 'students';
+            collectionChanged = true;
+          } else {
+            // Try deactivated collections
+            var deact = await base
+                .collection('deactivated_students')
+                .doc(docIdForStreams)
+                .get();
+            if (!deact.exists) {
+              final dq = await base
+                  .collection('deactivated_students')
+                  .where('studentId', isEqualTo: sid)
+                  .limit(1)
+                  .get();
+              if (dq.docs.isNotEmpty) {
+                docIdForStreams = dq.docs.first.id;
+                collectionForStreams = 'deactivated_students';
+                collectionChanged = true;
+              }
+            } else {
+              collectionForStreams = 'deactivated_students';
+              collectionChanged = true;
+            }
+          }
+        } else {
+          // Fallback: check deactivated by doc id
+          var deact = await base
+              .collection('deactivated_students')
+              .doc(docIdForStreams)
+              .get();
+          if (deact.exists) {
+            collectionForStreams = 'deactivated_students';
+            collectionChanged = true;
+          }
+        }
+      }
+
+      if (collectionChanged) {
+        // Update streams if we found the document in a different collection or with different ID
+        _collectionName = collectionForStreams;
+        studentDetails['id'] = docIdForStreams;
+
+        // Check if subcollections were moved or still in original collection
+        String subCollectionPath = collectionForStreams;
+        if (collectionForStreams == 'deactivated_students') {
+          // Check if payments exist in deactivated collection
+          final paymentSnap = await base
+              .collection('deactivated_students')
+              .doc(docIdForStreams)
+              .collection('payments')
+              .limit(1)
+              .get();
+          if (paymentSnap.docs.isEmpty) {
+            // If no payments in deactivated, check if they are still in students
+            final originalPaymentSnap = await base
+                .collection('students')
+                .doc(docIdForStreams)
+                .collection('payments')
+                .limit(1)
+                .get();
+            if (originalPaymentSnap.docs.isNotEmpty) {
+              subCollectionPath = 'students';
+            }
+          }
+        }
+
+        _mainStream = base
+            .collection(collectionForStreams)
+            .doc(docIdForStreams)
+            .snapshots();
+        _paymentsStream = base
+            .collection(subCollectionPath)
+            .doc(docIdForStreams)
+            .collection('payments')
+            .orderBy('date', descending: true)
+            .snapshots();
+        _attendanceHistoryStream = base
+            .collection(subCollectionPath)
+            .doc(docIdForStreams)
+            .collection('attendance')
+            .orderBy('date', descending: true)
+            .snapshots();
+        _extraFeesStream = base
+            .collection(subCollectionPath)
+            .doc(docIdForStreams)
+            .collection('extra_fees')
+            .orderBy('date', descending: true)
+            .snapshots();
+        _documentsStream = base
+            .collection(subCollectionPath)
+            .doc(docIdForStreams)
+            .collection('documents')
+            .orderBy('timestamp', descending: true)
+            .snapshots();
+        _notesStream = base
+            .collection(subCollectionPath)
+            .doc(docIdForStreams)
+            .collection('notes')
+            .orderBy('timestamp', descending: true)
+            .snapshots();
+      }
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      debugPrint('Error initializing StudentDetailsPage streams: $e');
+    }
   }
 
   @override
@@ -145,52 +281,63 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         title: Text('Student Details', style: TextStyle(color: textColor)),
         actions: [
           _buildLessonControlButton(targetId),
-          IconButton(
-            icon: Icon(Icons.picture_as_pdf, color: subTextColor),
-            onPressed: () => _shareStudentDetails(context),
-          ),
-          if (_collectionName == 'students')
-            SoftDeleteButton(
-              docRef: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(targetId)
-                  .collection(_collectionName)
-                  .doc(_docId) as DocumentReference<Object?>,
-              documentName: studentDetails['fullName'] ?? 'Student',
-              onDeleteSuccess: () {
-                Get.snackbar(
-                  'Success',
-                  'Student moved to recycle bin',
-                  snackPosition: SnackPosition.BOTTOM,
-                  backgroundColor: Colors.green,
-                  colorText: Colors.white,
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: subTextColor),
+            onSelected: (value) {
+              if (value == 'pdf') {
+                _shareStudentDetails(context);
+              } else if (value == 'edit') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EditStudentDetailsForm(
+                      initialValues: studentDetails,
+                      items: const [
+                        'MC Study',
+                        'MCWOG Study',
+                        'LMV Study',
+                        'LMV Study + MC Study',
+                        'LMV Study + MCWOG Study',
+                        'LMV Study + MC License',
+                        'LMV Study + MCWOG License',
+                        'LMV License + MC Study',
+                        'LMV License + MCWOG Study',
+                      ],
+                    ),
+                  ),
                 );
-                Navigator.pop(context);
-              },
-            ),
-          IconButton(
-            icon: Icon(Icons.edit, color: subTextColor),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => EditStudentDetailsForm(
-                    initialValues: studentDetails,
-                    items: const [
-                      'MC Study',
-                      'MCWOG Study',
-                      'LMV Study',
-                      'LMV Study + MC Study',
-                      'LMV Study + MCWOG Study',
-                      'LMV Study + MC License',
-                      'LMV Study + MCWOG License',
-                      'LMV License + MC Study',
-                      'LMV License + MCWOG Study',
-                    ],
+              } else if (value == 'delete') {
+                _confirmSoftDelete(context, targetId);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: ListTile(
+                  leading: Icon(Icons.edit_outlined, size: 20),
+                  title: Text('Edit Details'),
+                  dense: true,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'pdf',
+                child: ListTile(
+                  leading: Icon(Icons.picture_as_pdf_outlined, size: 20),
+                  title: Text('Generate PDF'),
+                  dense: true,
+                ),
+              ),
+              if (_collectionName == 'students')
+                const PopupMenuItem(
+                  value: 'delete',
+                  child: ListTile(
+                    leading:
+                        Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                    title: Text('Delete', style: TextStyle(color: Colors.red)),
+                    dense: true,
                   ),
                 ),
-              );
-            },
+            ],
           ),
         ],
       ),
@@ -351,8 +498,6 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
 
   Widget _buildInfoGrid(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
-    final subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -908,8 +1053,11 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   }
 
   Widget _buildNotesTab(BuildContext context) {
-    final hasNotes =
-        (studentDetails['remarks'] ?? '').toString().trim().isNotEmpty;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+        ? _workspaceController.currentSchoolId.value
+        : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -918,61 +1066,427 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           children: [
             const Text('Notes & Remarks',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.add, size: 20, color: kAccentRed),
-                  tooltip: 'Add Notes',
-                  onPressed: () => _editNotes(context, isNew: true),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, size: 20, color: kAccentRed),
-                  tooltip: hasNotes ? 'Edit Notes' : 'Add Notes',
-                  onPressed: () => _editNotes(context),
-                ),
-                if (hasNotes)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline,
-                        size: 20, color: Colors.red),
-                    tooltip: 'Delete Notes',
-                    onPressed: () => _clearNotes(context),
-                  ),
-              ],
+            IconButton(
+              icon: const Icon(Icons.add_comment_outlined, color: kAccentRed),
+              tooltip: 'Add Note',
+              onPressed: () => _addNote(context, targetId),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.yellow[50],
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.yellow[200]!),
-          ),
-          child: Text(
-            hasNotes ? studentDetails['remarks'] : 'No remarks added yet.',
-            style: const TextStyle(fontStyle: FontStyle.italic),
-          ),
+        StreamBuilder<QuerySnapshot>(
+          stream: _notesStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final docs = snapshot.data?.docs ?? [];
+
+            // If subcollection is empty, check if there's a legacy remark
+            final legacyRemark =
+                (studentDetails['remarks'] ?? '').toString().trim();
+
+            if (docs.isEmpty && legacyRemark.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Text(
+                    'No notes added yet.',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ),
+              );
+            }
+
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: docs.length + (legacyRemark.isNotEmpty ? 1 : 0),
+              itemBuilder: (context, index) {
+                // Show legacy remark first if it exists
+                if (legacyRemark.isNotEmpty && index == 0) {
+                  return _buildNoteItem(
+                    context,
+                    id: 'legacy',
+                    content: legacyRemark,
+                    timestamp: null,
+                    isDark: isDark,
+                    targetId: targetId,
+                    isLegacy: true,
+                  );
+                }
+
+                final noteDoc =
+                    docs[legacyRemark.isNotEmpty ? index - 1 : index];
+                final data = noteDoc.data() as Map<String, dynamic>;
+                final content = data['content'] ?? '';
+                final timestamp = data['timestamp'] as Timestamp?;
+
+                return _buildNoteItem(
+                  context,
+                  id: noteDoc.id,
+                  content: content,
+                  timestamp: timestamp,
+                  isDark: isDark,
+                  targetId: targetId,
+                );
+              },
+            );
+          },
         ),
       ],
     );
+  }
+
+  Widget _buildNoteItem(
+    BuildContext context, {
+    required String id,
+    required String content,
+    required Timestamp? timestamp,
+    required bool isDark,
+    required String targetId,
+    bool isLegacy = false,
+  }) {
+    final dateStr = timestamp != null
+        ? DateFormat('dd MMM yyyy, hh:mm a').format(timestamp.toDate())
+        : 'Legacy Note';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[900] : Colors.yellow[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.grey[800]! : Colors.yellow[200]!,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                dateStr,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.white54 : Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined,
+                        size: 18, color: Colors.blue),
+                    onPressed: () => _editNoteDialog(
+                      context,
+                      targetId,
+                      id: id,
+                      existingContent: content,
+                      isLegacy: isLegacy,
+                    ),
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline,
+                        size: 18, color: Colors.red),
+                    onPressed: () => _deleteNoteDialog(
+                      context,
+                      targetId,
+                      id: id,
+                      isLegacy: isLegacy,
+                    ),
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            content,
+            style: TextStyle(
+              fontStyle: FontStyle.italic,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addNote(BuildContext context, String targetId) async {
+    final controller = TextEditingController();
+
+    final bool? shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Note'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Enter notes or remarks',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSave != true || controller.text.trim().isEmpty) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection(_collectionName)
+          .doc(_docId)
+          .collection('notes')
+          .add({
+        'content': controller.text.trim(),
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      Get.snackbar('Success', 'Note added.',
+          backgroundColor: Colors.green, colorText: Colors.white);
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to add note: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+    }
+  }
+
+  Future<void> _editNoteDialog(
+    BuildContext context,
+    String targetId, {
+    required String id,
+    required String existingContent,
+    bool isLegacy = false,
+  }) async {
+    final controller = TextEditingController(text: existingContent);
+
+    final bool? shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Note'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Enter notes or remarks',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSave != true) return;
+
+    try {
+      final base = FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection(_collectionName)
+          .doc(_docId);
+
+      if (isLegacy) {
+        await base.update({'remarks': controller.text.trim()});
+      } else {
+        await base.collection('notes').doc(id).update({
+          'content': controller.text.trim(),
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      }
+
+      Get.snackbar('Success', 'Note updated.',
+          backgroundColor: Colors.green, colorText: Colors.white);
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to update note: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+    }
+  }
+
+  Future<void> _deleteNoteDialog(
+    BuildContext context,
+    String targetId, {
+    required String id,
+    bool isLegacy = false,
+  }) async {
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Note'),
+        content: const Text('Are you sure you want to delete this note?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    try {
+      final base = FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection(_collectionName)
+          .doc(_docId);
+
+      if (isLegacy) {
+        await base.update({'remarks': FieldValue.delete()});
+      } else {
+        await base.collection('notes').doc(id).delete();
+      }
+
+      Get.snackbar('Success', 'Note deleted.',
+          backgroundColor: Colors.green, colorText: Colors.white);
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to delete note: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+    }
   }
 
   Widget _buildTransactionHistory(BuildContext context, String targetId) {
     return StreamBuilder<QuerySnapshot>(
       stream: _paymentsStream,
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return Center(
+              child: Text('Error: ${snapshot.error}',
+                  style: const TextStyle(color: Colors.red, fontSize: 12)));
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting &&
+            _cachedPayments.isEmpty) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
         if (snapshot.hasData) {
           final docs = snapshot.data?.docs ?? [];
-          _cachedPayments = docs.map((d) {
+          final transactions = docs.map((d) {
             final map = d.data() as Map<String, dynamic>;
             map['id'] = d.id;
             map['docRef'] = d;
             return map;
           }).toList();
-          _cachedPayments.sort((a, b) =>
+
+          // Add legacy payments if no payments exist in subcollection
+          if (transactions.isEmpty) {
+            // 1. Check for Advance
+            final advAmt = double.tryParse(
+                    studentDetails['advanceAmount']?.toString() ?? '0') ??
+                0;
+            if (advAmt > 0) {
+              final regDate = DateTime.tryParse(
+                      studentDetails['registrationDate']?.toString() ??
+                          studentDetails['date']?.toString() ??
+                          '') ??
+                  DateTime.now();
+              transactions.add({
+                'id': 'legacy_adv',
+                'amount': advAmt,
+                'date': Timestamp.fromDate(regDate),
+                'mode': studentDetails['paymentMode'] ?? 'Cash',
+                'description': 'Initial Advance',
+                'isLegacy': true
+              });
+            }
+
+            // 2. Check for numbered installments (installment1, installment2, etc.)
+            for (int i = 1; i <= 20; i++) {
+              final key = 'installment$i';
+              final timeKey = 'installment${i}Time';
+              final instAmt =
+                  double.tryParse(studentDetails[key]?.toString() ?? '0') ?? 0;
+              if (instAmt > 0) {
+                final instDateStr = studentDetails[timeKey]?.toString() ?? '';
+                final instDate = DateTime.tryParse(instDateStr) ??
+                    DateTime.now().subtract(Duration(days: i));
+                transactions.add({
+                  'id': 'legacy_inst$i',
+                  'amount': instAmt,
+                  'date': Timestamp.fromDate(instDate),
+                  'mode': 'Cash',
+                  'description': 'Installment $i',
+                  'isLegacy': true
+                });
+              }
+            }
+
+            // 3. Check for second/third installments (specific fields)
+            final secondAmt = double.tryParse(
+                    studentDetails['secondInstallment']?.toString() ?? '0') ??
+                0;
+            if (secondAmt > 0 &&
+                !transactions.any((t) => t['id'] == 'legacy_inst2')) {
+              final secondDateStr =
+                  studentDetails['secondInstallmentTime']?.toString() ?? '';
+              final secondDate = DateTime.tryParse(secondDateStr) ??
+                  DateTime.now().subtract(const Duration(days: 1));
+              transactions.add({
+                'id': 'legacy_inst2',
+                'amount': secondAmt,
+                'date': Timestamp.fromDate(secondDate),
+                'mode': 'Cash',
+                'description': 'Second Installment',
+                'isLegacy': true
+              });
+            }
+
+            final thirdAmt = double.tryParse(
+                    studentDetails['thirdInstallment']?.toString() ?? '0') ??
+                0;
+            if (thirdAmt > 0 &&
+                !transactions.any((t) => t['id'] == 'legacy_inst3')) {
+              final thirdDateStr =
+                  studentDetails['thirdInstallmentTime']?.toString() ?? '';
+              final thirdDate = DateTime.tryParse(thirdDateStr) ??
+                  DateTime.now().subtract(const Duration(days: 2));
+              transactions.add({
+                'id': 'legacy_inst3',
+                'amount': thirdAmt,
+                'date': Timestamp.fromDate(thirdDate),
+                'mode': 'Cash',
+                'description': 'Third Installment',
+                'isLegacy': true
+              });
+            }
+          }
+
+          transactions.sort((a, b) =>
               (b['date'] as Timestamp).compareTo(a['date'] as Timestamp));
+          _cachedPayments = transactions;
         }
 
         if (_cachedPayments.isEmpty)
@@ -993,48 +1507,61 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
 
             return ListTile(
               contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-              leading: Row(
-                mainAxisSize: MainAxisSize.min,
+              leading: Checkbox(
+                value: isSelected,
+                onChanged: (val) {
+                  setState(() {
+                    if (val == true)
+                      _selectedTransactionIds.add(transactionId);
+                    else
+                      _selectedTransactionIds.remove(transactionId);
+                  });
+                },
+                activeColor: kAccentRed,
+              ),
+              title: Row(
                 children: [
-                  Checkbox(
-                    value: isSelected,
-                    onChanged: (val) {
-                      setState(() {
-                        if (val == true)
-                          _selectedTransactionIds.add(transactionId);
-                        else
-                          _selectedTransactionIds.remove(transactionId);
-                      });
-                    },
-                    activeColor: kAccentRed,
-                  ),
-                  const Icon(Icons.payment, color: Colors.green),
+                  const Icon(Icons.payment, color: Colors.green, size: 16),
+                  const SizedBox(width: 8),
+                  Text('₹${(data['amount'] as num).toInt()}',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.green)),
                 ],
               ),
-              title: Text('₹${(data['amount'] as num).toInt()}',
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, color: Colors.green)),
               subtitle: Text(
                   '${DateFormat('dd MMM yyyy, hh:mm a').format(date)} · ${data['mode']}'),
-              trailing: PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert, size: 20),
-                onSelected: (value) =>
-                    _handleTransactionAction(value, data, targetId),
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                      value: 'edit',
-                      child: ListTile(
-                          leading: Icon(Icons.edit, size: 18),
-                          title: Text('Edit'),
-                          dense: true)),
-                  const PopupMenuItem(
-                      value: 'delete',
-                      child: ListTile(
-                          leading:
-                              Icon(Icons.delete, color: Colors.red, size: 18),
-                          title: Text('Delete',
-                              style: TextStyle(color: Colors.red)),
-                          dense: true)),
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (data['isLegacy'] == true)
+                    IconButton(
+                      icon: const Icon(Icons.edit_outlined,
+                          size: 18, color: Colors.blue),
+                      onPressed: () =>
+                          _handleTransactionAction('edit', data, targetId),
+                    )
+                  else
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert, size: 20),
+                      onSelected: (value) =>
+                          _handleTransactionAction(value, data, targetId),
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                            value: 'edit',
+                            child: ListTile(
+                                leading: Icon(Icons.edit, size: 18),
+                                title: Text('Edit'),
+                                dense: true)),
+                        const PopupMenuItem(
+                            value: 'delete',
+                            child: ListTile(
+                                leading: Icon(Icons.delete,
+                                    color: Colors.red, size: 18),
+                                title: Text('Delete',
+                                    style: TextStyle(color: Colors.red)),
+                                dense: true)),
+                      ],
+                    ),
                 ],
               ),
             );
@@ -1216,40 +1743,96 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     }
   }
 
+  bool _isLessonUpdating = false;
+
   Future<void> _toggleLessonStatus(String targetId, bool isLessonActive) async {
+    if (_isLessonUpdating) return;
+
+    setState(() {
+      _isLessonUpdating = true;
+    });
+
     try {
       final user = FirebaseAuth.instance.currentUser;
-      if (user == null) return;
+      if (user == null) {
+        debugPrint('StudentDetailsPage: No authenticated user');
+        return;
+      }
+
+      // Ensure collection is resolved
+      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
+      String confirmedCollection = _collectionName;
+
+      // Check if student exists in currently resolved collection, if not, find it
+      var checkSnap =
+          await base.collection(confirmedCollection).doc(_docId).get();
+      if (!checkSnap.exists) {
+        // Fallback search
+        var activeSnap = await base.collection('students').doc(_docId).get();
+        if (activeSnap.exists) {
+          confirmedCollection = 'students';
+        } else {
+          var deactSnap =
+              await base.collection('deactivated_students').doc(_docId).get();
+          if (deactSnap.exists) {
+            confirmedCollection = 'deactivated_students';
+          }
+        }
+        _collectionName = confirmedCollection;
+      }
+
       if (!isLessonActive) {
-        final serviceEnabled = await Geolocator.isLocationServiceEnabled();
-        if (!serviceEnabled) return;
+        // Check for location services and permissions
+        bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+        if (!serviceEnabled) {
+          Get.snackbar('Location Disabled', 'Please enable location services.',
+              backgroundColor: Colors.red, colorText: Colors.white);
+          return;
+        }
 
         LocationPermission p = await Geolocator.checkPermission();
         if (p == LocationPermission.denied) {
           p = await Geolocator.requestPermission();
+          if (p == LocationPermission.denied) {
+            Get.snackbar(
+                'Permission Denied', 'Location permission is required.',
+                backgroundColor: Colors.red, colorText: Colors.white);
+            return;
+          }
         }
-        if (p == LocationPermission.denied ||
-            p == LocationPermission.deniedForever) return;
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(targetId)
-            .collection('students')
-            .doc(_docId)
-            .update({
+
+        if (p == LocationPermission.deniedForever) {
+          Get.snackbar(
+              'Permission Denied', 'Location permission is permanently denied.',
+              backgroundColor: Colors.red, colorText: Colors.white);
+          return;
+        }
+
+        await base.collection(confirmedCollection).doc(_docId).update({
           'lessonStatus': 'started',
           'assignedDriver': user.uid,
           'lessonStartTime': FieldValue.serverTimestamp()
         });
-        await BackgroundService.start();
+
+        // Start background service
+        try {
+          await BackgroundService.start();
+        } catch (e) {
+          debugPrint('BackgroundService error: $e');
+        }
+
         Get.snackbar('Lesson Started', 'Real-time tracking active.',
             backgroundColor: Colors.green, colorText: Colors.white);
       } else {
-        final snap = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(targetId)
-            .collection('students')
-            .doc(_docId)
-            .get();
+        final snap =
+            await base.collection(confirmedCollection).doc(_docId).get();
+
+        if (!snap.exists) {
+          Get.snackbar('Error', 'Student record not found.',
+              backgroundColor: Colors.red, colorText: Colors.white);
+          return;
+        }
+
         final startTime =
             (snap.data()?['lessonStartTime'] as Timestamp?)?.toDate();
         final now = DateTime.now();
@@ -1257,10 +1840,9 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
             ? '${now.difference(startTime).inMinutes}m'
             : 'N/A';
 
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(targetId)
-            .collection('students')
+        // Add to attendance subcollection
+        await base
+            .collection(confirmedCollection)
             .doc(_docId)
             .collection('attendance')
             .add({
@@ -1274,17 +1856,25 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           'instructorId': user.uid,
         });
 
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(targetId)
-            .collection('students')
+        // Reset lesson status
+        await base
+            .collection(confirmedCollection)
             .doc(_docId)
             .update({'lessonStatus': 'completed'});
+
         Get.snackbar('Lesson Completed', 'Attendance recorded: $duration',
             backgroundColor: Colors.red, colorText: Colors.white);
       }
     } catch (e) {
-      Get.snackbar('Error', 'Failed to update lesson: $e');
+      debugPrint('Error in _toggleLessonStatus: $e');
+      Get.snackbar('Error', 'Failed to update lesson: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLessonUpdating = false;
+        });
+      }
     }
   }
 
@@ -1321,15 +1911,111 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     return StreamBuilder<DocumentSnapshot>(
       stream: _mainStream,
       builder: (context, snapshot) {
-        final data = snapshot.data?.data() as Map<String, dynamic>?;
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          // Fallback to initial values if stream not ready or doc not found yet
+          final isLessonActive =
+              (studentDetails['lessonStatus'] ?? 'none') == 'started';
+          return _lessonControlButtonUI(targetId, isLessonActive);
+        }
+
+        final data = snapshot.data!.data() as Map<String, dynamic>?;
         final isLessonActive = (data?['lessonStatus'] ?? 'none') == 'started';
-        return IconButton(
-          icon: Icon(
-              isLessonActive ? Icons.stop_circle : Icons.play_circle_outline,
-              color: isLessonActive ? Colors.red : Colors.green),
-          onPressed: () => _toggleLessonStatus(targetId, isLessonActive),
-        );
+        return _lessonControlButtonUI(targetId, isLessonActive);
       },
+    );
+  }
+
+  Widget _lessonControlButtonUI(String targetId, bool isActive) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: TextButton.icon(
+        onPressed: _isLessonUpdating
+            ? null
+            : () => _toggleLessonStatus(targetId, isActive),
+        style: TextButton.styleFrom(
+          backgroundColor: _isLessonUpdating
+              ? Colors.grey.withOpacity(0.1)
+              : (isActive
+                  ? Colors.red.withOpacity(0.1)
+                  : Colors.green.withOpacity(0.1)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(
+              color: _isLessonUpdating
+                  ? Colors.grey
+                  : (isActive ? Colors.red : Colors.green),
+              width: 1,
+            ),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+        ),
+        icon: _isLessonUpdating
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.grey)))
+            : Icon(isActive ? Icons.stop_circle : Icons.play_circle_outline,
+                size: 18, color: isActive ? Colors.red : Colors.green),
+        label: Text(
+          _isLessonUpdating ? '...' : (isActive ? 'STOP' : 'START'),
+          style: TextStyle(
+            color: _isLessonUpdating
+                ? Colors.grey
+                : (isActive ? Colors.red : Colors.green),
+            fontWeight: FontWeight.bold,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _confirmSoftDelete(BuildContext context, String targetId) {
+    showCustomConfirmationDialog(
+      context,
+      'Move to Recycle Bin?',
+      'Move "${studentDetails['fullName'] ?? 'Student'}" to recycle bin?\n\nIt will be automatically deleted after 90 days if not restored.',
+      () async {
+        try {
+          final user = FirebaseAuth.instance.currentUser;
+          if (user == null) throw Exception('User not logged in');
+
+          final docRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(targetId)
+              .collection(_collectionName)
+              .doc(_docId);
+
+          await SoftDeleteService.softDelete(
+            docRef: docRef,
+            userId: user.uid,
+            documentName: studentDetails['fullName'] ?? 'Student',
+          );
+
+          if (mounted) {
+            Get.snackbar(
+              'Success',
+              'Moved to recycle bin',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+            );
+            Navigator.pop(context); // Close details page
+          }
+        } catch (e) {
+          Get.snackbar(
+            'Error',
+            'Failed to Delete: $e',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        }
+      },
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
     );
   }
 
@@ -1393,7 +2079,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           await FirebaseFirestore.instance
               .collection('users')
               .doc(targetId)
-              .collection('students')
+              .collection(_collectionName)
               .doc(_docId)
               .collection('documents')
               .add({
@@ -1416,7 +2102,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       await FirebaseFirestore.instance
           .collection('users')
           .doc(targetId)
-          .collection('students')
+          .collection(_collectionName)
           .doc(_docId)
           .collection('documents')
           .doc(docId)
@@ -1431,145 +2117,6 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       Get.snackbar(
         'Error',
         'Failed to delete document: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
-  }
-
-  Future<void> _editNotes(BuildContext context, {bool isNew = false}) async {
-    final controller = TextEditingController(
-      text: isNew ? '' : (studentDetails['remarks'] ?? ''),
-    );
-
-    final bool? shouldSave = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Notes'),
-        content: TextField(
-          controller: controller,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            hintText: 'Enter notes or remarks',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldSave != true) return;
-
-    final notes = controller.text.trim();
-    try {
-      final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
-          ? _workspaceController.currentSchoolId.value
-          : (FirebaseAuth.instance.currentUser?.uid ?? '');
-
-      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
-      var collection = 'students';
-      var snap = await base.collection(collection).doc(_docId).get();
-      if (!snap.exists) {
-        final altSnap =
-            await base.collection('deactivated_students').doc(_docId).get();
-        if (altSnap.exists) {
-          collection = 'deactivated_students';
-        }
-      }
-      await base
-          .collection(collection)
-          .doc(_docId)
-          .set({'remarks': notes}, SetOptions(merge: true));
-
-      setState(() {
-        studentDetails['remarks'] = notes;
-      });
-
-      Get.snackbar(
-        'Success',
-        'Notes updated.',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update notes: $e',
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
-  }
-
-  Future<void> _clearNotes(BuildContext context) async {
-    if ((studentDetails['remarks'] ?? '').toString().trim().isEmpty) {
-      return;
-    }
-
-    final bool? shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Notes'),
-        content: const Text(
-          'Are you sure you want to delete all notes for this student?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldDelete != true) return;
-
-    try {
-      final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
-          ? _workspaceController.currentSchoolId.value
-          : (FirebaseAuth.instance.currentUser?.uid ?? '');
-
-      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
-      var collection = 'students';
-      var snap = await base.collection(collection).doc(_docId).get();
-      if (!snap.exists) {
-        final altSnap =
-            await base.collection('deactivated_students').doc(_docId).get();
-        if (altSnap.exists) {
-          collection = 'deactivated_students';
-        }
-      }
-      await base
-          .collection(collection)
-          .doc(_docId)
-          .update({'remarks': FieldValue.delete()});
-
-      setState(() {
-        studentDetails.remove('remarks');
-      });
-
-      Get.snackbar(
-        'Success',
-        'Notes deleted.',
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to delete notes: $e',
         backgroundColor: Colors.red,
         colorText: Colors.white,
       );
@@ -1822,21 +2369,35 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         .doc(targetId)
         .collection(_collectionName)
         .doc(_docId);
-    if (action == 'edit') {
-      await PaymentUtils.showEditPaymentDialog(
-        context: context,
-        docRef: docRef,
-        paymentDoc: data['docRef'] as DocumentSnapshot,
-        targetId: targetId,
-        category: 'students',
-      );
-    } else if (action == 'delete') {
-      await PaymentUtils.deletePayment(
-        context: context,
-        studentRef: docRef,
-        paymentDoc: data['docRef'] as DocumentSnapshot,
-        targetId: targetId,
-      );
+
+    if (data['isLegacy'] == true) {
+      if (action == 'edit') {
+        await PaymentUtils.showEditLegacyPaymentDialog(
+          context: context,
+          docRef: docRef,
+          legacyId: data['id'],
+          parentData: studentDetails,
+          targetId: targetId,
+          category: 'students',
+        );
+      }
+    } else {
+      if (action == 'edit') {
+        await PaymentUtils.showEditPaymentDialog(
+          context: context,
+          docRef: docRef,
+          paymentDoc: data['docRef'] as DocumentSnapshot,
+          targetId: targetId,
+          category: 'students',
+        );
+      } else if (action == 'delete') {
+        await PaymentUtils.deletePayment(
+          context: context,
+          studentRef: docRef,
+          paymentDoc: data['docRef'] as DocumentSnapshot,
+          targetId: targetId,
+        );
+      }
     }
     setState(() {});
   }
@@ -1871,7 +2432,27 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: _extraFeesStream,
       builder: (context, snapshot) {
-        final docs = snapshot.data?.docs ?? [];
+        if (snapshot.hasError) {
+          return Center(
+              child: Text('Error: ${snapshot.error}',
+                  style: const TextStyle(color: Colors.red, fontSize: 12)));
+        }
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final original = snapshot.data?.docs ?? [];
+        final docs = List<QueryDocumentSnapshot>.from(original);
+        docs.sort((a, b) {
+          final ad = (a.data() as Map<String, dynamic>)['date'];
+          final bd = (b.data() as Map<String, dynamic>)['date'];
+          final at = ad is Timestamp ? ad : null;
+          final bt = bd is Timestamp ? bd : null;
+          final atMillis = at?.millisecondsSinceEpoch ?? 0;
+          final btMillis = bt?.millisecondsSinceEpoch ?? 0;
+          return btMillis.compareTo(atMillis);
+        });
         if (docs.isEmpty)
           return const Center(
               child: Padding(

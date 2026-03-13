@@ -139,6 +139,8 @@ class RevenueUtils {
           final data = doc.data();
           final date = _parseDate(data['date']) ??
               DateTime.fromMillisecondsSinceEpoch(0);
+          final normalized =
+              DateTime(date.year, date.month, date.day); // normalize
           final amount =
               double.tryParse(data['amount']?.toString() ?? '0') ?? 0.0;
 
@@ -162,7 +164,7 @@ class RevenueUtils {
             transactions.add({
               'name': name,
               'amount': amount,
-              'date': date,
+              'date': normalized,
               'label': description,
               'source': actualSource,
               'id': doc.id,
@@ -186,6 +188,7 @@ class RevenueUtils {
 
         DateTime? date = _parseDate(data['date'] ?? data['createdAt']);
         if (date == null) continue;
+        final normalized = DateTime(date.year, date.month, date.day);
 
         String recordId = data['recordId'] ?? '';
         if (recordId.isEmpty) {
@@ -218,7 +221,7 @@ class RevenueUtils {
           transactions.add({
             'name': data['recordName'] ?? 'N/A',
             'amount': amount,
-            'date': date,
+            'date': normalized,
             'label': description.isNotEmpty ? description : 'Payment',
             'source': data['category'] ?? 'payments',
             'id': recordId,
@@ -268,6 +271,7 @@ class RevenueUtils {
 
     DateTime? date = _parseDate(data[timeField]);
     if (date == null) return;
+    final normalized = DateTime(date.year, date.month, date.day);
 
     final dateStr = date.toIso8601String().substring(0, 10);
     // Build an exact DedupKey inclusive of label to prevent multi-installment same-day collision
@@ -277,7 +281,7 @@ class RevenueUtils {
       transactions.add({
         'name': name,
         'amount': amount,
-        'date': date,
+        'date': normalized,
         'label': label,
         'source': source,
         'id': id,
@@ -290,7 +294,26 @@ class RevenueUtils {
   static DateTime? _parseDate(dynamic dateData) {
     if (dateData == null) return null;
     if (dateData is Timestamp) return dateData.toDate();
-    if (dateData is String) return DateTime.tryParse(dateData);
+    if (dateData is String) {
+      final s = dateData.trim();
+      // Try ISO first (yyyy-MM-dd or with time)
+      final iso = DateTime.tryParse(s);
+      if (iso != null) return iso;
+      // Try common display formats
+      try {
+        return DateFormat('dd/MM/yyyy').parse(s);
+      } catch (_) {}
+      try {
+        return DateFormat('MM/dd/yyyy').parse(s);
+      } catch (_) {}
+      try {
+        return DateFormat('dd-MM-yyyy').parse(s);
+      } catch (_) {}
+      try {
+        return DateFormat('yyyy-MM-dd').parse(s);
+      } catch (_) {}
+      return null;
+    }
     return null;
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:flutter/services.dart';
 import 'package:drivemate/constants/colors.dart';
 import 'package:drivemate/services/additional_info_service.dart';
@@ -196,44 +197,32 @@ class _AdditionalInfoSheetState extends State<AdditionalInfoSheet> {
   }
 
   void _addCustomField() {
-    showDialog(
-      context: context,
-      builder: (context) {
-        final keyController = TextEditingController();
-        return AlertDialog(
-          title: const Text('Add New Field'),
-          content: TextField(
-            controller: keyController,
-            decoration: const InputDecoration(
-              labelText: 'Field Name',
-              hintText: 'e.g., Reference Number',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                if (keyController.text.isNotEmpty) {
-                  setState(() {
-                    final controller = TextEditingController();
-                    _customFieldControllers.add(controller);
-                    _customFields.add({
-                      'key': keyController.text,
-                      'controller': controller,
-                    });
-                  });
-                }
-                Navigator.pop(context);
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        );
-      },
-    );
+    final keyController = TextEditingController();
+    showCustomStatefulDialogResult<String>(
+      context,
+      'Add New Field',
+      (ctx, setDialogState, choose) => TextField(
+        controller: keyController,
+        decoration: const InputDecoration(
+          labelText: 'Field Name',
+          hintText: 'e.g., Reference Number',
+        ),
+      ),
+      confirmText: 'Add',
+      cancelText: 'Cancel',
+      onConfirmResult: () => keyController.text.trim(),
+    ).then((result) {
+      if (result != null && result.isNotEmpty) {
+        final controller = TextEditingController();
+        setState(() {
+          _customFieldControllers.add(controller);
+          _customFields.add({
+            'key': result,
+            'controller': controller,
+          });
+        });
+      }
+    });
   }
 
   void _removeCustomField(int index) {

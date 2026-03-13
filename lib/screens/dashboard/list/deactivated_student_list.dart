@@ -204,12 +204,13 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
       isDark: isDark,
       status: data['testStatus'],
       onTap: () {
+        final enriched = Map<String, dynamic>.from(data);
+        enriched['id'] = doc.id;
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => StudentDetailsPage(
-              studentDetails: data,
-            ),
+            builder: (context) =>
+                StudentDetailsPage(studentDetails: enriched),
           ),
         );
       },
@@ -306,13 +307,15 @@ class _DeactivatedStudentListState extends State<DeactivatedStudentList> {
       'Are you sure ?',
       () async {
         await _activateData(documentId, studentData);
-        Navigator.of(context).pop();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const DeactivatedStudentList(),
-          ),
-        );
+        // Navigator.pop is now handled automatically by showCustomConfirmationDialog
+        if (context.mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DeactivatedStudentList(),
+            ),
+          );
+        }
       },
     );
   }

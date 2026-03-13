@@ -194,10 +194,8 @@ class EndorsementList extends StatelessWidget {
           : 'Are you sure the student failed the test? A failed badge will be shown.',
       () async {
         await _updateEndorsementStatus(documentId, endorsementData, status);
-        // Close confirmation dialog first
-        if (context.mounted) {
-          Navigator.of(context).pop();
-        }
+        // Navigator.pop is now handled automatically by showCustomConfirmationDialog
+
         // Navigate to deactivated list after a brief delay
         if (isPassed && context.mounted) {
           // Use Get.off for safer navigation

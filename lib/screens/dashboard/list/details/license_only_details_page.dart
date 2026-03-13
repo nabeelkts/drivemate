@@ -21,6 +21,7 @@ import 'package:drivemate/screens/widget/utils.dart';
 import 'package:drivemate/widgets/additional_info_sheet.dart';
 import 'package:drivemate/services/additional_info_service.dart';
 import 'package:get/get.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'package:iconly/iconly.dart';
@@ -35,6 +36,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:drivemate/widgets/soft_delete_button.dart';
+import 'package:drivemate/services/soft_delete_service.dart';
 import 'package:drivemate/screens/dashboard/list/details/document_preview_screen.dart';
 import 'package:drivemate/screens/dashboard/list/widgets/details_tabs_bar.dart';
 
@@ -63,10 +65,11 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
     _initStreams();
   }
 
-  Stream<DocumentSnapshot> _mainStream = const Stream.empty();
-  Stream<QuerySnapshot> _paymentsStream = const Stream.empty();
-  Stream<QuerySnapshot> _extraFeesStream = const Stream.empty();
-  Stream<QuerySnapshot> _documentsStream = const Stream.empty();
+  late Stream<DocumentSnapshot> _mainStream;
+  late Stream<QuerySnapshot> _paymentsStream;
+  late Stream<QuerySnapshot> _extraFeesStream;
+  late Stream<QuerySnapshot> _documentsStream;
+  late Stream<QuerySnapshot> _notesStream;
 
   String get _docId {
     // Try multiple possible field names for document ID
@@ -90,39 +93,72 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
         : (FirebaseAuth.instance.currentUser?.uid ?? '');
 
     // Initialize with empty streams immediately to avoid late initialization errors
-    _mainStream = const Stream.empty();
-    _paymentsStream = const Stream.empty();
-    _extraFeesStream = const Stream.empty();
-    _documentsStream = const Stream.empty();
+    _mainStream = Stream<DocumentSnapshot>.empty();
+    _paymentsStream = Stream<QuerySnapshot>.empty();
+    _extraFeesStream = Stream<QuerySnapshot>.empty();
+    _documentsStream = Stream<QuerySnapshot>.empty();
+    _notesStream = Stream<QuerySnapshot>.empty();
 
     if (_docId.isEmpty) return;
 
     final base = FirebaseFirestore.instance.collection('users').doc(targetId);
-    base.collection('licenseonly').doc(_docId).get().then((snap) {
+    base.collection('licenseonly').doc(_docId).get().then((snap) async {
       _collectionName = snap.exists ? 'licenseonly' : 'deactivated_licenseOnly';
 
       _mainStream = base.collection(_collectionName).doc(_docId).snapshots();
 
+      // Check if subcollections were moved or still in original collection
+      String subCollectionPath = _collectionName;
+      if (_collectionName == 'deactivated_licenseOnly') {
+        // Check if payments exist in deactivated collection
+        final paymentSnap = await base
+            .collection('deactivated_licenseOnly')
+            .doc(_docId)
+            .collection('payments')
+            .limit(1)
+            .get();
+        if (paymentSnap.docs.isEmpty) {
+          // If no payments in deactivated, check if they are still in licenseonly
+          final originalPaymentSnap = await base
+              .collection('licenseonly')
+              .doc(_docId)
+              .collection('payments')
+              .limit(1)
+              .get();
+          if (originalPaymentSnap.docs.isNotEmpty) {
+            subCollectionPath = 'licenseonly';
+          }
+        }
+      }
+
       _paymentsStream = base
-          .collection(_collectionName)
+          .collection(subCollectionPath)
           .doc(_docId)
           .collection('payments')
           .orderBy('date', descending: true)
           .snapshots();
 
       _extraFeesStream = base
-          .collection(_collectionName)
+          .collection(subCollectionPath)
           .doc(_docId)
           .collection('extra_fees')
           .orderBy('date', descending: true)
           .snapshots();
 
       _documentsStream = base
-          .collection(_collectionName)
+          .collection(subCollectionPath)
           .doc(_docId)
           .collection('documents')
+          .orderBy('uploadedAt', descending: true)
+          .snapshots();
+
+      _notesStream = base
+          .collection(subCollectionPath)
+          .doc(_docId)
+          .collection('notes')
           .orderBy('timestamp', descending: true)
           .snapshots();
+
       // Trigger rebuild by calling setState in case needed
       if (mounted) setState(() {});
     });
@@ -153,50 +189,58 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
         elevation: 0,
         leading: const CustomBackButton(),
         actions: [
-          IconButton(
-            icon: Icon(Icons.picture_as_pdf, color: subTextColor),
-            onPressed: () => _shareLicenseDetails(context),
-          ),
-          // Soft Delete Button - Move to Recycle Bin
-          SoftDeleteButton(
-            docRef: FirebaseFirestore.instance
-                .collection('users')
-                .doc(targetId)
-                .collection('licenseonly')
-                .doc(_docId),
-            documentName: licenseDetails['fullName'] ?? 'License',
-            onDeleteSuccess: () {
-              // Get.back() is already called by SoftDeleteButton
-              // Just show success message
-              Get.snackbar(
-                'Success',
-                'License moved to recycle bin',
-                snackPosition: SnackPosition.BOTTOM,
-                backgroundColor: Colors.green,
-                colorText: Colors.white,
-                duration: const Duration(seconds: 2),
-              );
-            },
-          ),
-          IconButton(
-            icon: Icon(Icons.edit, color: subTextColor),
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => EditLicenseOnlyForm(
-                    initialValues: licenseDetails,
-                    items: const [
-                      'M/C',
-                      'M/C WOG',
-                      'LMV ',
-                      'LMV + M/C',
-                      'LMV + M/C WOG',
-                    ],
+          PopupMenuButton<String>(
+            icon: Icon(Icons.more_vert, color: subTextColor),
+            onSelected: (value) {
+              if (value == 'pdf') {
+                _shareLicenseDetails(context);
+              } else if (value == 'edit') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EditLicenseOnlyForm(
+                      initialValues: licenseDetails,
+                      items: const [
+                        'M/C',
+                        'M/C WOG',
+                        'LMV ',
+                        'LMV + M/C',
+                        'LMV + M/C WOG',
+                      ],
+                    ),
                   ),
-                ),
-              );
+                );
+              } else if (value == 'delete') {
+                _confirmSoftDelete(context, targetId);
+              }
             },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'edit',
+                child: ListTile(
+                  leading: Icon(Icons.edit_outlined, size: 20),
+                  title: Text('Edit Details'),
+                  dense: true,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'pdf',
+                child: ListTile(
+                  leading: Icon(Icons.picture_as_pdf_outlined, size: 20),
+                  title: Text('Generate PDF'),
+                  dense: true,
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'delete',
+                child: ListTile(
+                  leading:
+                      Icon(Icons.delete_outline, color: Colors.red, size: 20),
+                  title: Text('Delete', style: TextStyle(color: Colors.red)),
+                  dense: true,
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -239,6 +283,54 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
   }
 
   // ── Additional Info button for AppBar ──────────────────────────────────────
+
+  void _confirmSoftDelete(BuildContext context, String targetId) {
+    showCustomConfirmationDialog(
+      context,
+      'Move to Recycle Bin?',
+      'Move "${licenseDetails['fullName'] ?? 'License'}" to recycle bin?\n\nIt will be automatically deleted after 90 days if not restored.',
+      () async {
+        try {
+          final user = FirebaseAuth.instance.currentUser;
+          if (user == null) throw Exception('User not logged in');
+
+          final docRef = FirebaseFirestore.instance
+              .collection('users')
+              .doc(targetId)
+              .collection(_collectionName)
+              .doc(_docId);
+
+          await SoftDeleteService.softDelete(
+            docRef: docRef,
+            userId: user.uid,
+            documentName: licenseDetails['fullName'] ?? 'License',
+          );
+
+          if (mounted) {
+            Get.snackbar(
+              'Success',
+              'Moved to recycle bin',
+              snackPosition: SnackPosition.BOTTOM,
+              backgroundColor: Colors.green,
+              colorText: Colors.white,
+              duration: const Duration(seconds: 2),
+            );
+            Navigator.pop(context); // Close details page
+          }
+        } catch (e) {
+          Get.snackbar(
+            'Error',
+            'Failed to Delete: $e',
+            snackPosition: SnackPosition.BOTTOM,
+            backgroundColor: Colors.red,
+            colorText: Colors.white,
+          );
+        }
+      },
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+    );
+  }
 
   Widget _buildProfileHeader(BuildContext context, String targetId) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -783,6 +875,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                   child: CheckboxListTile(
                     value: isSelected,
                     activeColor: kAccentRed,
+                    controlAffinity: ListTileControlAffinity.leading,
                     dense: true,
                     onChanged: (val) {
                       setState(() {
@@ -1168,8 +1261,11 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
   }
 
   Widget _buildNotesTab(BuildContext context) {
-    final hasNotes =
-        (licenseDetails['remarks'] ?? '').toString().trim().isNotEmpty;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+        ? _workspaceController.currentSchoolId.value
+        : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1178,45 +1274,321 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
           children: [
             const Text('Notes & Remarks',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.add, size: 20, color: kAccentRed),
-                  tooltip: 'Add Notes',
-                  onPressed: () => _editNotes(context, isNew: true),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, size: 20, color: kAccentRed),
-                  tooltip: hasNotes ? 'Edit Notes' : 'Add Notes',
-                  onPressed: () => _editNotes(context),
-                ),
-                if (hasNotes)
-                  IconButton(
-                    icon: const Icon(Icons.delete_outline,
-                        size: 20, color: Colors.red),
-                    tooltip: 'Delete Notes',
-                    onPressed: () => _clearNotes(context),
-                  ),
-              ],
+            IconButton(
+              icon: const Icon(Icons.add_comment_outlined, color: kAccentRed),
+              tooltip: 'Add Note',
+              onPressed: () => _addNote(context, targetId),
             ),
           ],
         ),
         const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.yellow[50],
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.yellow[200]!),
-          ),
-          child: Text(
-            hasNotes ? licenseDetails['remarks'] : 'No remarks added yet.',
-            style: const TextStyle(fontStyle: FontStyle.italic),
-          ),
+        StreamBuilder<QuerySnapshot>(
+          stream: _notesStream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            final docs = snapshot.data?.docs ?? [];
+
+            // If subcollection is empty, check if there's a legacy remark
+            final legacyRemark =
+                (licenseDetails['remarks'] ?? '').toString().trim();
+
+            if (docs.isEmpty && legacyRemark.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(24.0),
+                  child: Text(
+                    'No notes added yet.',
+                    style: TextStyle(color: Colors.grey, fontSize: 12),
+                  ),
+                ),
+              );
+            }
+
+            return ListView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: docs.length + (legacyRemark.isNotEmpty ? 1 : 0),
+              itemBuilder: (context, index) {
+                // Show legacy remark first if it exists
+                if (legacyRemark.isNotEmpty && index == 0) {
+                  return _buildNoteItem(
+                    context,
+                    id: 'legacy',
+                    content: legacyRemark,
+                    timestamp: null,
+                    isDark: isDark,
+                    targetId: targetId,
+                    isLegacy: true,
+                  );
+                }
+
+                final noteDoc =
+                    docs[legacyRemark.isNotEmpty ? index - 1 : index];
+                final data = noteDoc.data() as Map<String, dynamic>;
+                final content = data['content'] ?? '';
+                final timestamp = data['timestamp'] as Timestamp?;
+
+                return _buildNoteItem(
+                  context,
+                  id: noteDoc.id,
+                  content: content,
+                  timestamp: timestamp,
+                  isDark: isDark,
+                  targetId: targetId,
+                );
+              },
+            );
+          },
         ),
       ],
     );
+  }
+
+  Widget _buildNoteItem(
+    BuildContext context, {
+    required String id,
+    required String content,
+    required Timestamp? timestamp,
+    required bool isDark,
+    required String targetId,
+    bool isLegacy = false,
+  }) {
+    final dateStr = timestamp != null
+        ? DateFormat('dd MMM yyyy, hh:mm a').format(timestamp.toDate())
+        : 'Legacy Note';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.grey[900] : Colors.yellow[50],
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.grey[800]! : Colors.yellow[200]!,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                dateStr,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: isDark ? Colors.white54 : Colors.black54,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined,
+                        size: 18, color: Colors.blue),
+                    onPressed: () => _editNoteDialog(
+                      context,
+                      targetId,
+                      id: id,
+                      existingContent: content,
+                      isLegacy: isLegacy,
+                    ),
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline,
+                        size: 18, color: Colors.red),
+                    onPressed: () => _deleteNoteDialog(
+                      context,
+                      targetId,
+                      id: id,
+                      isLegacy: isLegacy,
+                    ),
+                    constraints: const BoxConstraints(),
+                    padding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            content,
+            style: TextStyle(
+              fontStyle: FontStyle.italic,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _addNote(BuildContext context, String targetId) async {
+    final controller = TextEditingController();
+
+    final bool? shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Add Note'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Enter notes or remarks',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSave != true || controller.text.trim().isEmpty) return;
+
+    try {
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection(_collectionName)
+          .doc(_docId)
+          .collection('notes')
+          .add({
+        'content': controller.text.trim(),
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+
+      Get.snackbar('Success', 'Note added.',
+          backgroundColor: Colors.green, colorText: Colors.white);
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to add note: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+    }
+  }
+
+  Future<void> _editNoteDialog(
+    BuildContext context,
+    String targetId, {
+    required String id,
+    required String existingContent,
+    bool isLegacy = false,
+  }) async {
+    final controller = TextEditingController(text: existingContent);
+
+    final bool? shouldSave = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Edit Note'),
+        content: TextField(
+          controller: controller,
+          maxLines: 5,
+          decoration: const InputDecoration(
+            hintText: 'Enter notes or remarks',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldSave != true) return;
+
+    try {
+      final base = FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection(_collectionName)
+          .doc(_docId);
+
+      if (isLegacy) {
+        await base.update({'remarks': controller.text.trim()});
+        setState(() {
+          licenseDetails['remarks'] = controller.text.trim();
+        });
+      } else {
+        await base.collection('notes').doc(id).update({
+          'content': controller.text.trim(),
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      }
+
+      Get.snackbar('Success', 'Note updated.',
+          backgroundColor: Colors.green, colorText: Colors.white);
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to update note: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+    }
+  }
+
+  Future<void> _deleteNoteDialog(
+    BuildContext context,
+    String targetId, {
+    required String id,
+    bool isLegacy = false,
+  }) async {
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Delete Note'),
+        content: const Text('Are you sure you want to delete this note?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (shouldDelete != true) return;
+
+    try {
+      final base = FirebaseFirestore.instance
+          .collection('users')
+          .doc(targetId)
+          .collection(_collectionName)
+          .doc(_docId);
+
+      if (isLegacy) {
+        await base.update({'remarks': FieldValue.delete()});
+        setState(() {
+          licenseDetails.remove('remarks');
+        });
+      } else {
+        await base.collection('notes').doc(id).delete();
+      }
+
+      Get.snackbar('Success', 'Note deleted.',
+          backgroundColor: Colors.green, colorText: Colors.white);
+    } catch (e) {
+      Get.snackbar('Error', 'Failed to delete note: $e',
+          backgroundColor: Colors.red, colorText: Colors.white);
+    }
   }
 
   Widget _buildAdditionalTab(BuildContext context) {
@@ -1372,71 +1744,60 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
       try {
         final service = AdditionalInfoService();
         final updated = await service.getStudentTypeAdditionalInfo(
-          collection: 'licenseonly',
-          documentId: _docId,
-        );
-        if (mounted && updated != null) {
+            collection: 'licenseonly', documentId: _docId);
+        if (mounted) {
           setState(() {
-            licenseDetails['additionalInfo'] = updated;
+            if (updated != null) {
+              licenseDetails['additionalInfo'] = updated;
+            }
           });
         }
       } catch (_) {
-        if (mounted) {
-          setState(() {});
-        }
+        if (mounted) setState(() {});
       }
     }
   }
 
   Future<void> _uploadDocument(BuildContext context, String targetId) async {
     final ImagePicker picker = ImagePicker();
-    final XFile? image = await showDialog<XFile?>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Upload Document'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.photo_library),
-              title: const Text('Gallery'),
-              onTap: () async {
-                final img = await picker.pickImage(source: ImageSource.gallery);
-                Navigator.pop(ctx, img);
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.camera_alt),
-              title: const Text('Camera'),
-              onTap: () async {
-                final img = await picker.pickImage(source: ImageSource.camera);
-                Navigator.pop(ctx, img);
-              },
-            ),
-          ],
-        ),
+    final XFile? image = await showCustomStatefulDialogResult<XFile>(
+      context,
+      'Upload Document',
+      (ctx, setDialogState, choose) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.photo_library),
+            title: const Text('Gallery'),
+            onTap: () async {
+              final img = await picker.pickImage(source: ImageSource.gallery);
+              choose(img);
+            },
+          ),
+          ListTile(
+            leading: const Icon(Icons.camera_alt),
+            title: const Text('Camera'),
+            onTap: () async {
+              final img = await picker.pickImage(source: ImageSource.camera);
+              choose(img);
+            },
+          ),
+        ],
       ),
     );
 
     if (image != null) {
       final nameController = TextEditingController();
-      final confirm = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('Document Name'),
-          content: TextField(
-            controller: nameController,
-            decoration: const InputDecoration(hintText: 'Enter document name'),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: const Text('Cancel')),
-            TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Upload')),
-          ],
+      final confirm = await showCustomStatefulDialogResult<bool>(
+        context,
+        'Document Name',
+        (ctx, setDialogState, choose) => TextField(
+          controller: nameController,
+          decoration: const InputDecoration(hintText: 'Enter document name'),
         ),
+        confirmText: 'Upload',
+        cancelText: 'Cancel',
+        onConfirmResult: () => true,
       );
 
       if (confirm == true && nameController.text.isNotEmpty) {
@@ -1466,21 +1827,12 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
 
   Future<void> _deleteDocument(
       BuildContext context, String targetId, String docId) async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Document'),
-        content: const Text('Are you sure you want to delete this document?'),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, false),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, true),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Delete')),
-        ],
-      ),
+    final confirm = await showCustomConfirmBoolDialog(
+      context,
+      'Delete Document',
+      'Are you sure you want to delete this document?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
     );
 
     if (confirm == true) {
@@ -1500,147 +1852,104 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
     }
   }
 
-  Future<void> _editNotes(BuildContext context, {bool isNew = false}) async {
-    final controller = TextEditingController(
-      text: isNew ? '' : (licenseDetails['remarks'] ?? ''),
-    );
+  Future<void> _shareLicenseDetails(BuildContext context) async {
+    bool includePayment = false;
 
-    final bool? shouldSave = await showDialog<bool>(
+    final bool? shouldGenerate = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Edit Notes'),
-        content: TextField(
-          controller: controller,
-          maxLines: 5,
-          decoration: const InputDecoration(
-            hintText: 'Enter notes or remarks',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+      builder: (BuildContext context) {
+        return StatefulBuilder(builder: (context, setState) {
+          return Dialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 30),
+              decoration:
+                  BoxDecoration(borderRadius: BorderRadius.circular(20)),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Share PDF',
+                      style: TextStyle(
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w600,
+                          fontSize: 18.0)),
+                  const SizedBox(height: 16),
+                  CheckboxListTile(
+                    title: const Text('Include Payment Overview'),
+                    value: includePayment,
+                    onChanged: (bool? value) =>
+                        setState(() => includePayment = value ?? false),
+                    controlAffinity: ListTileControlAffinity.leading,
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(height: 16),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Expanded(
+                          child: ActionButton(
+                              text: 'Cancel',
+                              backgroundColor: const Color(0xFFFFF1F1),
+                              textColor: const Color(0xFFFF0000),
+                              onPressed: () =>
+                                  Navigator.of(context).pop(false))),
+                      const SizedBox(width: 16),
+                      Expanded(
+                          child: ActionButton(
+                              text: 'Generate',
+                              backgroundColor: const Color(0xFFF6FFF0),
+                              textColor: Colors.black,
+                              onPressed: () =>
+                                  Navigator.of(context).pop(true))),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        });
+      },
     );
 
-    if (shouldSave != true) return;
+    if (shouldGenerate != true) return;
 
-    final notes = controller.text.trim();
+    Uint8List? pdfBytes;
     try {
-      final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
-          ? _workspaceController.currentSchoolId.value
-          : (FirebaseAuth.instance.currentUser?.uid ?? '');
+      pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
+        final workspace = Get.find<WorkspaceController>();
+        final companyData = workspace.companyData;
+        if (companyData['hasCompanyProfile'] != true)
+          throw 'Please set up your Company Profile first';
 
-      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
-      var collection = 'licenseonly';
-      var snap = await base.collection(collection).doc(_docId).get();
-      if (!snap.exists) {
-        final altSnap =
-            await base.collection('deactivated_licenseOnly').doc(_docId).get();
-        if (altSnap.exists) {
-          collection = 'deactivated_licenseOnly';
+        Uint8List? studentImage;
+        if (licenseDetails['image'] != null &&
+            licenseDetails['image'].toString().isNotEmpty) {
+          studentImage =
+              await ImageCacheService().fetchAndCache(licenseDetails['image']);
         }
-      }
-      await base
-          .collection(collection)
-          .doc(_docId)
-          .set({'remarks': notes}, SetOptions(merge: true));
-
-      setState(() {
-        licenseDetails['remarks'] = notes;
+        Uint8List? logoBytes;
+        if (companyData['companyLogo'] != null &&
+            companyData['companyLogo'].toString().isNotEmpty) {
+          logoBytes = await ImageCacheService()
+              .fetchAndCache(companyData['companyLogo']);
+        }
+        return await PdfService.generatePdf(
+            title: 'License Only Details',
+            data: licenseDetails,
+            includePayment: includePayment,
+            imageBytes: studentImage,
+            companyData: companyData,
+            companyLogoBytes: logoBytes);
       });
-
-      Get.snackbar(
-        'Success',
-        'Notes updated.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
     } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to update notes: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
-  }
-
-  Future<void> _clearNotes(BuildContext context) async {
-    if ((licenseDetails['remarks'] ?? '').toString().trim().isEmpty) {
+      if (mounted)
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Error: $e')));
       return;
     }
 
-    final bool? shouldDelete = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Notes'),
-        content: const Text(
-          'Are you sure you want to delete all notes for this license?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (shouldDelete != true) return;
-
-    try {
-      final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
-          ? _workspaceController.currentSchoolId.value
-          : (FirebaseAuth.instance.currentUser?.uid ?? '');
-
-      final base = FirebaseFirestore.instance.collection('users').doc(targetId);
-      var collection = 'licenseonly';
-      var snap = await base.collection(collection).doc(_docId).get();
-      if (!snap.exists) {
-        final altSnap =
-            await base.collection('deactivated_licenseOnly').doc(_docId).get();
-        if (altSnap.exists) {
-          collection = 'deactivated_licenseOnly';
-        }
-      }
-      await base
-          .collection(collection)
-          .doc(_docId)
-          .update({'remarks': FieldValue.delete()});
-
-      setState(() {
-        licenseDetails.remove('remarks');
-      });
-
-      Get.snackbar(
-        'Success',
-        'Notes deleted.',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.green,
-        colorText: Colors.white,
-      );
-    } catch (e) {
-      Get.snackbar(
-        'Error',
-        'Failed to delete notes: $e',
-        snackPosition: SnackPosition.BOTTOM,
-        backgroundColor: Colors.red,
-        colorText: Colors.white,
-      );
-    }
+    if (pdfBytes != null && mounted) _showPdfPreview(context, pdfBytes);
   }
 
   void _viewDocument(String title, String url) async {
@@ -1885,106 +2194,6 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
         ),
       ),
     );
-  }
-
-  Future<void> _shareLicenseDetails(BuildContext context) async {
-    bool includePayment = false;
-
-    final bool? shouldGenerate = await showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) {
-        return StatefulBuilder(builder: (context, setState) {
-          return Dialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 30),
-              decoration:
-                  BoxDecoration(borderRadius: BorderRadius.circular(20)),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('Share PDF',
-                      style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.w600,
-                          fontSize: 18.0)),
-                  const SizedBox(height: 16),
-                  CheckboxListTile(
-                    title: const Text('Include Payment Overview'),
-                    value: includePayment,
-                    onChanged: (bool? value) =>
-                        setState(() => includePayment = value ?? false),
-                    controlAffinity: ListTileControlAffinity.leading,
-                    contentPadding: EdgeInsets.zero,
-                  ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Expanded(
-                          child: ActionButton(
-                              text: 'Cancel',
-                              backgroundColor: const Color(0xFFFFF1F1),
-                              textColor: const Color(0xFFFF0000),
-                              onPressed: () =>
-                                  Navigator.of(context).pop(false))),
-                      const SizedBox(width: 16),
-                      Expanded(
-                          child: ActionButton(
-                              text: 'Generate',
-                              backgroundColor: const Color(0xFFF6FFF0),
-                              textColor: Colors.black,
-                              onPressed: () =>
-                                  Navigator.of(context).pop(true))),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          );
-        });
-      },
-    );
-
-    if (shouldGenerate != true) return;
-
-    Uint8List? pdfBytes;
-    try {
-      pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
-        final workspace = Get.find<WorkspaceController>();
-        final companyData = workspace.companyData;
-        if (companyData['hasCompanyProfile'] != true)
-          throw 'Please set up your Company Profile first';
-
-        Uint8List? studentImage;
-        if (licenseDetails['image'] != null &&
-            licenseDetails['image'].toString().isNotEmpty) {
-          studentImage =
-              await ImageCacheService().fetchAndCache(licenseDetails['image']);
-        }
-        Uint8List? logoBytes;
-        if (companyData['companyLogo'] != null &&
-            companyData['companyLogo'].toString().isNotEmpty) {
-          logoBytes = await ImageCacheService()
-              .fetchAndCache(companyData['companyLogo']);
-        }
-        return await PdfService.generatePdf(
-            title: 'License Only Details',
-            data: licenseDetails,
-            includePayment: includePayment,
-            imageBytes: studentImage,
-            companyData: companyData,
-            companyLogoBytes: logoBytes);
-      });
-    } catch (e) {
-      if (mounted)
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Error: $e')));
-      return;
-    }
-
-    if (pdfBytes != null && mounted) _showPdfPreview(context, pdfBytes);
   }
 }
 

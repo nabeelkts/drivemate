@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@google-cloud/firestore": "^7.10.0",
-    "@supabase/supabase-js": "^2.43.1"
+    "@supabase/supabase-js": "^2.43.1",
+    "dotenv": "^16.6.1"
   }
 }

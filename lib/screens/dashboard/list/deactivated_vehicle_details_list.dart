@@ -200,8 +200,8 @@ class DeactivatedVehicleDetailsList extends StatelessWidget {
         () async {
           try {
             await _reactivateVehicle(documentId, vehicleData);
+            // Navigator.pop is now handled automatically by showCustomConfirmationDialog
             if (context.mounted) {
-              Navigator.of(context).pop(); // Close dialog
               Navigator.pushReplacement(
                 context,
                 MaterialPageRoute(
@@ -211,7 +211,7 @@ class DeactivatedVehicleDetailsList extends StatelessWidget {
             }
           } catch (e) {
             if (context.mounted) {
-              Navigator.of(context).pop(); // Close dialog
+              // Navigator.pop is now handled automatically by showCustomConfirmationDialog
               _showErrorSnackBar(context, e.toString());
             }
           }

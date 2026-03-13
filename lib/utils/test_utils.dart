@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:get/get.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:iconly/iconly.dart';
 import 'package:drivemate/utils/date_utils.dart';
 import 'package:drivemate/controller/workspace_controller.dart';
@@ -28,49 +29,38 @@ class TestUtils {
     String tempLLStorage = item['learnersTestDate']?.toString() ?? '';
     String tempDLStorage = item['drivingTestDate']?.toString() ?? '';
 
-    await showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text('Update Test Dates\n${item['fullName']}'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _buildDateField(
-                  context, 'Learners Test (LL)', llDisplayController,
-                  (storageDate) {
-                tempLLStorage = storageDate;
-              }),
-              const SizedBox(height: 16),
-              _buildDateField(context, 'Driving Test (DL)', dlDisplayController,
-                  (storageDate) {
-                tempDLStorage = storageDate;
-              }),
-            ],
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                await _updateDates(
-                  context: context,
-                  workspaceController: workspaceController,
-                  collection: collection,
-                  studentId: studentId,
-                  llDate: tempLLStorage,
-                  dlDate: tempDLStorage,
-                );
-                Navigator.pop(context);
-                if (onUpdate != null) onUpdate();
-              },
-              child: const Text('Update'),
-            ),
-          ],
-        ),
+    final bool? confirmed = await showCustomStatefulDialogResult<bool>(
+      context,
+      'Update Test Dates\n${item['fullName']}',
+      (ctx, setDialogState, choose) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildDateField(
+              ctx, 'Learners Test (LL)', llDisplayController, (storageDate) {
+            tempLLStorage = storageDate;
+          }),
+          const SizedBox(height: 16),
+          _buildDateField(
+              ctx, 'Driving Test (DL)', dlDisplayController, (storageDate) {
+            tempDLStorage = storageDate;
+          }),
+        ],
       ),
+      confirmText: 'Update',
+      cancelText: 'Cancel',
+      onConfirmResult: () => true,
     );
+    if (confirmed == true) {
+      await _updateDates(
+        context: context,
+        workspaceController: workspaceController,
+        collection: collection,
+        studentId: studentId,
+        llDate: tempLLStorage,
+        dlDate: tempDLStorage,
+      );
+      if (onUpdate != null) onUpdate();
+    }
   }
 
   static Widget _buildDateField(

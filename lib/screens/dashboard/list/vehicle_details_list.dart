@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:drivemate/screens/dashboard/list/deactivated_vehicle_list.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -133,13 +134,15 @@ class VehicleDetailsList extends StatelessWidget {
       'Are you sure ?',
       () async {
         await _deactivateVehicle(documentId, vehicleData);
-        Navigator.of(context).pop();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const DeactivatedVehicleDetailsList(),
-          ),
-        );
+        // Navigator.pop is now handled automatically by showCustomConfirmationDialog
+        if (context.mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DeactivatedVehicleList(),
+            ),
+          );
+        }
       },
     );
   }

@@ -338,13 +338,15 @@ class _DeactivatedLicenseOnlyListState
       'Are you sure ?',
       () async {
         await _activateData(documentId, licenseData);
-        Navigator.of(context).pop();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const DeactivatedLicenseOnlyList(),
-          ),
-        );
+        // Navigator.pop is now handled automatically by showCustomConfirmationDialog
+        if (context.mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DeactivatedLicenseOnlyList(),
+            ),
+          );
+        }
       },
     );
   }

@@ -258,12 +258,13 @@ class _StudentListState extends State<StudentList> {
                       isDark: isDark,
                       status: data['testStatus'],
                       onTap: () {
+                        final enriched = Map<String, dynamic>.from(data);
+                        enriched['id'] = docs[index].id;
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => StudentDetailsPage(
-                              studentDetails: data,
-                            ),
+                            builder: (context) =>
+                                StudentDetailsPage(studentDetails: enriched),
                           ),
                         );
                       },
@@ -394,7 +395,7 @@ class _StudentListState extends State<StudentList> {
           : 'Are you sure the student failed the test? A failed badge will be shown.',
       () async {
         await _updateStudentStatus(documentId, studentData, status);
-        Navigator.of(context).pop();
+        // Navigator.pop is now handled automatically by showCustomConfirmationDialog
         if (isPassed) {
           Navigator.pushReplacement(
             context,

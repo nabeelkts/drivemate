@@ -14,6 +14,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:drivemate/firebase_options.dart';
 import 'package:flutter/services.dart';
 import 'package:in_app_update/in_app_update.dart';
+import 'package:drivemate/screens/profile/dialog_box.dart';
 
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
@@ -85,93 +86,28 @@ class AppController extends GetxController {
 
   // Show custom update dialog with flexible update
   void _showUpdateDialog(AppUpdateInfo appUpdateInfo) {
-    Get.dialog(
-      AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.system_update, color: Colors.blue, size: 28),
-            SizedBox(width: 12),
-            Text('Update Available'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'A new version of Drivemate is available!',
-              style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Update now to get the latest features and improvements.',
-              style: TextStyle(fontSize: 14),
-            ),
-            const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.blue.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.withOpacity(0.3)),
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline, color: Colors.blue, size: 20),
-                  const SizedBox(width: 8),
-                  const Expanded(
-                    child: Text(
-                      'Update will download in the background',
-                      style: TextStyle(fontSize: 12, color: Colors.blue),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('Later'),
-          ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              Get.back();
-              try {
-                // Start flexible update (downloads in background)
-                await InAppUpdate.startFlexibleUpdate();
-              } catch (e) {
-                if (kDebugMode) {
-                  print('Flexible update failed: $e');
-                }
-                // Fallback to immediate update
-                try {
-                  await InAppUpdate.performImmediateUpdate();
-                } catch (e2) {
-                  // Final fallback - open Play Store
-                  _openPlayStore();
-                }
-              }
-            },
-            icon: const Icon(Icons.system_update_alt),
-            label: const Text('Update Now'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-        ],
-      ),
-      barrierDismissible: false, // User must choose Later or Update
-    );
+    showCustomConfirmBoolDialog(
+      Get.context!,
+      'Update Available',
+      'A new version of Drivemate is available!\n\nUpdate will download in the background.',
+      confirmText: 'Update Now',
+      cancelText: 'Later',
+    ).then((confirmed) async {
+      if (confirmed == true) {
+        try {
+          await InAppUpdate.startFlexibleUpdate();
+        } catch (e) {
+          if (kDebugMode) {
+            print('Flexible update failed: $e');
+          }
+          try {
+            await InAppUpdate.performImmediateUpdate();
+          } catch (e2) {
+            _openPlayStore();
+          }
+        }
+      }
+    });
   }
 
   // Trigger the version check manually when user clicks the "Update" icon
@@ -221,27 +157,11 @@ class AppController extends GetxController {
 
   // Show "Up to Date" dialog
   void _showUpToDateDialog() {
-    Get.dialog(
-      AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.check_circle, color: Colors.green, size: 28),
-            SizedBox(width: 12),
-            Text('Up to Date'),
-          ],
-        ),
-        content: Text(
-          'You are using the latest version of Drivemate.',
-          style: Get.textTheme.bodyMedium,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('OK'),
-          ),
-        ],
-      ),
+    showCustomInfoDialog(
+      Get.context!,
+      'Up to Date',
+      'You are using the latest version of Drivemate.',
+      buttonText: 'OK',
     );
   }
 

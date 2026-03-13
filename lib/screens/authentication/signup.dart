@@ -4,6 +4,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:drivemate/constants/colors.dart';
 import 'package:drivemate/screens/authentication/google_sign_in.dart';
 import 'package:drivemate/screens/authentication/email_verification.dart';
@@ -166,6 +167,20 @@ class _SignUpPageState extends State<SignUpPage> {
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
+      appBar: AppBar(
+        toolbarHeight: 0,
+        elevation: 0,
+        backgroundColor: theme.scaffoldBackgroundColor,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: theme.brightness == Brightness.dark
+              ? Brightness.light
+              : Brightness.dark,
+          statusBarBrightness: theme.brightness == Brightness.dark
+              ? Brightness.dark
+              : Brightness.light,
+        ),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(

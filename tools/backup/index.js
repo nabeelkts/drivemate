@@ -10,6 +10,7 @@
  * BACKUP_PREFIX                (default: firestore)
  */
 
+require('dotenv').config({ path: '../backup.env' });
 const { Firestore } = require('@google-cloud/firestore');
 const { createClient } = require('@supabase/supabase-js');
 
@@ -22,23 +23,35 @@ function required(name) {
   return v;
 }
 
-const PROJECT_ID = required('FIREBASE_PROJECT_ID');
-const CLIENT_EMAIL = required('FIREBASE_CLIENT_EMAIL');
-const PRIVATE_KEY = required('FIREBASE_PRIVATE_KEY').replace(/\\n/g, '\n');
+function createClients() {
+  const PROJECT_ID = required('FIREBASE_PROJECT_ID');
+  const CLIENT_EMAIL = required('FIREBASE_CLIENT_EMAIL');
+  const PRIVATE_KEY = required('FIREBASE_PRIVATE_KEY').replace(/\\n/g, '\n');
+  const SUPABASE_URL = required('SUPABASE_URL');
+  const SUPABASE_SERVICE_ROLE_KEY = required('SUPABASE_SERVICE_ROLE_KEY');
+  const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || 'backups';
+  const BACKUP_PREFIX = process.env.BACKUP_PREFIX || 'firestore';
+  const SUPABASE_DB_TABLE = process.env.SUPABASE_DB_TABLE || '';
+  const OUTPUT_MODE = process.env.OUTPUT_MODE || 'storage';
 
-const SUPABASE_URL = required('SUPABASE_URL');
-const SUPABASE_SERVICE_ROLE_KEY = required('SUPABASE_SERVICE_ROLE_KEY');
-const SUPABASE_BUCKET = process.env.SUPABASE_BUCKET || 'backups';
-const BACKUP_PREFIX = process.env.BACKUP_PREFIX || 'firestore';
+  const firestore = new Firestore({
+    projectId: PROJECT_ID,
+    credentials: { client_email: CLIENT_EMAIL, private_key: PRIVATE_KEY },
+  });
 
-const firestore = new Firestore({
-  projectId: PROJECT_ID,
-  credentials: { client_email: CLIENT_EMAIL, private_key: PRIVATE_KEY },
-});
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    global: { headers: { 'X-Client-Info': 'firestore-backup-script' } },
+  });
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-  global: { headers: { 'X-Client-Info': 'firestore-backup-script' } },
-});
+  return {
+    firestore,
+    supabase,
+    SUPABASE_BUCKET,
+    BACKUP_PREFIX,
+    SUPABASE_DB_TABLE,
+    OUTPUT_MODE,
+  };
+}
 
 function todayStr() {
   const d = new Date();
@@ -82,10 +95,10 @@ async function exportCollection(collRef) {
   return items;
 }
 
-async function uploadJson(path, obj) {
+async function uploadJson(supabase, bucket, path, obj) {
   const body = Buffer.from(JSON.stringify(obj, null, 2), 'utf-8');
   const { error } = await supabase.storage
-    .from(SUPABASE_BUCKET)
+    .from(bucket)
     .upload(path, body, {
       contentType: 'application/json',
       upsert: true,
@@ -93,7 +106,40 @@ async function uploadJson(path, obj) {
   if (error) throw error;
 }
 
+async function insertRows(supabase, table, rows) {
+  if (!table) return;
+  const { error } = await supabase.from(table).insert(rows);
+  if (error) throw error;
+}
+
+async function insertRowsChunked(supabase, table, rows, chunkSize = 500) {
+  if (!table) return;
+  for (let i = 0; i < rows.length; i += chunkSize) {
+    const chunk = rows.slice(i, i + chunkSize);
+    const { error } = await supabase.from(table).insert(chunk);
+    if (error) throw error;
+  }
+}
+function rowsFromItems(date, collectionId, items) {
+  return items.map((item) => ({
+    backup_date: date,
+    collection: collectionId,
+    document_id: item.id,
+    path: item.path,
+    data: item,
+    backed_up_at: new Date().toISOString(),
+  }));
+}
+
 async function backupAll() {
+  const {
+    firestore,
+    supabase,
+    SUPABASE_BUCKET,
+    BACKUP_PREFIX,
+    SUPABASE_DB_TABLE,
+    OUTPUT_MODE,
+  } = createClients();
   const date = todayStr();
   const start = Date.now();
   console.log(`[backup] Starting backup for ${date}`);
@@ -115,11 +161,26 @@ async function backupAll() {
     // Backup the user document itself
     const userSnap = await userRef.get();
     const userDocPath = `${BACKUP_PREFIX}/${date}/users/${userId}/__user_doc.json`;
-    await uploadJson(userDocPath, {
+    const userDocObject = {
       id: userId,
       path: userRef.path,
       data: userSnap.data() || {},
-    });
+    };
+    if (OUTPUT_MODE === 'storage' || OUTPUT_MODE === 'both') {
+      await uploadJson(supabase, SUPABASE_BUCKET, userDocPath, userDocObject);
+    }
+    if (OUTPUT_MODE === 'db' || OUTPUT_MODE === 'both') {
+      await insertRowsChunked(supabase, SUPABASE_DB_TABLE, [
+        {
+          backup_date: date,
+          collection: 'users',
+          document_id: userId,
+          path: userRef.path,
+          data: userDocObject,
+          backed_up_at: new Date().toISOString(),
+        },
+      ]);
+    }
     objectCount += 1;
 
     // Backup each subcollection of this user
@@ -129,7 +190,17 @@ async function backupAll() {
       console.log(`[backup] Exporting ${userId}/${sub.id} ...`);
       const data = await exportCollection(sub);
       const path = `${BACKUP_PREFIX}/${date}/users/${userId}/${sub.id}.json`;
-      await uploadJson(path, { collection: sub.id, items: data });
+      const payload = { collection: sub.id, items: data };
+      if (OUTPUT_MODE === 'storage' || OUTPUT_MODE === 'both') {
+        await uploadJson(supabase, SUPABASE_BUCKET, path, payload);
+      }
+      if (OUTPUT_MODE === 'db' || OUTPUT_MODE === 'both') {
+        await insertRowsChunked(
+          supabase,
+          SUPABASE_DB_TABLE,
+          rowsFromItems(date, `users/${userId}/${sub.id}`, data)
+        );
+      }
       objectCount += data.length;
     }
   }
@@ -142,7 +213,17 @@ async function backupAll() {
     console.log(`[backup] Exporting top-level ${coll.id} ...`);
     const data = await exportCollection(coll);
     const path = `${BACKUP_PREFIX}/${date}/collections/${coll.id}.json`;
-    await uploadJson(path, { collection: coll.id, items: data });
+    const payload = { collection: coll.id, items: data };
+    if (OUTPUT_MODE === 'storage' || OUTPUT_MODE === 'both') {
+      await uploadJson(supabase, SUPABASE_BUCKET, path, payload);
+    }
+    if (OUTPUT_MODE === 'db' || OUTPUT_MODE === 'both') {
+      await insertRowsChunked(
+        supabase,
+        SUPABASE_DB_TABLE,
+        rowsFromItems(date, coll.id, data)
+      );
+    }
     objectCount += data.length;
   }
 
@@ -152,7 +233,14 @@ async function backupAll() {
   );
 }
 
-backupAll().catch((err) => {
-  console.error('[backup] Failed:', err);
-  process.exit(1);
-});
+if (require.main === module) {
+  backupAll().catch((err) => {
+    console.error('[backup] Failed:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  todayStr,
+  rowsFromItems,
+};

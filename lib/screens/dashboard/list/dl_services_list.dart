@@ -109,8 +109,7 @@ class DlServicesList extends StatelessWidget {
       'Are you sure you want to mark this service as completed?',
       () async {
         await _deleteData(documentId, serviceData);
-        // Close confirmation dialog and navigate
-        Navigator.of(context).pop();
+        // Navigator.pop is now handled automatically by showCustomConfirmationDialog
         if (context.mounted) {
           Navigator.pushReplacement(
             context,

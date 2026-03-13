@@ -350,13 +350,15 @@ class _DeactivatedEndorsementListState
       'Are you sure ?',
       () async {
         await _activateData(documentId, endorsementData);
-        Navigator.of(context).pop();
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const DeactivatedEndorsementList(),
-          ),
-        );
+        // Navigator.pop is now handled automatically by showCustomConfirmationDialog
+        if (context.mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const DeactivatedEndorsementList(),
+            ),
+          );
+        }
       },
     );
   }

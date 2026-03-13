@@ -25,6 +25,7 @@ import 'package:drivemate/screens/notification/notification_screen.dart';
 import 'package:drivemate/screens/dashboard/list/dl_services_list.dart';
 import 'package:provider/provider.dart';
 import 'package:drivemate/services/soft_delete_service.dart';
+import 'package:drivemate/features/tracking/services/background_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -32,6 +33,8 @@ Future<void> main() async {
   await GetStorage.init();
   if (!kIsWeb) {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+    // Initialize background tracking service
+    await BackgroundService.initialize();
   }
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -69,18 +72,6 @@ class MyApp extends StatelessWidget {
       isDarkMode = brightness == Brightness.dark;
       box.write('isDarkMode', isDarkMode);
     }
-
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness:
-            isDarkMode ? Brightness.light : Brightness.dark,
-        statusBarBrightness: isDarkMode ? Brightness.dark : Brightness.light,
-        systemNavigationBarColor: isDarkMode ? Colors.black : Colors.white,
-        systemNavigationBarIconBrightness:
-            isDarkMode ? Brightness.light : Brightness.dark,
-      ),
-    );
 
     return Obx(() {
       final themeController = Get.find<ThemeController>();

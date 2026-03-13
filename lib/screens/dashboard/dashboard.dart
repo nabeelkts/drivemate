@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:drivemate/constants/constant.dart';
 import 'package:drivemate/controller/app_controller.dart';
@@ -16,9 +17,24 @@ class Dashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     // ignore: unused_local_variable
     final AppController appController = Get.put(AppController());
-    return SafeArea(
-      child: Scaffold(
-        body: SingleChildScrollView(
+    return Scaffold(
+      appBar: AppBar(
+        toolbarHeight: 0,
+        elevation: 0,
+        backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness:
+              Theme.of(context).brightness == Brightness.dark
+                  ? Brightness.light
+                  : Brightness.dark,
+          statusBarBrightness: Theme.of(context).brightness == Brightness.dark
+              ? Brightness.dark
+              : Brightness.light,
+        ),
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             child: Column(
