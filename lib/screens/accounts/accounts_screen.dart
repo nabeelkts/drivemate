@@ -266,15 +266,22 @@ class _AccountsScreenState extends State<AccountsScreen> {
           isEqualTo: workspaceController.currentBranchId.value);
     }
 
-    // Create the core streams (these are essential)
+    // Create the core streams with error handling
     final streams = [
-      workspaceController.getFilteredCollection('students').snapshots(),
-      workspaceController.getFilteredCollection('licenseonly').snapshots(),
-      workspaceController.getFilteredCollection('endorsement').snapshots(),
-      workspaceController.getFilteredCollection('vehicleDetails').snapshots(),
-      workspaceController.getFilteredCollection('expenses').snapshots(),
-      workspaceController.getFilteredCollection('dl_services').snapshots(),
-      paymentsQuery.snapshots(),
+      _handleStreamErrors(
+          workspaceController.getFilteredCollection('students').snapshots()),
+      _handleStreamErrors(
+          workspaceController.getFilteredCollection('licenseonly').snapshots()),
+      _handleStreamErrors(
+          workspaceController.getFilteredCollection('endorsement').snapshots()),
+      _handleStreamErrors(workspaceController
+          .getFilteredCollection('vehicleDetails')
+          .snapshots()),
+      _handleStreamErrors(
+          workspaceController.getFilteredCollection('expenses').snapshots()),
+      _handleStreamErrors(
+          workspaceController.getFilteredCollection('dl_services').snapshots()),
+      _handleStreamErrors(paymentsQuery.snapshots()),
     ];
 
     return StreamUtils.combineLatest(streams).asBroadcastStream();

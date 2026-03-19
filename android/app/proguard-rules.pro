@@ -136,3 +136,15 @@
 -keep class com.getcapacitor.** { *; }
 -keep class get.statefulwidgets.** { *; }
 -keep class get.utils.** { *; }
+
+# Play Core split libraries
+-keep class com.google.android.play.core.** { *; }
+-dontwarn com.google.android.play.core.**
+
+# ML Kit
+-keep class com.google.mlkit.vision.text.** { *; }
+-dontwarn com.google.mlkit.vision.text.**
+
+# Flutter
+-keep class io.flutter.** { *; }
+-dontwarn io.flutter.**

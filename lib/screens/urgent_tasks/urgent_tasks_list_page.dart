@@ -12,6 +12,7 @@ import 'package:get/get.dart';
 import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:drivemate/screens/profile/admin/manage_vehicles_page.dart';
 import 'package:drivemate/widgets/urgent_task_card.dart';
 
 /// Full list page showing all urgent tasks sorted by expiry date
@@ -165,6 +166,9 @@ class _UrgentTasksListPageState extends State<UrgentTasksListPage>
           break;
         case 'vehicleDetails':
           detailPage = RCDetailsPage(vehicleDetails: data);
+          break;
+        case 'school_vehicles':
+          detailPage = const ManageVehiclesPage();
           break;
       }
 

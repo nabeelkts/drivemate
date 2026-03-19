@@ -5,10 +5,13 @@ import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:iconly/iconly.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:drivemate/constants/colors.dart';
 import 'package:drivemate/screens/accounts/accounts_screen.dart';
 import 'package:drivemate/screens/dashboard/dashboard.dart';
 import 'package:drivemate/screens/dashboard/dashboard_layout2.dart';
+import 'package:drivemate/screens/dashboard/student/student_dashboard_screen.dart';
+import 'package:drivemate/screens/dashboard/list/details/students_details_page.dart';
 import 'package:drivemate/screens/profile/profile_screen.dart';
 import 'package:drivemate/screens/statistics/stats_screen.dart';
 import 'package:drivemate/services/app_lifecycle_service.dart';
@@ -36,6 +39,7 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
   bool _isSubscriptionExpired = false;
 
   bool get _isOwner => _workspaceController.userRole.value == 'Owner';
+  bool get _isStudent => _workspaceController.userRole.value == 'Student';
 
   @override
   void initState() {
@@ -57,7 +61,13 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
   }
 
   List<Widget> _buildScreens() {
-    if (_isOwner) {
+    if (_isStudent) {
+      // Students see their own details page using the existing StudentDetailsPage
+      return [
+        const StudentDetailsScreenLoader(),
+        ProfileScreen(onSubscriptionRenewed: _checkSubscription),
+      ];
+    } else if (_isOwner) {
       return [
         _getCurrentDashboard(),
         const StatsScreen(),
@@ -127,7 +137,7 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
   }
 
   void _onItemTapped(int index) {
-    final profileIndex = _isOwner ? 4 : 3;
+    final profileIndex = _isStudent ? 1 : (_isOwner ? 4 : 3);
 
     // Block navigation to other tabs if staff is not connected
     if (!_workspaceController.isConnected.value && index != profileIndex) {
@@ -144,8 +154,8 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
       return;
     }
 
-    // Block navigation to other tabs if subscription is expired
-    if (_isSubscriptionExpired && index != profileIndex) {
+    // Block navigation to other tabs if subscription is expired (not for students)
+    if (!_isStudent && _isSubscriptionExpired && index != profileIndex) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text(
@@ -273,8 +283,9 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
           ),
         ),
       ),
-      bottomNavigationBar:
-          _isOwner ? _buildOwnerNavBar(theme) : _buildStaffNavBar(theme),
+      bottomNavigationBar: _isStudent
+          ? _buildStudentNavBar(theme)
+          : (_isOwner ? _buildOwnerNavBar(theme) : _buildStaffNavBar(theme)),
     );
   }
 
@@ -324,6 +335,26 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
     );
   }
 
+  /// 2-tab nav bar for students: Dashboard | Profile
+  Widget _buildStudentNavBar(ThemeData theme) {
+    return BottomNavigationBar(
+      backgroundColor:
+          theme.brightness == Brightness.dark ? Colors.black : Colors.white,
+      currentIndex: _currentIndex,
+      onTap: _onItemTapped,
+      type: BottomNavigationBarType.fixed,
+      showSelectedLabels: true,
+      showUnselectedLabels: true,
+      selectedItemColor: theme.colorScheme.primary,
+      unselectedItemColor: Colors.grey.shade500,
+      elevation: 0.0,
+      items: [
+        _buildNavBarItem(0, IconlyLight.home, IconlyBold.home, 'Dashboard'),
+        _buildNavBarItem(1, IconlyLight.profile, IconlyBold.profile, 'Profile'),
+      ],
+    );
+  }
+
   BottomNavigationBarItem _buildNavBarItem(
     int index,
     dynamic icon,
@@ -366,6 +397,112 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
         padding: const EdgeInsets.only(bottom: 4),
         child: iconWidget,
       ),
+    );
+  }
+}
+
+/// Helper widget to load and display StudentDetailsPage for the current student
+class StudentDetailsScreenLoader extends StatefulWidget {
+  const StudentDetailsScreenLoader({super.key});
+
+  @override
+  State<StudentDetailsScreenLoader> createState() =>
+      _StudentDetailsScreenLoaderState();
+}
+
+class _StudentDetailsScreenLoaderState
+    extends State<StudentDetailsScreenLoader> {
+  final WorkspaceController _workspaceController =
+      Get.find<WorkspaceController>();
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  Map<String, dynamic>? _studentData;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStudentData();
+  }
+
+  Future<void> _loadStudentData() async {
+    try {
+      final schoolId = _workspaceController.currentSchoolId.value;
+      final studentDocId = _workspaceController.studentDocId.value;
+
+      if (schoolId.isEmpty || studentDocId.isEmpty) {
+        setState(() {
+          _error = 'Student data not found';
+          _isLoading = false;
+        });
+        return;
+      }
+
+      final doc = await _firestore
+          .collection('users')
+          .doc(schoolId)
+          .collection('students')
+          .doc(studentDocId)
+          .get();
+
+      if (doc.exists && doc.data() != null) {
+        final data = Map<String, dynamic>.from(doc.data()!);
+        data['id'] = doc.id;
+        setState(() {
+          _studentData = data;
+          _isLoading = false;
+        });
+      } else {
+        setState(() {
+          _error = 'Student record not found';
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_error != null) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 16),
+              Text(_error!, textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  setState(() {
+                    _isLoading = true;
+                    _error = null;
+                  });
+                  _loadStudentData();
+                },
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return StudentDetailsPage(
+      studentDetails: _studentData!,
+      isStudentView: true,
     );
   }
 }

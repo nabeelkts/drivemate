@@ -13,6 +13,8 @@ import 'package:drivemate/screens/dashboard/list/details/endorsement_details_pag
 import 'package:drivemate/screens/dashboard/list/widgets/list_item_card.dart';
 import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:drivemate/screens/widget/base_list_widget.dart';
+import 'package:drivemate/services/excel_import_service.dart';
+import 'package:drivemate/screens/dashboard/import/import_screen.dart';
 
 class EndorsementList extends StatelessWidget {
   final String userId;
@@ -41,6 +43,17 @@ class EndorsementList extends StatelessWidget {
               builder: (context) => const DeactivatedEndorsementList()),
         );
       },
+      onImport: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ImportScreen(
+              importType: ImportType.endorsement,
+            ),
+          ),
+        );
+      },
+      exportType: ImportType.endorsement,
       itemBuilder: (context, doc) {
         final data = Map<String, dynamic>.from(doc.data());
         // Inject document ID for navigation to details pages

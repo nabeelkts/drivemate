@@ -43,8 +43,8 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.getByName("release")
-            isMinifyEnabled = false  // Disabled to avoid missing classes errors
-            isShrinkResources = false
+            isMinifyEnabled = true  // Disabled to avoid missing classes errors
+            isShrinkResources = true
         }
     }
 
@@ -62,10 +62,17 @@ android {
 
 dependencies {
     // Android 15 edge-to-edge support - Updated versions
+    implementation("com.google.android.play:app-update:2.1.0")
+    implementation("com.google.android.play:app-update-ktx:2.1.0")
+    implementation("com.google.android.play:feature-delivery:2.1.0")
+    implementation("com.google.android.play:feature-delivery-ktx:2.1.0")
+    implementation("com.google.android.play:review:2.0.1")
+    implementation("com.google.android.play:review-ktx:2.0.1")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.activity:activity-ktx:1.9.3")
     implementation("androidx.window:window:1.3.0")
     implementation("androidx.window:window-java:1.3.0")
+    implementation("com.google.mlkit:text-recognition:16.0.1") 
 }
 
 flutter {

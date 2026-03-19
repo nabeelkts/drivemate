@@ -10,6 +10,9 @@ import 'package:drivemate/utils/soft_delete_utils.dart';
 import 'package:drivemate/screens/dashboard/list/widgets/animated_search_widget.dart';
 import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.dart';
 import 'package:drivemate/screens/dashboard/list/widgets/summary_header.dart';
+import 'package:drivemate/screens/dashboard/import/import_screen.dart';
+import 'package:drivemate/screens/dashboard/export/export_screen.dart';
+import 'package:drivemate/services/excel_import_service.dart';
 
 enum SortOrder { newestToOldest, oldestToNewest, aToZ, zToA }
 
@@ -22,6 +25,10 @@ class BaseListWidget extends StatefulWidget {
       BuildContext, QueryDocumentSnapshot<Map<String, dynamic>>) itemBuilder;
   final VoidCallback? onAddNew;
   final VoidCallback? onViewDeactivated;
+  final VoidCallback? onImport; // New import callback
+  final VoidCallback? onExport; // New export callback
+  final ImportType? importType; // Import type for this list
+  final ImportType? exportType; // Export type for this list
   final String? addButtonText;
   final String summaryLabel;
 
@@ -33,6 +40,10 @@ class BaseListWidget extends StatefulWidget {
     required this.itemBuilder,
     this.onAddNew,
     this.onViewDeactivated,
+    this.onImport,
+    this.onExport,
+    this.importType,
+    this.exportType,
     this.addButtonText,
     this.summaryLabel = 'Total Records:',
     super.key,
@@ -93,6 +104,91 @@ class _BaseListWidgetState extends State<BaseListWidget> {
     _userStreamController.close();
     _searchController.dispose();
     super.dispose();
+  }
+
+  List<Widget> _buildActions() {
+    final List<Widget> actions = [];
+
+    // Add import/export menu button if either callback is provided
+    if (widget.onImport != null || widget.onExport != null) {
+      actions.add(
+        PopupMenuButton<String>(
+          icon: const Icon(
+            Icons.swap_vert,
+            color: kPrimaryColor,
+          ),
+          tooltip: 'Import / Export',
+          onSelected: (value) {
+            if (value == 'import') {
+              if (widget.onImport != null) {
+                widget.onImport!();
+              } else if (widget.importType != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ImportScreen(
+                      importType: widget.importType!,
+                    ),
+                  ),
+                );
+              }
+            } else if (value == 'export') {
+              if (widget.onExport != null) {
+                widget.onExport!();
+              } else if (widget.exportType != null) {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ExportScreen(
+                      exportType: widget.exportType!,
+                    ),
+                  ),
+                );
+              }
+            }
+          },
+          itemBuilder: (context) => [
+            if (widget.onImport != null || widget.importType != null)
+              const PopupMenuItem<String>(
+                value: 'import',
+                child: Row(
+                  children: [
+                    Icon(Icons.upload_file, color: kPrimaryColor),
+                    SizedBox(width: 12),
+                    Text('Import Records'),
+                  ],
+                ),
+              ),
+            if (widget.onExport != null || widget.exportType != null)
+              const PopupMenuItem<String>(
+                value: 'export',
+                child: Row(
+                  children: [
+                    Icon(Icons.download, color: kPrimaryColor),
+                    SizedBox(width: 12),
+                    Text('Export Records'),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      );
+    }
+
+    // Add deactivated list button if provided
+    if (widget.onViewDeactivated != null) {
+      actions.add(
+        IconButton(
+          onPressed: widget.onViewDeactivated,
+          icon: const Icon(
+            Icons.list_rounded,
+            color: kPrimaryColor,
+          ),
+        ),
+      );
+    }
+
+    return actions;
   }
 
   void _filterItems(String query) {
@@ -249,17 +345,7 @@ class _BaseListWidgetState extends State<BaseListWidget> {
           ),
         ),
         leading: const CustomBackButton(),
-        actions: widget.onViewDeactivated != null
-            ? [
-                IconButton(
-                  onPressed: widget.onViewDeactivated,
-                  icon: const Icon(
-                    Icons.list_rounded,
-                    color: kPrimaryColor,
-                  ),
-                ),
-              ]
-            : null,
+        actions: _buildActions(),
       ),
       body: Column(
         children: [

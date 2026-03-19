@@ -130,6 +130,14 @@ class _EditVehicleDetailsFormState extends State<EditVehicleDetailsForm> {
                   'registrationDate': DateTime.now().toIso8601String(),
                 };
 
+                // Preserve the status/deactivated field to ensure correct collection is used
+                if (widget.initialValues['status'] != null) {
+                  data['status'] = widget.initialValues['status'];
+                }
+                if (widget.initialValues['deactivated'] != null) {
+                  data['deactivated'] = widget.initialValues['deactivated'];
+                }
+
                 // Use the WorkspaceController to handle collection separation based on status
                 await workspaceController.updateDocumentWithStatus(
                   'vehicleDetails',

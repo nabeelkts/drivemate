@@ -22,6 +22,7 @@ import 'package:drivemate/screens/dashboard/list/details/document_preview_screen
 import 'package:drivemate/services/pdf_service.dart';
 import 'package:drivemate/services/image_cache_service.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:drivemate/widgets/additional_info_sheet.dart';
 import 'package:drivemate/services/additional_info_service.dart';
 import 'package:drivemate/utils/date_utils.dart';
@@ -1482,26 +1483,57 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
   }
 
   void _showContactOptions(BuildContext context, String phone) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
+      backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (_) => SafeArea(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            Text(phone,
+                style: TextStyle(
+                    color: isDark ? Colors.white54 : Colors.black54,
+                    fontSize: 13)),
+            const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.call, color: Colors.green),
-              title: const Text('Call Customer'),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              tileColor: Colors.green.withOpacity(0.08),
+              leading: const Icon(Icons.phone_rounded, color: Colors.green),
+              title: Text('Call Customer',
+                  style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontWeight: FontWeight.w600)),
               onTap: () async {
+                Navigator.pop(context);
                 final uri = Uri.parse('tel:$phone');
                 if (await canLaunchUrl(uri)) launchUrl(uri);
               },
             ),
+            const SizedBox(height: 10),
             ListTile(
-              leading: const Icon(Icons.message, color: Colors.blue),
-              title: const Text('WhatsApp'),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              tileColor: const Color(0xFF25D366).withOpacity(0.08),
+              leading: const FaIcon(FontAwesomeIcons.whatsapp,
+                  color: Color(0xFF25D366)),
+              title: Text('WhatsApp',
+                  style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontWeight: FontWeight.w600)),
               onTap: () async {
+                Navigator.pop(context);
                 final cleaned = phone.replaceAll(RegExp(r'[^0-9]'), '');
                 final uri = Uri.parse('https://wa.me/91$cleaned');
                 if (await canLaunchUrl(uri))

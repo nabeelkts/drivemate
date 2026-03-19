@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:flutter/services.dart';
 import 'dart:ui' as ui;
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:drivemate/widgets/persistent_cached_image.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -28,6 +28,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:drivemate/utils/image_utils.dart';
 import 'package:drivemate/utils/payment_utils.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:drivemate/widgets/soft_delete_button.dart';
 import 'package:drivemate/services/soft_delete_service.dart';
@@ -356,6 +357,11 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
     final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     final cardColor = Theme.of(context).cardColor;
 
+    // Resilience: check multiple possible image field names
+    final String? imageUrl = serviceDetails['image']?.toString() ??
+        serviceDetails['photoUrl']?.toString() ??
+        serviceDetails['profileImageUrl']?.toString();
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       decoration: BoxDecoration(
@@ -376,8 +382,8 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
         children: [
           InkWell(
             onTap: () {
-              final imageUrl = serviceDetails['image']?.toString() ?? '';
-              if (imageUrl.isEmpty) return;
+              if (imageUrl == null || imageUrl.isEmpty || imageUrl == 'null')
+                return;
               ImageUtils.showImagePopup(
                 context,
                 imageUrl,
@@ -396,48 +402,24 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
                 ),
               ),
               child: ClipOval(
-                child: serviceDetails['image'] != null &&
-                        serviceDetails['image'].toString().isNotEmpty
-                    ? CachedNetworkImage(
-                        imageUrl: serviceDetails['image'],
+                child: (imageUrl != null &&
+                        imageUrl.isNotEmpty &&
+                        imageUrl != 'null')
+                    ? PersistentCachedImage(
+                        imageUrl: imageUrl,
                         fit: BoxFit.cover,
-                        placeholder: (context, url) => Shimmer.fromColors(
+                        memCacheWidth: 300,
+                        memCacheHeight: 300,
+                        placeholder: Shimmer.fromColors(
                           baseColor:
                               isDark ? Colors.grey[800]! : Colors.grey[300]!,
                           highlightColor:
                               isDark ? Colors.grey[700]! : Colors.grey[100]!,
                           child: Container(color: Colors.white),
                         ),
-                        errorWidget: (context, url, error) => Container(
-                          alignment: Alignment.center,
-                          child: Text(
-                            serviceDetails['fullName'] != null &&
-                                    serviceDetails['fullName']
-                                        .toString()
-                                        .isNotEmpty
-                                ? serviceDetails['fullName'][0].toUpperCase()
-                                : '?',
-                            style: TextStyle(
-                              fontSize: 40,
-                              color: textColor,
-                            ),
-                          ),
-                        ),
+                        errorWidget: _buildInitialsPlaceholder(),
                       )
-                    : Center(
-                        child: Text(
-                          serviceDetails['fullName'] != null &&
-                                  serviceDetails['fullName']
-                                      .toString()
-                                      .isNotEmpty
-                              ? serviceDetails['fullName'][0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            fontSize: 40,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+                    : _buildInitialsPlaceholder(),
               ),
             ),
           ),
@@ -447,7 +429,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  serviceDetails['fullName'] ?? 'N/A',
+                  serviceDetails['fullName'] ?? serviceDetails['name'] ?? 'N/A',
                   style: TextStyle(
                     color: textColor,
                     fontSize: 22,
@@ -488,6 +470,25 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
     );
   }
 
+  Widget _buildInitialsPlaceholder() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black;
+    final name = serviceDetails['fullName'] ?? serviceDetails['name'] ?? '?';
+    final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+    return Container(
+      alignment: Alignment.center,
+      color: kAccentRed.withOpacity(0.1),
+      child: Text(
+        initials,
+        style: TextStyle(
+          fontSize: 40,
+          color: textColor,
+        ),
+      ),
+    );
+  }
+
   Future<void> _updateProfileImage(
       BuildContext context, String targetId) async {
     final ImagePicker picker = ImagePicker();
@@ -522,7 +523,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
           await FirebaseFirestore.instance
               .collection('users')
               .doc(targetId)
-              .collection('dl_services')
+              .collection(_collectionName)
               .doc(_docId)
               .update({'image': url});
         });
@@ -2066,7 +2067,8 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               tileColor: const Color(0xFF25D366).withOpacity(0.08),
-              leading: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
+              leading: const FaIcon(FontAwesomeIcons.whatsapp,
+                  color: Color(0xFF25D366)),
               title: Text('WhatsApp',
                   style: TextStyle(
                       color: isDark ? Colors.white : Colors.black,

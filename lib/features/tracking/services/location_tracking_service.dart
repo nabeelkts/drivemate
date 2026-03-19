@@ -64,9 +64,85 @@ class LocationTrackingService extends GetxService {
     return true;
   }
 
+  @override
+  void onInit() {
+    super.onInit();
+    // Listen for manual lesson updates from the UI via the background service channel
+    _serviceInstance?.on('startLesson').listen((event) {
+      final lessonId = event?['lessonId'] as String?;
+      if (lessonId != null) {
+        _handleLessonStarted(lessonId, _currentDriverId ?? '');
+      }
+    });
+
+    _serviceInstance?.on('stopLesson').listen((event) {
+      _handleLessonEnded();
+    });
+  }
+
+  void _handleLessonStarted(String lessonId, String driverId) async {
+    if (_currentLessonId != lessonId) {
+      _currentLessonId = lessonId;
+      _lessonDistance = 0.0;
+      _lastPosition = null;
+      _distanceSinceLastPathWrite = 0.0;
+      _lastPathWriteTime = null;
+      print('Lesson started: $lessonId');
+
+      // ✅ Start tracking location only when lesson starts
+      if (!_isTracking) {
+        await startTracking(driverId, lessonId);
+      }
+
+      // Create lesson path document with metadata
+      await _initLessonPath(lessonId, driverId);
+
+      // Try to get current position immediately to record starting point
+      try {
+        final position = await Geolocator.getCurrentPosition(
+          locationSettings:
+              const LocationSettings(accuracy: LocationAccuracy.high),
+        );
+        _lastPosition = position;
+        _writePathPoint(position, force: true);
+      } catch (e) {
+        print('Error recording initial lesson point: $e');
+      }
+    }
+  }
+
+  void _handleLessonEnded() async {
+    if (_currentLessonId != null) {
+      final completedLessonId = _currentLessonId!;
+      final distanceKm = _lessonDistance / 1000;
+      print(
+          'Lesson ended (manual): $completedLessonId — ${distanceKm.toStringAsFixed(2)} km');
+      await _saveLessonDistance(completedLessonId, _lessonDistance);
+      await _finalizeLessonPath(completedLessonId, _lessonDistance);
+
+      // ✅ Stop tracking location immediately when lesson ends
+      await stopTracking();
+
+      _currentLessonId = null;
+      _lessonDistance = 0.0;
+    }
+  }
+
+  /// Manually set the current lesson ID (used by foreground UI)
+  void setManualLessonId(String? lessonId) {
+    if (lessonId != null) {
+      _handleLessonStarted(lessonId, _currentDriverId ?? '');
+    } else {
+      _handleLessonEnded();
+    }
+  }
+
   Future<void> observeLessonStatus(String driverId) async {
     _currentDriverId = driverId;
-    await startTracking(driverId, null);
+
+    // ✅ REMOVED: Immediate startTracking call.
+    // Tracking will now only start when a lesson is detected as 'started'.
+
     await _lessonStreamSubscription?.cancel();
 
     final query = FirebaseFirestore.instance
@@ -76,29 +152,14 @@ class LocationTrackingService extends GetxService {
 
     _lessonStreamSubscription = query.snapshots().listen((snapshot) async {
       if (snapshot.docs.isNotEmpty) {
-        final lessonId = snapshot.docs.first.id;
-        if (_currentLessonId != lessonId) {
-          _currentLessonId = lessonId;
-          _lessonDistance = 0.0;
-          _lastPosition = null;
-          _distanceSinceLastPathWrite = 0.0;
-          _lastPathWriteTime = null;
-          print('Lesson started: $lessonId');
+        final doc = snapshot.docs.first;
+        final data = doc.data() as Map<String, dynamic>;
+        // Prefer lessonSessionId if set, otherwise fallback to docId (backward compatibility)
+        final lessonId = data['lessonSessionId'] ?? doc.id;
 
-          // Create lesson path document with metadata
-          await _initLessonPath(lessonId, driverId);
-        }
+        _handleLessonStarted(lessonId, driverId);
       } else {
-        if (_currentLessonId != null) {
-          final completedLessonId = _currentLessonId!;
-          final distanceKm = _lessonDistance / 1000;
-          print(
-              'Lesson ended: $completedLessonId — ${distanceKm.toStringAsFixed(2)} km');
-          await _saveLessonDistance(completedLessonId, _lessonDistance);
-          await _finalizeLessonPath(completedLessonId, _lessonDistance);
-          _currentLessonId = null;
-          _lessonDistance = 0.0;
-        }
+        _handleLessonEnded();
       }
     }, onError: (e) {
       print('Lesson status observer error: $e');
@@ -144,7 +205,7 @@ class LocationTrackingService extends GetxService {
   }
 
   /// Write a single GPS point to Firestore (throttled)
-  Future<void> _writePathPoint(Position position) async {
+  Future<void> _writePathPoint(Position position, {bool force = false}) async {
     if (_currentLessonId == null) return;
 
     final now = DateTime.now();
@@ -152,9 +213,9 @@ class LocationTrackingService extends GetxService {
         ? _pathWriteIntervalSeconds + 1
         : now.difference(_lastPathWriteTime!).inSeconds;
 
-    final shouldWrite =
+    final shouldWrite = force ||
         _distanceSinceLastPathWrite >= _pathWriteIntervalMeters ||
-            secondsSinceLast >= _pathWriteIntervalSeconds;
+        secondsSinceLast >= _pathWriteIntervalSeconds;
 
     if (!shouldWrite) return;
 

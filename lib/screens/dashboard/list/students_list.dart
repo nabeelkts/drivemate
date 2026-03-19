@@ -21,6 +21,9 @@ import 'package:drivemate/screens/dashboard/list/widgets/summary_header.dart';
 import 'package:drivemate/screens/dashboard/list/widgets/list_item_card.dart';
 import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:drivemate/services/excel_import_service.dart';
+import 'package:drivemate/screens/dashboard/import/import_screen.dart';
+import 'package:drivemate/screens/dashboard/export/export_screen.dart';
 
 class StudentList extends StatefulWidget {
   final String userId;
@@ -138,6 +141,56 @@ class _StudentListState extends State<StudentList> {
               Icons.list_rounded,
               color: kPrimaryColor,
             ),
+          ),
+          PopupMenuButton<String>(
+            icon: const Icon(
+              Icons.swap_vert,
+              color: kPrimaryColor,
+            ),
+            tooltip: 'Import / Export',
+            onSelected: (value) {
+              if (value == 'import') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ImportScreen(
+                      importType: ImportType.student,
+                    ),
+                  ),
+                );
+              } else if (value == 'export') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ExportScreen(
+                      exportType: ImportType.student,
+                    ),
+                  ),
+                );
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem<String>(
+                value: 'import',
+                child: Row(
+                  children: [
+                    Icon(Icons.upload_file, color: kPrimaryColor),
+                    SizedBox(width: 12),
+                    Text('Import Students'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem<String>(
+                value: 'export',
+                child: Row(
+                  children: [
+                    Icon(Icons.download, color: kPrimaryColor),
+                    SizedBox(width: 12),
+                    Text('Export Students'),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

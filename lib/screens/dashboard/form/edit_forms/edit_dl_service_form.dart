@@ -69,6 +69,14 @@ class _EditDlServiceFormState extends State<EditDlServiceForm> {
         initialValues: widget.initialValues,
         onFormSubmit: (serviceData) async {
           try {
+            // Preserve the status/deactivated field to ensure correct collection is used
+            if (widget.initialValues['status'] != null) {
+              serviceData['status'] = widget.initialValues['status'];
+            }
+            if (widget.initialValues['deactivated'] != null) {
+              serviceData['deactivated'] = widget.initialValues['deactivated'];
+            }
+
             // Use the WorkspaceController to handle collection separation based on status
             await workspaceController.updateDocumentWithStatus(
               'dl_services',

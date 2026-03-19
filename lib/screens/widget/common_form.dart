@@ -20,6 +20,9 @@ import 'package:drivemate/utils/date_utils.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import 'package:drivemate/services/storage_service.dart';
 import 'package:drivemate/services/ocr_service.dart';
+import 'package:drivemate/services/security_service.dart';
+import 'package:drivemate/utils/input_validation_service.dart';
+import 'package:get/get.dart';
 
 // ignore: must_be_immutable
 class CommonForm extends StatefulWidget {
@@ -51,6 +54,104 @@ class CommonForm extends StatefulWidget {
 class CommonFormState extends State<CommonForm> {
   final SmartDocumentScanner _scanner = SmartDocumentScanner();
   final formKey = GlobalKey<FormState>();
+  late SecurityService _securityService;
+  final _storageService = StorageService();
+  final Map<String, String> _validationErrors = {};
+
+  // Input validation methods
+  ValidationResult _validateField(String value, String fieldType) {
+    return InputValidationService.validateField(value, fieldType);
+  }
+
+  String sanitizeInput(String input) {
+    return InputValidationService.sanitizeString(input);
+  }
+
+  bool _isValidMobile(String mobile) {
+    return _validateField(mobile, 'phone').isValid;
+  }
+
+  bool _isValidEmail(String email) {
+    return _validateField(email, 'email').isValid;
+  }
+
+  bool _isValidName(String name) {
+    return _validateField(name, 'name').isValid;
+  }
+
+  bool _isValidAmount(String amount) {
+    return _validateField(amount, 'amount').isValid;
+  }
+
+  bool _isValidVehicleNumber(String vehicleNumber) {
+    return _validateField(vehicleNumber, 'vehicle').isValid;
+  }
+
+  bool _validateAllFields() {
+    bool isValid = true;
+    _validationErrors.clear();
+
+    // Validate name
+    final nameResult = _validateField(fullNameController.text, 'name');
+    if (!nameResult.isValid) {
+      _validationErrors['fullName'] = nameResult.errorMessage!;
+      isValid = false;
+    }
+
+    // Validate guardian name
+    final guardianResult = _validateField(guardianNameController.text, 'name');
+    if (!guardianResult.isValid) {
+      _validationErrors['guardianName'] = guardianResult.errorMessage!;
+      isValid = false;
+    }
+
+    // Validate mobile
+    final mobileResult = _validateField(mobileNumberController.text, 'phone');
+    if (!mobileResult.isValid) {
+      _validationErrors['mobileNumber'] = mobileResult.errorMessage!;
+      isValid = false;
+    }
+
+    // Validate emergency number (if provided)
+    if (emergencyNumberController.text.isNotEmpty) {
+      final emergencyResult =
+          _validateField(emergencyNumberController.text, 'phone');
+      if (!emergencyResult.isValid) {
+        _validationErrors['emergencyNumber'] = emergencyResult.errorMessage!;
+        isValid = false;
+      }
+    }
+
+    // Validate amounts
+    if (totalAmountController.text.isNotEmpty) {
+      final totalResult = _validateField(totalAmountController.text, 'amount');
+      if (!totalResult.isValid) {
+        _validationErrors['totalAmount'] = totalResult.errorMessage!;
+        isValid = false;
+      }
+    }
+
+    if (advanceAmountController.text.isNotEmpty) {
+      final advanceResult =
+          _validateField(advanceAmountController.text, 'amount');
+      if (!advanceResult.isValid) {
+        _validationErrors['advanceAmount'] = advanceResult.errorMessage!;
+        isValid = false;
+      }
+    }
+
+    // Validate PIN (if provided)
+    if (pinController.text.isNotEmpty) {
+      final pinResult = _validateField(pinController.text, 'pincode');
+      if (!pinResult.isValid) {
+        _validationErrors['pin'] = pinResult.errorMessage!;
+        isValid = false;
+      }
+    }
+
+    return isValid;
+  }
+
   late TextEditingController studentIdController;
   late TextEditingController fullNameController;
   late TextEditingController guardianNameController;
@@ -79,7 +180,6 @@ class CommonFormState extends State<CommonForm> {
   List<String> _selectedItems = [];
   List<String> _studySelectedItems = [];
 
-  final StorageService _storageService = StorageService();
   final List<String> _bloodGroups = [
     'A+',
     'A-',
@@ -94,6 +194,8 @@ class CommonFormState extends State<CommonForm> {
   @override
   void initState() {
     super.initState();
+    // Initialize SecurityService for abuse protection
+    _securityService = Get.find<SecurityService>();
     _currentIndex = widget.index >= 0 ? widget.index : 0;
     scrollController = FixedExtentScrollController(initialItem: _currentIndex);
 
@@ -322,10 +424,43 @@ class CommonFormState extends State<CommonForm> {
     setState(() => isLoading = true);
 
     try {
+      // ABUSE PROTECTION: Check OCR rate limiting before processing
+      if (_securityService.isOCRRateLimited()) {
+        final remainingSeconds =
+            _securityService.getOCRRemainingLockoutSeconds();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'AI scan limit reached. Please wait ${remainingSeconds ~/ 60} minutes.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        setState(() => isLoading = false);
+        return;
+      }
+
+      // Show remaining scans warning if getting low
+      final remainingScans = _securityService.getRemainingOCRRequests();
+      if (remainingScans <= 3 && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content:
+                Text('Warning: $remainingScans AI scans remaining this hour'),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+
       File file = File(pickedImage.path);
 
       // 🔥 AI SCAN HERE
       Map<String, String> data = await _scanner.scan(file);
+
+      // ABUSE PROTECTION: Record successful OCR request
+      _securityService.recordOCRRequest();
 
       if (data["name"] != null && data["name"]!.isNotEmpty) {
         fullNameController.text = data["name"]!;

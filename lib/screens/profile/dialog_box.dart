@@ -55,12 +55,19 @@ void showCustomConfirmationDialog(
                       backgroundColor: const Color(0xFFF6FFF0),
                       textColor: kBlack,
                       onPressed: () async {
-                        final result = onConfirm();
-                        if (result is Future) {
-                          await result;
-                        }
-                        if (context.mounted) {
-                          Navigator.of(context).pop();
+                        try {
+                          final result = onConfirm();
+                          if (result is Future) {
+                            await result;
+                          }
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                          }
+                        } catch (e) {
+                          // If there's an error, still try to close the dialog
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                          }
                         }
                       },
                     ),

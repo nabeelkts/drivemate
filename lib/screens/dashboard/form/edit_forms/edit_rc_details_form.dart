@@ -40,11 +40,20 @@ class EditRCDetailsForm extends StatelessWidget {
         initialValues: initialValues,
         onFormSubmit: (vehicleData) async {
           try {
-            await usersCollection
-                .doc(targetId)
-                .collection('vehicleDetails')
-                .doc(vehicleData['vehicleNumber'])
-                .update(vehicleData);
+            // Preserve the status/deactivated field to ensure correct collection is used
+            if (initialValues['status'] != null) {
+              vehicleData['status'] = initialValues['status'];
+            }
+            if (initialValues['deactivated'] != null) {
+              vehicleData['deactivated'] = initialValues['deactivated'];
+            }
+
+            // Use the WorkspaceController to handle collection separation based on status
+            await workspaceController.updateDocumentWithStatus(
+              'vehicleDetails',
+              vehicleData['studentId'] ?? vehicleData['id'],
+              vehicleData,
+            );
 
             Fluttertoast.showToast(
               msg: 'Vehicle Details Updated Successfully',

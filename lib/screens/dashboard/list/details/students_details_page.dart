@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:drivemate/widgets/persistent_cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter/services.dart';
@@ -32,15 +33,17 @@ import 'package:drivemate/widgets/additional_info_sheet.dart';
 import 'package:drivemate/services/additional_info_service.dart';
 import 'dart:async';
 import 'package:http/http.dart' as http;
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:drivemate/features/tracking/services/background_service.dart';
 import 'package:drivemate/features/tracking/data/repositories/tracking_repository.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:drivemate/features/tracking/services/location_tracking_service.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:drivemate/widgets/soft_delete_button.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:drivemate/services/storage_service.dart';
+import 'package:drivemate/screens/dashboard/list/details/attendance_details_page.dart';
 import 'package:drivemate/screens/dashboard/list/details/document_preview_screen.dart';
 import 'package:drivemate/screens/dashboard/list/widgets/details_tabs_bar.dart';
 import 'package:drivemate/screens/profile/dialog_box.dart';
@@ -48,8 +51,13 @@ import 'package:drivemate/services/soft_delete_service.dart';
 
 class StudentDetailsPage extends StatefulWidget {
   final Map<String, dynamic> studentDetails;
+  final bool isStudentView; // true when viewed by student themselves
 
-  const StudentDetailsPage({required this.studentDetails, super.key});
+  const StudentDetailsPage({
+    required this.studentDetails,
+    this.isStudentView = false,
+    super.key,
+  });
 
   @override
   State<StudentDetailsPage> createState() => _StudentDetailsPageState();
@@ -277,68 +285,78 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       appBar: AppBar(
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         elevation: 0,
-        leading: const CustomBackButton(),
-        title: Text('Student Details', style: TextStyle(color: textColor)),
+        centerTitle: false,
+        titleSpacing: 16,
+        leadingWidth: widget.isStudentView ? 0 : null,
+        leading: widget.isStudentView
+            ? const SizedBox.shrink()
+            : const CustomBackButton(),
+        title: Text(
+          widget.isStudentView ? 'My Dashboard' : 'Student Details',
+          style: TextStyle(color: textColor),
+        ),
         actions: [
-          _buildLessonControlButton(targetId),
-          PopupMenuButton<String>(
-            icon: Icon(Icons.more_vert, color: subTextColor),
-            onSelected: (value) {
-              if (value == 'pdf') {
-                _shareStudentDetails(context);
-              } else if (value == 'edit') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => EditStudentDetailsForm(
-                      initialValues: studentDetails,
-                      items: const [
-                        'MC Study',
-                        'MCWOG Study',
-                        'LMV Study',
-                        'LMV Study + MC Study',
-                        'LMV Study + MCWOG Study',
-                        'LMV Study + MC License',
-                        'LMV Study + MCWOG License',
-                        'LMV License + MC Study',
-                        'LMV License + MCWOG Study',
-                      ],
+          if (!widget.isStudentView) _buildLessonControlButton(targetId),
+          if (!widget.isStudentView)
+            PopupMenuButton<String>(
+              icon: Icon(Icons.more_vert, color: subTextColor),
+              onSelected: (value) {
+                if (value == 'pdf') {
+                  _shareStudentDetails(context);
+                } else if (value == 'edit') {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditStudentDetailsForm(
+                        initialValues: studentDetails,
+                        items: const [
+                          'MC Study',
+                          'MCWOG Study',
+                          'LMV Study',
+                          'LMV Study + MC Study',
+                          'LMV Study + MCWOG Study',
+                          'LMV Study + MC License',
+                          'LMV Study + MCWOG License',
+                          'LMV License + MC Study',
+                          'LMV License + MCWOG Study',
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              } else if (value == 'delete') {
-                _confirmSoftDelete(context, targetId);
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'edit',
-                child: ListTile(
-                  leading: Icon(Icons.edit_outlined, size: 20),
-                  title: Text('Edit Details'),
-                  dense: true,
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'pdf',
-                child: ListTile(
-                  leading: Icon(Icons.picture_as_pdf_outlined, size: 20),
-                  title: Text('Generate PDF'),
-                  dense: true,
-                ),
-              ),
-              if (_collectionName == 'students')
+                  );
+                } else if (value == 'delete') {
+                  _confirmSoftDelete(context, targetId);
+                }
+              },
+              itemBuilder: (context) => [
                 const PopupMenuItem(
-                  value: 'delete',
+                  value: 'edit',
                   child: ListTile(
-                    leading:
-                        Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                    title: Text('Delete', style: TextStyle(color: Colors.red)),
+                    leading: Icon(Icons.edit_outlined, size: 20),
+                    title: Text('Edit Details'),
                     dense: true,
                   ),
                 ),
-            ],
-          ),
+                const PopupMenuItem(
+                  value: 'pdf',
+                  child: ListTile(
+                    leading: Icon(Icons.picture_as_pdf_outlined, size: 20),
+                    title: Text('Generate PDF'),
+                    dense: true,
+                  ),
+                ),
+                if (_collectionName == 'students')
+                  const PopupMenuItem(
+                    value: 'delete',
+                    child: ListTile(
+                      leading: Icon(Icons.delete_outline,
+                          color: Colors.red, size: 20),
+                      title:
+                          Text('Delete', style: TextStyle(color: Colors.red)),
+                      dense: true,
+                    ),
+                  ),
+              ],
+            ),
         ],
       ),
       body: StreamBuilder<DocumentSnapshot>(
@@ -422,18 +440,19 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
               child: ClipOval(
                 child: (studentDetails['image'] != null &&
                         studentDetails['image'].toString().isNotEmpty)
-                    ? CachedNetworkImage(
+                    ? PersistentCachedImage(
                         imageUrl: studentDetails['image'],
                         fit: BoxFit.cover,
-                        placeholder: (context, url) => Shimmer.fromColors(
+                        memCacheWidth: 300,
+                        memCacheHeight: 300,
+                        placeholder: Shimmer.fromColors(
                           baseColor:
                               isDark ? Colors.grey[800]! : Colors.grey[300]!,
                           highlightColor:
                               isDark ? Colors.grey[700]! : Colors.grey[100]!,
                           child: Container(color: Colors.white),
                         ),
-                        errorWidget: (context, url, error) =>
-                            _buildInitialsPlaceholder(),
+                        errorWidget: _buildInitialsPlaceholder(),
                       )
                     : _buildInitialsPlaceholder(),
               ),
@@ -613,15 +632,24 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   }
 
   Widget _buildCustomTabBar(BuildContext context) {
+    // Build tabs dynamically - Additional tab always visible but view-only for students
+    final tabs = <DetailsTabItem>[
+      const DetailsTabItem(
+          label: 'Payment', icon: Icons.account_balance_wallet),
+      const DetailsTabItem(label: 'Attendance', icon: Icons.calendar_today),
+      const DetailsTabItem(label: 'Tests', icon: Icons.assignment),
+      const DetailsTabItem(label: 'Documents', icon: Icons.description),
+      // Additional tab is always visible (but view-only for students)
+      const DetailsTabItem(label: 'Additional', icon: Icons.info_outline),
+    ];
+
+    // Only show Notes tab for non-student views (staff/owner)
+    if (!widget.isStudentView) {
+      tabs.add(const DetailsTabItem(label: 'Notes', icon: Icons.note));
+    }
+
     return DetailsTabsBar(
-      tabs: const [
-        DetailsTabItem(label: 'Payment', icon: Icons.account_balance_wallet),
-        DetailsTabItem(label: 'Attendance', icon: Icons.calendar_today),
-        DetailsTabItem(label: 'Tests', icon: Icons.assignment),
-        DetailsTabItem(label: 'Documents', icon: Icons.description),
-        DetailsTabItem(label: 'Notes', icon: Icons.note),
-        DetailsTabItem(label: 'Additional', icon: Icons.info_outline),
-      ],
+      tabs: tabs,
       activeIndex: _activeTab,
       onChanged: (i) => setState(() => _activeTab = i),
     );
@@ -642,22 +670,26 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   }
 
   Widget _getTabWidget(BuildContext context, String targetId) {
-    switch (_activeTab) {
-      case 0:
-        return _buildPaymentTab(context, targetId);
-      case 1:
-        return _buildAttendanceTab(context, targetId);
-      case 2:
-        return _buildTestsTab(context);
-      case 3:
-        return _buildDocumentsTab(context, targetId);
-      case 4:
-        return _buildNotesTab(context);
-      case 5:
-        return _buildAdditionalTab(context);
-      default:
-        return const SizedBox();
+    // Build tabs list to get correct index mapping - Additional tab always at index 4
+    final tabs = <int, Widget>{
+      0: _buildPaymentTab(context, targetId),
+      1: _buildAttendanceTab(context, targetId),
+      2: _buildTestsTab(context),
+      3: _buildDocumentsTab(context, targetId),
+      4: _buildAdditionalTab(
+          context), // Always available (view-only for students)
+    };
+
+    // Only add Notes tab for non-student views (staff/owner)
+    if (!widget.isStudentView) {
+      tabs[5] = _buildNotesTab(context);
     }
+
+    // Ensure active tab is within bounds using local variable
+    final maxTab = widget.isStudentView ? 4 : 5;
+    final effectiveTab = _activeTab > maxTab ? maxTab : _activeTab;
+
+    return tabs[effectiveTab] ?? const SizedBox();
   }
 
   Widget _buildPaymentTab(BuildContext context, String targetId) {
@@ -679,25 +711,29 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
               'Payment Summary',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
-            Row(
-              children: [
-                if (_selectedTransactionIds.isNotEmpty)
+            // Show receipt button for all roles (including students)
+            // Staff and Owner can add payments/fees, Students can only generate receipts
+            if (_selectedTransactionIds.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.receipt_long, color: kAccentRed),
+                onPressed: _generateSelectedReceipts,
+              ),
+            // Only Staff and Owner can add payments/fees
+            if (!widget.isStudentView)
+              Row(
+                children: [
                   IconButton(
-                    icon: const Icon(Icons.receipt_long, color: kAccentRed),
-                    onPressed: _generateSelectedReceipts,
+                    icon: const Icon(Icons.post_add, color: Colors.blue),
+                    onPressed: () => _showAddExtraFeeDialog(context, targetId),
                   ),
-                IconButton(
-                  icon: const Icon(Icons.post_add, color: Colors.blue),
-                  onPressed: () => _showAddExtraFeeDialog(context, targetId),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.account_balance_wallet,
-                      color: Colors.green),
-                  onPressed: () => _showReceiveMoneyDialog(context, targetId),
-                  tooltip: 'Receive Money',
-                ),
-              ],
-            ),
+                  IconButton(
+                    icon: const Icon(Icons.account_balance_wallet,
+                        color: Colors.green),
+                    onPressed: () => _showReceiveMoneyDialog(context, targetId),
+                    tooltip: 'Receive Money',
+                  ),
+                ],
+              ),
           ],
         ),
         const SizedBox(height: 16),
@@ -856,6 +892,10 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           '${DateFormat('hh:mm a').format(startTime)} - ${DateFormat('hh:mm a').format(endTime)}';
     }
 
+    final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+        ? _workspaceController.currentSchoolId.value
+        : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
     return Card(
       elevation: 0,
       margin: const EdgeInsets.only(bottom: 8),
@@ -863,6 +903,18 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           borderRadius: BorderRadius.circular(12),
           side: BorderSide(color: Colors.grey[200]!)),
       child: ListTile(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => AttendanceDetailsPage(
+                attendanceData: data,
+                studentId: _docId,
+                targetId: targetId,
+              ),
+            ),
+          );
+        },
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         title: Text(DateFormat('dd MMM yyyy').format(date),
             style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -903,16 +955,18 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           children: [
             const Text('Test Schedule',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-            IconButton(
-              icon: const Icon(Icons.edit_calendar, color: kAccentRed),
-              onPressed: () => TestUtils.showUpdateTestDateDialog(
-                context: context,
-                item: studentDetails,
-                collection: 'students',
-                studentId: _docId,
-                onUpdate: () => setState(() {}),
+            // Hide edit button for students - view only
+            if (!widget.isStudentView)
+              IconButton(
+                icon: const Icon(Icons.edit_calendar, color: kAccentRed),
+                onPressed: () => TestUtils.showUpdateTestDateDialog(
+                  context: context,
+                  item: studentDetails,
+                  collection: 'students',
+                  studentId: _docId,
+                  onUpdate: () => setState(() {}),
+                ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -958,6 +1012,20 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   }
 
   Widget _buildDocumentsTab(BuildContext context, String targetId) {
+    // Hide documents tab content for students - show view only message
+    if (widget.isStudentView) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Text(
+            'Documents can only be managed by staff.',
+            style: TextStyle(color: Colors.grey, fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1053,6 +1121,20 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   }
 
   Widget _buildNotesTab(BuildContext context) {
+    // Hide notes tab for students - not needed for them
+    if (widget.isStudentView) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24.0),
+          child: Text(
+            'Notes are only visible to staff.',
+            style: TextStyle(color: Colors.grey, fontSize: 14),
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    }
+
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
         ? _workspaceController.currentSchoolId.value
@@ -1533,35 +1615,38 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (data['isLegacy'] == true)
-                    IconButton(
-                      icon: const Icon(Icons.edit_outlined,
-                          size: 18, color: Colors.blue),
-                      onPressed: () =>
-                          _handleTransactionAction('edit', data, targetId),
-                    )
-                  else
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert, size: 20),
-                      onSelected: (value) =>
-                          _handleTransactionAction(value, data, targetId),
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                            value: 'edit',
-                            child: ListTile(
-                                leading: Icon(Icons.edit, size: 18),
-                                title: Text('Edit'),
-                                dense: true)),
-                        const PopupMenuItem(
-                            value: 'delete',
-                            child: ListTile(
-                                leading: Icon(Icons.delete,
-                                    color: Colors.red, size: 18),
-                                title: Text('Delete',
-                                    style: TextStyle(color: Colors.red)),
-                                dense: true)),
-                      ],
-                    ),
+                  // Hide edit/delete buttons for students - they can only view and generate receipts
+                  if (!widget.isStudentView) ...[
+                    if (data['isLegacy'] == true)
+                      IconButton(
+                        icon: const Icon(Icons.edit_outlined,
+                            size: 18, color: Colors.blue),
+                        onPressed: () =>
+                            _handleTransactionAction('edit', data, targetId),
+                      )
+                    else
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert, size: 20),
+                        onSelected: (value) =>
+                            _handleTransactionAction(value, data, targetId),
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                              value: 'edit',
+                              child: ListTile(
+                                  leading: Icon(Icons.edit, size: 18),
+                                  title: Text('Edit'),
+                                  dense: true)),
+                          const PopupMenuItem(
+                              value: 'delete',
+                              child: ListTile(
+                                  leading: Icon(Icons.delete,
+                                      color: Colors.red, size: 18),
+                                  title: Text('Delete',
+                                      style: TextStyle(color: Colors.red)),
+                                  dense: true)),
+                        ],
+                      ),
+                  ],
                 ],
               ),
             );
@@ -1674,26 +1759,57 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   }
 
   void _showContactOptions(BuildContext context, String phone) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
+      backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
-      builder: (_) => SafeArea(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                    color: Colors.grey.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2))),
+            const SizedBox(height: 16),
+            Text(phone,
+                style: TextStyle(
+                    color: isDark ? Colors.white54 : Colors.black54,
+                    fontSize: 13)),
+            const SizedBox(height: 16),
             ListTile(
-              leading: const Icon(Icons.call, color: Colors.green),
-              title: const Text('Call Student'),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              tileColor: Colors.green.withOpacity(0.08),
+              leading: const Icon(Icons.phone_rounded, color: Colors.green),
+              title: Text('Call Student',
+                  style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontWeight: FontWeight.w600)),
               onTap: () async {
+                Navigator.pop(context);
                 final uri = Uri.parse('tel:$phone');
                 if (await canLaunchUrl(uri)) launchUrl(uri);
               },
             ),
+            const SizedBox(height: 10),
             ListTile(
-              leading: const Icon(Icons.message, color: Colors.blue),
-              title: const Text('WhatsApp'),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
+              tileColor: const Color(0xFF25D366).withOpacity(0.08),
+              leading: const FaIcon(FontAwesomeIcons.whatsapp,
+                  color: Color(0xFF25D366)),
+              title: Text('WhatsApp',
+                  style: TextStyle(
+                      color: isDark ? Colors.white : Colors.black,
+                      fontWeight: FontWeight.w600)),
               onTap: () async {
+                Navigator.pop(context);
                 final cleaned = phone.replaceAll(RegExp(r'[^0-9]'), '');
                 final uri = Uri.parse('https://wa.me/91$cleaned');
                 if (await canLaunchUrl(uri))
@@ -1782,6 +1898,8 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       }
 
       if (!isLessonActive) {
+        // ── START LESSON FLOW ──────────────────────────────────────────────
+
         // Check for location services and permissions
         bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
         if (!serviceEnabled) {
@@ -1808,15 +1926,90 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           return;
         }
 
+        // Fetch school vehicles for selection
+        final vehiclesSnap = await base.collection('school_vehicles').get();
+        final vehicles = vehiclesSnap.docs;
+
+        String? selectedVehicleId;
+        String? selectedVehicleNumber;
+        final startKmController = TextEditingController();
+
+        final bool? startConfirmed =
+            await showCustomStatefulDialogResult<bool?>(
+          context,
+          'Start Lesson',
+          (context, setDialogState, onResult) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                decoration: const InputDecoration(labelText: 'Select Vehicle'),
+                items: vehicles.map((v) {
+                  final data = v.data();
+                  return DropdownMenuItem(
+                    value: v.id,
+                    child: Text(data['vehicleNumber'] ?? 'Unknown'),
+                  );
+                }).toList(),
+                onChanged: (val) {
+                  setDialogState(() {
+                    selectedVehicleId = val;
+                    selectedVehicleNumber = vehicles
+                        .firstWhere((v) => v.id == val)
+                        .data()['vehicleNumber'];
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: startKmController,
+                decoration: const InputDecoration(
+                  labelText: 'Starting Odometer (KM)',
+                  hintText: 'e.g. 12450.5',
+                ),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+              ),
+            ],
+          ),
+          confirmText: 'Start',
+          cancelText: 'Cancel',
+          onConfirmResult: () {
+            if (startKmController.text.isEmpty) {
+              Get.snackbar('Required', 'Please enter starting KM',
+                  backgroundColor: Colors.orange);
+              return null;
+            }
+            return true;
+          },
+        );
+
+        if (startConfirmed != true) return;
+
+        final startKm = double.tryParse(startKmController.text) ?? 0.0;
+        final lessonSessionId =
+            '${_docId}_${DateTime.now().millisecondsSinceEpoch}';
+
         await base.collection(confirmedCollection).doc(_docId).update({
           'lessonStatus': 'started',
           'assignedDriver': user.uid,
-          'lessonStartTime': FieldValue.serverTimestamp()
+          'lessonStartTime': FieldValue.serverTimestamp(),
+          'lessonSessionId': lessonSessionId,
+          'currentVehicleId': selectedVehicleId,
+          'currentVehicleNumber': selectedVehicleNumber,
+          'startKm': startKm,
         });
 
-        // Start background service
+        // Start background service and tell it the lesson ID
         try {
           await BackgroundService.start();
+          final service = FlutterBackgroundService();
+          service.invoke('startLesson', {'lessonId': lessonSessionId});
+
+          // Also update foreground service if it's running
+          try {
+            final trackingService = Get.find<LocationTrackingService>();
+            trackingService.setManualLessonId(lessonSessionId);
+          } catch (_) {}
         } catch (e) {
           debugPrint('BackgroundService error: $e');
         }
@@ -1824,6 +2017,8 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         Get.snackbar('Lesson Started', 'Real-time tracking active.',
             backgroundColor: Colors.green, colorText: Colors.white);
       } else {
+        // ── STOP LESSON FLOW ───────────────────────────────────────────────
+
         final snap =
             await base.collection(confirmedCollection).doc(_docId).get();
 
@@ -1833,12 +2028,72 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           return;
         }
 
+        final studentData = snap.data() as Map<String, dynamic>;
         final startTime =
-            (snap.data()?['lessonStartTime'] as Timestamp?)?.toDate();
+            (studentData['lessonStartTime'] as Timestamp?)?.toDate();
+        final lessonSessionId = studentData['lessonSessionId'];
+        final startKm = (studentData['startKm'] as num?)?.toDouble() ?? 0.0;
+        final vehicleId = studentData['currentVehicleId'];
+        final vehicleNumber = studentData['currentVehicleNumber'];
+
+        final endKmController =
+            TextEditingController(text: startKm > 0 ? startKm.toString() : '');
+
+        final bool? stopConfirmed = await showCustomStatefulDialogResult<bool?>(
+          context,
+          'Complete Lesson',
+          (context, setDialogState, onResult) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Vehicle: ${vehicleNumber ?? 'N/A'}'),
+              const SizedBox(height: 8),
+              Text('Started at: ${startKm.toStringAsFixed(1)} KM'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: endKmController,
+                decoration: const InputDecoration(
+                  labelText: 'Ending Odometer (KM)',
+                  hintText: 'e.g. 12460.2',
+                ),
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+              ),
+            ],
+          ),
+          confirmText: 'Complete',
+          cancelText: 'Cancel',
+          onConfirmResult: () {
+            if (endKmController.text.isEmpty) {
+              Get.snackbar('Required', 'Please enter ending KM',
+                  backgroundColor: Colors.orange);
+              return null;
+            }
+            final end = double.tryParse(endKmController.text) ?? 0.0;
+            if (end < startKm) {
+              Get.snackbar('Invalid', 'Ending KM cannot be less than start KM',
+                  backgroundColor: Colors.orange);
+              return null;
+            }
+            return true;
+          },
+        );
+
+        if (stopConfirmed != true) return;
+
+        final endKm = double.tryParse(endKmController.text) ?? 0.0;
         final now = DateTime.now();
         String duration = startTime != null
             ? '${now.difference(startTime).inMinutes}m'
             : 'N/A';
+
+        // Get distance from tracking service if available
+        double gpsDistanceKm = 0.0;
+        try {
+          final trackingService = Get.find<LocationTrackingService>();
+          gpsDistanceKm = trackingService.lessonDistance / 1000;
+        } catch (e) {
+          debugPrint('TrackingService not found or error: $e');
+        }
 
         // Add to attendance subcollection
         await base
@@ -1852,15 +2107,38 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           'startTime': startTime != null ? Timestamp.fromDate(startTime) : null,
           'endTime': FieldValue.serverTimestamp(),
           'duration': duration,
-          'distance': '0 KM',
+          'distance': '${(endKm - startKm).toStringAsFixed(2)} KM',
+          'gpsDistanceKm': gpsDistanceKm,
+          'startKm': startKm,
+          'endKm': endKm,
+          'vehicleId': vehicleId,
+          'vehicleNumber': vehicleNumber,
+          'lessonSessionId': lessonSessionId,
           'instructorId': user.uid,
         });
 
         // Reset lesson status
-        await base
-            .collection(confirmedCollection)
-            .doc(_docId)
-            .update({'lessonStatus': 'completed'});
+        await base.collection(confirmedCollection).doc(_docId).update({
+          'lessonStatus': 'completed',
+          'lessonSessionId': FieldValue.delete(),
+          'currentVehicleId': FieldValue.delete(),
+          'currentVehicleNumber': FieldValue.delete(),
+          'startKm': FieldValue.delete(),
+        });
+
+        // Tell tracking services to stop lesson tracking
+        try {
+          final service = FlutterBackgroundService();
+          service.invoke('stopLesson');
+
+          try {
+            final trackingService = Get.find<LocationTrackingService>();
+            trackingService.setManualLessonId(null);
+          } catch (_) {}
+
+          // ✅ Completely stop background service when lesson ends to save resources
+          await BackgroundService.stop();
+        } catch (_) {}
 
         Get.snackbar('Lesson Completed', 'Attendance recorded: $duration',
             backgroundColor: Colors.red, colorText: Colors.white);
@@ -2144,14 +2422,16 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
               'Additional Information',
               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
             ),
-            TextButton.icon(
-              onPressed: () => _openStudentAdditionalInfoSheet(context),
-              icon: const Icon(Icons.edit, size: 18, color: kAccentRed),
-              label: Text(
-                hasAdditionalInfo ? 'Edit' : 'Add',
-                style: const TextStyle(color: kAccentRed, fontSize: 12),
+            // Hide edit/add button for students - view only
+            if (!widget.isStudentView)
+              TextButton.icon(
+                onPressed: () => _openStudentAdditionalInfoSheet(context),
+                icon: const Icon(Icons.edit, size: 18, color: kAccentRed),
+                label: Text(
+                  hasAdditionalInfo ? 'Edit' : 'Add',
+                  style: const TextStyle(color: kAccentRed, fontSize: 12),
+                ),
               ),
-            ),
           ],
         ),
         const SizedBox(height: 16),
@@ -2480,27 +2760,29 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                   Text('₹${(data['amount'] as num?)?.toInt() ?? 0}',
                       style: const TextStyle(
                           fontWeight: FontWeight.bold, color: Colors.red)),
-                  PopupMenuButton<String>(
-                    icon: const Icon(Icons.more_vert, size: 20),
-                    onSelected: (value) =>
-                        _handleExtraFeeAction(value, docs[index], targetId),
-                    itemBuilder: (context) => [
-                      const PopupMenuItem(
-                          value: 'edit',
-                          child: ListTile(
-                              leading: Icon(Icons.edit, size: 18),
-                              title: Text('Edit'),
-                              dense: true)),
-                      const PopupMenuItem(
-                          value: 'delete',
-                          child: ListTile(
-                              leading: Icon(Icons.delete,
-                                  color: Colors.red, size: 18),
-                              title: Text('Delete',
-                                  style: TextStyle(color: Colors.red)),
-                              dense: true)),
-                    ],
-                  ),
+                  // Hide edit/delete for students - they can only view extra fees
+                  if (!widget.isStudentView)
+                    PopupMenuButton<String>(
+                      icon: const Icon(Icons.more_vert, size: 20),
+                      onSelected: (value) =>
+                          _handleExtraFeeAction(value, docs[index], targetId),
+                      itemBuilder: (context) => [
+                        const PopupMenuItem(
+                            value: 'edit',
+                            child: ListTile(
+                                leading: Icon(Icons.edit, size: 18),
+                                title: Text('Edit'),
+                                dense: true)),
+                        const PopupMenuItem(
+                            value: 'delete',
+                            child: ListTile(
+                                leading: Icon(Icons.delete,
+                                    color: Colors.red, size: 18),
+                                title: Text('Delete',
+                                    style: TextStyle(color: Colors.red)),
+                                dense: true)),
+                      ],
+                    ),
                 ],
               ),
             );

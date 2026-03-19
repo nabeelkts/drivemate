@@ -1,3 +1,6 @@
+import 'dart:ui';
+import 'dart:isolate';
+import 'package:drivemate/services/image_cache_service.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -30,11 +33,24 @@ import 'package:drivemate/features/tracking/services/background_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Hive.initFlutter();
+  try {
+    await ImageCacheService().init();
+  } catch (e) {
+    debugPrint('Warning: ImageCacheService init failed: $e');
+  }
   await GetStorage.init();
   if (!kIsWeb) {
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-    // Initialize background tracking service
-    await BackgroundService.initialize();
+    // Initialize background tracking service only in the main isolate
+    // This prevents "This class should only be used in the main isolate" errors
+    // when plugins start their own background isolates
+    final mainIsolatePort = IsolateNameServer.lookupPortByName('main_isolate');
+    if (mainIsolatePort == null) {
+      // We are in the main isolate (or it's the first run)
+      IsolateNameServer.registerPortWithName(
+          ReceivePort().sendPort, 'main_isolate');
+      await BackgroundService.initialize();
+    }
   }
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -51,9 +67,6 @@ Future<void> main() async {
   // ✅ FIXED: DI must run BEFORE runApp so all services are ready
   // when the first widget tree builds
   DependencyInjection.init();
-
-  // Cleanup expired soft-deleted documents
-  await SoftDeleteService.cleanupExpiredDocuments();
 
   runApp(const MyApp());
 }

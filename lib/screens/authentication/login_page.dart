@@ -5,6 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:get/get.dart';
 import 'package:hive/hive.dart';
 import 'package:drivemate/constants/colors.dart';
 import 'package:drivemate/screens/authentication/forgot_password.dart';
@@ -16,6 +17,7 @@ import 'package:drivemate/screens/authentication/widgets/password_validator.dart
 import 'package:provider/provider.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:drivemate/services/auth_service.dart';
+import 'package:drivemate/services/security_service.dart';
 import 'package:drivemate/screens/profile/edit_company_profile.dart';
 import 'package:drivemate/screens/authentication/role_selection_page.dart';
 
@@ -37,18 +39,50 @@ class _LoginPageState extends State<LoginPage> {
   bool isLoading = false;
   bool isChecked = false;
   bool passwordObscured = true;
+  bool isRateLimited = false;
+  int remainingLockoutSeconds = 0;
+  int remainingAttempts = 5; // New: show remaining attempts
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final _authService = AuthService();
+  late SecurityService _securityService;
   final _box = GetStorage();
   Box? box1;
 
   @override
   void initState() {
     super.initState();
+    // Use injected SecurityService
+    _securityService = Get.find<SecurityService>();
+    _checkRateLimitStatus();
     createOpenBox();
     getdata();
     _checkBiometricAvailability();
+  }
+
+  void _checkRateLimitStatus() {
+    isRateLimited = _securityService.isRateLimited();
+    remainingAttempts = _securityService.getRemainingLoginAttempts();
+    if (isRateLimited) {
+      remainingLockoutSeconds = _securityService.getRemainingLockoutSeconds();
+      _startLockoutCountdown();
+    }
+  }
+
+  void _startLockoutCountdown() {
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return false;
+      setState(() {
+        if (remainingLockoutSeconds > 0) {
+          remainingLockoutSeconds--;
+        } else {
+          isRateLimited = false;
+          _checkRateLimitStatus();
+        }
+      });
+      return isRateLimited && mounted;
+    });
   }
 
   void createOpenBox() async {
@@ -80,17 +114,46 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
+  /// Biometric authentication - for enhanced security, users must have previously
+  /// logged in with email/password and enabled biometric login.
+  /// This uses the device's biometric verification to unlock the stored session.
   Future<void> _authenticateWithBiometrics() async {
     try {
+      // First verify biometric is available and enabled
+      if (!await _authService.isBiometricEnabled()) {
+        return;
+      }
+
+      // Authenticate with device biometrics/PIN
       final authenticated = await _authService.authenticateWithBiometrics();
       if (authenticated) {
+        // Get stored email for session restoration
+        // Note: We do NOT store or retrieve passwords - biometric unlocks the session
+        // The session is managed by Firebase Auth's currentUser
         final storedEmail = _box.read('lastLoginEmail');
-        final storedPassword = _box.read('lastLoginPassword');
 
-        if (storedEmail != null && storedPassword != null) {
+        if (storedEmail != null) {
           emailController.text = storedEmail;
-          passwordController.text = storedPassword;
-          await signInWithEmailAndPassword(context);
+          // For biometric login, we check if Firebase session is still valid
+          // If valid, we don't need the password
+          final currentUser = FirebaseAuth.instance.currentUser;
+          if (currentUser != null && currentUser.email == storedEmail) {
+            // Session is valid, proceed to home
+            if (mounted) {
+              Navigator.pushReplacementNamed(context, '/home');
+            }
+          } else {
+            // Session expired, require password login
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text(
+                      'Session expired. Please log in with your password.'),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            }
+          }
         }
       }
     } catch (e) {
@@ -229,19 +292,87 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ),
               const SizedBox(height: 32),
+              // Show rate limit warning if applicable
+              if (isRateLimited)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock_clock, color: Colors.red.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Too many failed attempts. Try again in ${remainingLockoutSeconds ~/ 60}:${(remainingLockoutSeconds % 60).toString().padLeft(2, '0')}',
+                            style: TextStyle(
+                              color: Colors.red.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (!isRateLimited && remainingAttempts < 5)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded,
+                            color: Colors.orange.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Warning: $remainingAttempts login attempts remaining before lockout',
+                            style: TextStyle(
+                              color: Colors.orange.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
                 child: MyButton(
                   onTap: () {
+                    if (isRateLimited) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                              'Please wait ${remainingLockoutSeconds ~/ 60}:${(remainingLockoutSeconds % 60).toString().padLeft(2, '0')} before trying again'),
+                          backgroundColor: Colors.red,
+                        ),
+                      );
+                      return;
+                    }
                     if (formKey.currentState!.validate()) {
                       signInWithEmailAndPassword(context);
-                      login();
+                      _saveEmailForBiometric();
                     }
                   },
                   text: 'Login',
                   isLoading: isLoading,
-                  isEnabled: true,
+                  isEnabled: !isRateLimited,
                   width: double.infinity,
                 ),
               ),
@@ -391,27 +522,86 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  void login() {
+  /// Save email for biometric login - NEVER save passwords in plain text
+  /// Only the email is stored to help users, biometric verifies device ownership
+  void _saveEmailForBiometric() {
     if (isChecked && box1 != null) {
+      // Only save email, never save password
       box1?.put('email', emailController.text);
-      box1?.put('pass', passwordController.text);
+      // Delete password storage for security - we no longer store passwords
+      box1?.delete('pass');
+
+      // Also save to GetStorage for biometric authentication
+      _box.write('lastLoginEmail', emailController.text);
+      // Remove password storage from GetStorage too
+      _box.remove('lastLoginPassword');
     }
   }
 
+  /// Legacy login method - kept for compatibility but no longer stores passwords
+  @Deprecated('Use _saveEmailForBiometric instead')
+  void login() {
+    _saveEmailForBiometric();
+  }
+
   signInWithEmailAndPassword(BuildContext context) async {
+    // Check rate limiting before attempting login
+    if (_securityService.isRateLimited()) {
+      final remainingSeconds = _securityService.getRemainingLockoutSeconds();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Too many failed attempts. Please wait ${remainingSeconds ~/ 60}:${(remainingSeconds % 60).toString().padLeft(2, '0')}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      return;
+    }
+
     try {
       setState(() {
         isLoading = true;
       });
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
+
+      // Attempt login
+      final userCredential =
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: emailController.text,
         password: passwordController.text,
       );
 
-      // Store credentials for biometric login if enabled
+      // SECURITY: Record successful login to reset rate limiting and start session
+      _securityService.onSuccessfulLogin();
+
+      // Store ONLY email for biometric login if enabled - NEVER store password
       if (await _authService.isBiometricEnabled()) {
         _box.write('lastLoginEmail', emailController.text);
-        _box.write('lastLoginPassword', passwordController.text);
+        // SECURITY: Do NOT store password - biometric uses device verification only
+        _box.remove(
+            'lastLoginPassword'); // Ensure any old passwords are removed
+      }
+
+      // Check email verification before allowing access
+      final user = userCredential.user;
+      if (user != null && !user.emailVerified) {
+        // User exists but email not verified
+        await FirebaseAuth.instance.signOut();
+        setState(() {
+          isLoading = false;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                  'Please verify your email before logging in. Check your inbox for the verification link.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+        return;
       }
 
       setState(() {
@@ -422,7 +612,7 @@ class _LoginPageState extends State<LoginPage> {
           SnackBar(
             backgroundColor: Colors.green,
             content: Text(
-              "Authenticated as ${FirebaseAuth.instance.currentUser?.email!}",
+              "Authenticated as ${user?.email}",
             ),
             duration: const Duration(seconds: 2),
           ),
@@ -430,7 +620,6 @@ class _LoginPageState extends State<LoginPage> {
       }
 
       // Sync user data to Firestore
-      final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
@@ -460,11 +649,39 @@ class _LoginPageState extends State<LoginPage> {
       setState(() {
         isLoading = false;
       });
+
+      // SECURITY: Record failed login attempt for rate limiting
+      _securityService.recordFailedLoginAttempt();
+
+      // Check if account is now locked after this attempt
+      if (_securityService.isRateLimited()) {
+        final remainingSeconds = _securityService.getRemainingLockoutSeconds();
+        if (mounted) {
+          setState(() {
+            isRateLimited = true;
+            remainingLockoutSeconds = remainingSeconds;
+          });
+          _startLockoutCountdown();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                  'Too many failed attempts. Account locked for ${remainingSeconds ~/ 60} minutes.'),
+              backgroundColor: Colors.red,
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+        return;
+      }
+
       String message;
       if (e.code == 'user-not-found') {
         message = "No user found for this email.";
       } else if (e.code == 'wrong-password') {
         message = "Wrong password provided for this user.";
+      } else if (e.code == 'too-many-requests') {
+        message =
+            "Too many login attempts. Please try again later or reset your password.";
       } else {
         message = "Authentication failed. ${e.message}";
       }
@@ -474,6 +691,9 @@ class _LoginPageState extends State<LoginPage> {
         );
       }
     } catch (e) {
+      setState(() {
+        isLoading = false;
+      });
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("An unexpected error occurred.")),

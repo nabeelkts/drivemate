@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:drivemate/utils/loading_utils.dart';
 import 'package:drivemate/screens/authentication/auth_page.dart';
+import 'package:drivemate/services/security_service.dart';
 import 'package:get/get.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -76,6 +77,18 @@ class GoogleSignInProvider extends ChangeNotifier {
           await _auth.signInWithCredential(credential);
 
       final User? user = userCredential.user;
+
+      // SECURITY: Check if email is verified for Google sign-in too
+      // Google sign-in usually auto-verifies, but we should enforce it
+      if (user != null && !user.emailVerified) {
+        await _auth.signOut();
+        _errorMessage = 'Please verify your email before signing in.';
+        if (context.mounted) {
+          _showSnackBar(context, _errorMessage!, Colors.orange);
+        }
+        return null;
+      }
+
       if (user != null) {
         final userDoc = await FirebaseFirestore.instance
             .collection('users')
@@ -142,17 +155,39 @@ class GoogleSignInProvider extends ChangeNotifier {
           ]);
           _currentUser = null;
           notifyListeners();
-
-          // Clear navigation stack and go to AuthPage
-          Get.offAll(() => const AuthPage());
         },
         message: 'Logging out...',
       );
+
+      // SECURITY: Clear session and security storage on logout
+      try {
+        final securityService = Get.find<SecurityService>();
+        securityService.clearSecurityStorage();
+      } catch (e) {
+        // SecurityService might not be initialized
+      }
+
+      // Clear all GetX controllers
+      Get.deleteAll();
+
+      // Use WidgetsBinding to ensure navigation happens after frame is complete
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        // Navigate to AuthPage with proper context
+        Get.offAll(() => const AuthPage());
+      });
     } catch (e) {
+      // Even if there's an error, try to navigate to AuthPage
       _errorMessage = 'Error signing out';
       notifyListeners();
-      if (context.mounted) {
-        _showSnackBar(context, _errorMessage!, Colors.red);
+      try {
+        Get.deleteAll();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Get.offAll(() => const AuthPage());
+        });
+      } catch (_) {
+        if (context.mounted) {
+          _showSnackBar(context, _errorMessage!, Colors.red);
+        }
       }
     }
   }

@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:drivemate/services/soft_delete_service.dart';
 import 'package:get/get.dart';
 import 'dart:async';
 import 'package:drivemate/services/subscription_service.dart';
@@ -19,6 +20,9 @@ class WorkspaceController extends GetxController {
   final RxBool isConnectedInitialized = false.obs;
   bool _isConnectedDebounce = false; // Flag to prevent rapid flickering
   final RxBool isOrganizationMode = false.obs;
+
+  // Student specific
+  final RxString studentDocId = "".obs;
 
   // App Data
   final RxMap<String, dynamic> userProfileData = <String, dynamic>{}.obs;
@@ -190,16 +194,22 @@ class WorkspaceController extends GetxController {
   void onInit() {
     super.onInit();
     _loadMode();
-    initializeWorkspace();
 
+    // Auth state changes will handle initialization.
+    // This avoids double-init on startup.
     _auth.authStateChanges().listen((user) {
       if (user != null) {
-        _trackingStarted = false; // Reset on re-login
-        initializeWorkspace();
-        _listenToUserDoc(user.uid);
+        // Only re-initialize if the user ID changed or if we haven't successfully initialized yet
+        if (currentSchoolId.value != user.uid ||
+            !isConnectedInitialized.value) {
+          _trackingStarted = false;
+          initializeWorkspace();
+          _listenToUserDoc(user.uid);
+        }
       } else {
         currentSchoolId.value = "";
         _trackingStarted = false;
+        isConnectedInitialized.value = false;
         _userDocSubscription?.cancel();
       }
     });
@@ -260,6 +270,7 @@ class WorkspaceController extends GetxController {
         final data = doc.data();
         String? schoolId = data?['schoolId'];
         String? role = data?['role'];
+        String? storedStudentDocId = data?['studentDocId'];
 
         if (role == null || role.isEmpty) {
           role = 'Owner';
@@ -269,6 +280,11 @@ class WorkspaceController extends GetxController {
               .update({'role': role});
         }
         userRole.value = role;
+
+        // Store studentDocId for Student role
+        if (role == 'Student' && storedStudentDocId != null) {
+          studentDocId.value = storedStudentDocId;
+        }
 
         if (schoolId == null || schoolId.isEmpty) {
           if (role == 'Owner') {
@@ -283,6 +299,9 @@ class WorkspaceController extends GetxController {
 
         if (role == 'Owner') {
           isConnected.value = true;
+        } else if (role == 'Student') {
+          // Students are always connected to their school
+          isConnected.value = schoolId != null && schoolId.isNotEmpty;
         } else {
           final bool newConnected =
               schoolId != null && schoolId.isNotEmpty && schoolId != user.uid;
@@ -324,6 +343,7 @@ class WorkspaceController extends GetxController {
 
       await _fetchAllAppData();
 
+      // Students don't need branches
       if (userRole.value == 'Owner' ||
           userRole.value == 'Admin' ||
           userRole.value == 'Staff') {
@@ -334,6 +354,15 @@ class WorkspaceController extends GetxController {
       if (userRole.value == 'Staff' && isConnected.value) {
         await fetchStaffBranchData();
       }
+
+      // For student: fetch their own student data
+      if (userRole.value == 'Student' && isConnected.value) {
+        await _fetchStudentData();
+      }
+
+      // Cleanup expired soft-deleted documents for this user
+      // Doing this here ensures we have the userId and avoid permission errors
+      unawaited(SoftDeleteService.cleanupExpiredDocuments(userId: user.uid));
     } catch (e) {
       print("Error initializing workspace: $e");
     } finally {
@@ -585,6 +614,34 @@ class WorkspaceController extends GetxController {
     }
   }
 
+  // --- Student Data Methods ---
+
+  final RxMap<String, dynamic> studentData = <String, dynamic>{}.obs;
+
+  Future<void> _fetchStudentData() async {
+    if (studentDocId.value.isEmpty || currentSchoolId.value.isEmpty) return;
+
+    try {
+      final doc = await _firestore
+          .collection('users')
+          .doc(currentSchoolId.value)
+          .collection('students')
+          .doc(studentDocId.value)
+          .get();
+
+      if (doc.exists) {
+        studentData.value = doc.data() ?? {};
+        studentData['id'] = doc.id;
+      }
+    } catch (e) {
+      print("Error fetching student data: $e");
+    }
+  }
+
+  Future<void> refreshStudentData() async {
+    await _fetchStudentData();
+  }
+
   Future<Map<String, dynamic>> createBranch({
     required String branchName,
     String? location,
@@ -792,35 +849,45 @@ class WorkspaceController extends GetxController {
 
   void _listenToUserDoc(String uid) {
     _userDocSubscription?.cancel();
-    _userDocSubscription =
-        _firestore.collection('users').doc(uid).snapshots().listen((snapshot) {
-      if (snapshot.exists) {
-        final data = snapshot.data();
-        final newSchoolId = data?['schoolId'] ?? "";
-        final newBranchId = data?['branchId'] ?? "";
-        final newRole = data?['role'] ?? "Owner";
+    try {
+      _userDocSubscription = _firestore
+          .collection('users')
+          .doc(uid)
+          .snapshots()
+          .listen((snapshot) {
+        if (snapshot.exists) {
+          final data = snapshot.data();
+          final newSchoolId = data?['schoolId'] ?? "";
+          final newBranchId = data?['branchId'] ?? "";
+          final newRole = data?['role'] ?? "Owner";
 
-        bool needsRefresh = false;
-        if (newSchoolId != currentSchoolId.value) {
-          currentSchoolId.value = newSchoolId;
-          needsRefresh = true;
-        }
-        if (newBranchId != currentBranchId.value) {
-          currentBranchId.value = newBranchId;
-          needsRefresh = true;
-        }
-        if (newRole != userRole.value) {
-          userRole.value = newRole;
-          needsRefresh = true;
-        }
+          bool needsRefresh = false;
+          if (newSchoolId != currentSchoolId.value) {
+            currentSchoolId.value = newSchoolId;
+            needsRefresh = true;
+          }
+          if (newBranchId != currentBranchId.value) {
+            currentBranchId.value = newBranchId;
+            needsRefresh = true;
+          }
+          if (newRole != userRole.value) {
+            userRole.value = newRole;
+            needsRefresh = true;
+          }
 
-        if (needsRefresh) {
-          print("DEBUG: User doc changed, refreshing workspace...");
-          _trackingStarted = false; // Allow tracking to restart with new data
-          initializeWorkspace();
+          if (needsRefresh) {
+            print("DEBUG: User doc changed, refreshing workspace...");
+            _trackingStarted = false; // Allow tracking to restart with new data
+            initializeWorkspace();
+          }
         }
-      }
-    });
+      }, onError: (e) {
+        print("DEBUG: WorkspaceController: Error listening to user doc: $e");
+        // If client is terminated, we can't do much, but at least we don't crash
+      });
+    } catch (e) {
+      print("DEBUG: WorkspaceController: Catch error in _listenToUserDoc: $e");
+    }
   }
 
   @override

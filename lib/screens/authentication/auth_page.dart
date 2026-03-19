@@ -92,6 +92,15 @@ class _AuthPageState extends State<AuthPage> {
                         schoolId == user.uid) {
                       return const RoleSelectionPage();
                     }
+                  } else if (role == 'Student') {
+                    final String? schoolId = userData['schoolId'];
+                    final String? studentDocId = userData['studentDocId'];
+                    if (schoolId == null ||
+                        schoolId.isEmpty ||
+                        studentDocId == null ||
+                        studentDocId.isEmpty) {
+                      return const RoleSelectionPage();
+                    }
                   }
 
                   return const BottomNavScreen();

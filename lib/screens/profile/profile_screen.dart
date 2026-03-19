@@ -22,6 +22,7 @@ import 'package:drivemate/services/subscription_service.dart';
 import 'package:drivemate/screens/profile/admin/admin_subscription_page.dart';
 import 'package:drivemate/screens/profile/settings_page.dart';
 import 'package:drivemate/screens/profile/about_page.dart'; // ← new
+import 'package:drivemate/screens/profile/all_services_page.dart'; // ← new
 import 'package:drivemate/screens/recycle_bin/recycle_bin_screen.dart'; // Recycle Bin
 
 class ProfileScreen extends StatefulWidget {
@@ -228,8 +229,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         backgroundColor: bgColor,
         systemOverlayStyle: SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
-          statusBarIconBrightness:
-              isDark ? Brightness.light : Brightness.dark,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
           statusBarBrightness: isDark ? Brightness.dark : Brightness.light,
         ),
       ),
@@ -304,7 +304,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                 Obx(() {
                   final isStaff =
                       _workspaceController.userRole.value == 'Staff';
-                  if (isStaff) return const SizedBox.shrink();
+                  final isStudent =
+                      _workspaceController.userRole.value == 'Student';
+                  if (isStaff || isStudent) return const SizedBox.shrink();
                   return SubscriptionCard(
                     cardColor: cardColor,
                     textColor: textColor,
@@ -316,8 +318,40 @@ class _ProfileScreenState extends State<ProfileScreen>
                 const SizedBox(height: 24),
 
                 // ── Organization ───────────────────────────────────────
-                _buildMyOrganizationTile(context, _workspaceController,
-                    cardColor, borderColor, textColor, subColor),
+                Obx(() {
+                  final isStudent =
+                      _workspaceController.userRole.value == 'Student';
+                  if (isStudent) return const SizedBox.shrink();
+                  return _buildMyOrganizationTile(context, _workspaceController,
+                      cardColor, borderColor, textColor, subColor);
+                }),
+
+                const SizedBox(height: 12),
+
+                // ── All Services ───────────────────────────────────────
+                Obx(() {
+                  final isStudent =
+                      _workspaceController.userRole.value == 'Student';
+                  if (isStudent) return const SizedBox.shrink();
+                  return _SectionCard(
+                    cardColor: cardColor,
+                    borderColor: borderColor,
+                    children: [
+                      _MenuRow(
+                        icon: Icons.apps_outlined,
+                        iconColor: kPrimaryColor,
+                        label: 'All Services',
+                        subtitle: 'Access all app services',
+                        textColor: textColor,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const AllServicesPage()),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
 
                 const SizedBox(height: 20),
 
@@ -353,18 +387,24 @@ class _ProfileScreenState extends State<ProfileScreen>
                       },
                     ),
                     _Divider(color: borderColor),
-                    _MenuRow(
-                      icon: Icons.delete_outline,
-                      iconColor: Colors.red,
-                      label: 'Recycle Bin',
-                      subtitle: 'Deleted items (90 days)',
-                      textColor: textColor,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const RecycleBinScreen()),
-                      ),
-                    ),
+                    // Hide Recycle Bin for students - they don't manage deleted items
+                    Obx(() {
+                      final isStudent =
+                          _workspaceController.userRole.value == 'Student';
+                      if (isStudent) return const SizedBox.shrink();
+                      return _MenuRow(
+                        icon: Icons.delete_outline,
+                        iconColor: Colors.red,
+                        label: 'Recycle Bin',
+                        subtitle: 'Deleted items (90 days)',
+                        textColor: textColor,
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const RecycleBinScreen()),
+                        ),
+                      );
+                    }),
                     _Divider(color: borderColor),
                     GestureDetector(
                       onLongPress: _showAdminLoginDialog,
@@ -518,7 +558,8 @@ class _ProfileScreenState extends State<ProfileScreen>
             controller: idController,
             decoration: InputDecoration(
               hintText: 'Enter School ID',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ],
@@ -579,8 +620,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         );
       }, message: 'Activating...');
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(res['message'] ?? 'Status updated')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(res['message'] ?? 'Status updated')));
       _workspaceController.refreshAppData();
     }
   }

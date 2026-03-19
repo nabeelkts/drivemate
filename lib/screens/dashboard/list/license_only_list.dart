@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'package:cached_network_image/cached_network_image.dart';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -13,6 +11,8 @@ import 'package:drivemate/screens/dashboard/list/details/license_only_details_pa
 import 'package:drivemate/screens/dashboard/list/widgets/list_item_card.dart';
 import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:drivemate/screens/widget/base_list_widget.dart';
+import 'package:drivemate/services/excel_import_service.dart';
+import 'package:drivemate/screens/dashboard/import/import_screen.dart';
 
 class LicenseOnlyList extends StatelessWidget {
   final String userId;
@@ -41,6 +41,17 @@ class LicenseOnlyList extends StatelessWidget {
               builder: (context) => const DeactivatedLicenseOnlyList()),
         );
       },
+      onImport: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ImportScreen(
+              importType: ImportType.licenseOnly,
+            ),
+          ),
+        );
+      },
+      exportType: ImportType.licenseOnly,
       itemBuilder: (context, doc) {
         final data = Map<String, dynamic>.from(doc.data());
         // Inject document ID for navigation to details pages

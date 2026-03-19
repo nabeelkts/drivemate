@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:drivemate/widgets/persistent_cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
@@ -859,24 +860,41 @@ class DashboardLayout2 extends StatelessWidget {
 
     return Row(
       children: [
-        CircleAvatar(
-          radius: 20,
-          backgroundColor: Colors.blueGrey.shade700,
-          backgroundImage: (activity['imageUrl'] != null &&
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.blueGrey.shade700,
+            shape: BoxShape.circle,
+          ),
+          child: (activity['imageUrl'] != null &&
                   activity['imageUrl'].toString().isNotEmpty)
-              ? CachedNetworkImageProvider(activity['imageUrl'])
-              : null,
-          child: (activity['imageUrl'] == null ||
-                  activity['imageUrl'].toString().isEmpty)
-              ? Text(
-                  name.isNotEmpty ? name[0].toUpperCase() : '?',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
+              ? PersistentCachedImage(
+                  imageUrl: activity['imageUrl'],
+                  borderRadius: BorderRadius.circular(20),
+                  memCacheWidth: 100,
+                  memCacheHeight: 100,
+                  errorWidget: Center(
+                    child: Text(
+                      name.isNotEmpty ? name[0].toUpperCase() : '?',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 )
-              : null,
+              : Center(
+                  child: Text(
+                    name.isNotEmpty ? name[0].toUpperCase() : '?',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
         ),
         const SizedBox(width: 12),
         Expanded(

@@ -1,7 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:drivemate/widgets/persistent_cached_image.dart';
 import 'package:drivemate/constants/colors.dart';
 import 'package:drivemate/screens/dashboard/recent_activity_screen.dart';
 import 'package:get/get.dart';
@@ -275,12 +275,14 @@ class _ActivityRow extends StatelessWidget {
           ),
           child: ClipOval(
             child: (imageUrl != null && imageUrl!.isNotEmpty)
-                ? CachedNetworkImage(
+                ? PersistentCachedImage(
                     imageUrl: imageUrl!,
                     fit: BoxFit.cover,
-                    placeholder: (context, url) =>
+                    memCacheWidth: 100,
+                    memCacheHeight: 100,
+                    placeholder:
                         const CircularProgressIndicator(strokeWidth: 2),
-                    errorWidget: (context, url, error) => Center(
+                    errorWidget: Center(
                       child: Text(
                         name.isNotEmpty ? name[0].toUpperCase() : '?',
                         style: TextStyle(

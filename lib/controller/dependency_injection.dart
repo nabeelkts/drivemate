@@ -5,6 +5,10 @@ import 'package:drivemate/controller/network_controller.dart';
 import 'package:drivemate/controller/app_controller.dart';
 import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:drivemate/services/app_lifecycle_service.dart';
+import 'package:drivemate/services/security_service.dart';
+import 'package:drivemate/services/ownership_service.dart';
+import 'package:drivemate/services/audit_log_service.dart';
+import 'package:drivemate/services/abuse_protection_service.dart';
 import 'package:drivemate/features/tracking/data/repositories/firebase_tracking_repository.dart';
 import 'package:drivemate/features/tracking/data/repositories/tracking_repository.dart';
 import 'package:drivemate/features/tracking/services/location_tracking_service.dart';
@@ -15,6 +19,10 @@ class DependencyInjection {
     Get.put<PermissionController>(PermissionController(), permanent: true);
     Get.put<NetworkController>(NetworkController(), permanent: true);
     Get.put<AppLifecycleService>(AppLifecycleService(), permanent: true);
+    Get.put<SecurityService>(SecurityService(), permanent: true);
+    Get.put<OwnershipService>(OwnershipService(), permanent: true);
+    Get.put<AuditLogService>(AuditLogService(), permanent: true);
+    Get.put<AbuseProtectionService>(AbuseProtectionService(), permanent: true);
     Get.put<AppController>(AppController(), permanent: true);
     Get.put<WorkspaceController>(WorkspaceController(), permanent: true);
 

@@ -1,8 +1,10 @@
 {
   "rules": {
     "live_locations": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    }
+      ".read": "auth != null && $schoolId === auth.token.schoolId",
+      ".write": "auth != null && $schoolId === auth.token.schoolId"
+    },
+    ".write": false,
+    ".read": false
   }
 }

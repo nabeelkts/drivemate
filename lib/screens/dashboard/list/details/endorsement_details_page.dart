@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:android_intent_plus/android_intent.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:drivemate/widgets/persistent_cached_image.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:drivemate/constants/colors.dart';
@@ -32,6 +32,7 @@ import 'package:drivemate/screens/dashboard/list/widgets/shimmer_loading_list.da
 import 'package:drivemate/utils/payment_utils.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:drivemate/services/storage_service.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -379,10 +380,12 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                   child: ClipOval(
                     child: endorsementDetails['image'] != null &&
                             endorsementDetails['image'].toString().isNotEmpty
-                        ? CachedNetworkImage(
+                        ? PersistentCachedImage(
                             imageUrl: endorsementDetails['image'],
                             fit: BoxFit.cover,
-                            placeholder: (context, url) => Shimmer.fromColors(
+                            memCacheWidth: 300,
+                            memCacheHeight: 300,
+                            placeholder: Shimmer.fromColors(
                                 baseColor: isDark
                                     ? Colors.grey[800]!
                                     : Colors.grey[300]!,
@@ -390,8 +393,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                                     ? Colors.grey[700]!
                                     : Colors.grey[100]!,
                                 child: Container(color: Colors.white)),
-                            errorWidget: (context, url, error) =>
-                                _buildInitials())
+                            errorWidget: _buildInitials())
                         : _buildInitials(),
                   ),
                 ),
@@ -480,7 +482,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
           await FirebaseFirestore.instance
               .collection('users')
               .doc(targetId)
-              .collection('endorsement')
+              .collection(_collectionName)
               .doc(_docId)
               .update({'image': url});
         });
@@ -1980,7 +1982,8 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               tileColor: const Color(0xFF25D366).withOpacity(0.08),
-              leading: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
+              leading: const FaIcon(FontAwesomeIcons.whatsapp,
+                  color: Color(0xFF25D366)),
               title: Text('WhatsApp',
                   style: TextStyle(
                       color: isDark ? Colors.white : Colors.black,

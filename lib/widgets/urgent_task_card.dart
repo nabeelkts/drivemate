@@ -12,6 +12,7 @@ import 'package:drivemate/screens/dashboard/list/details/license_only_details_pa
 import 'package:drivemate/screens/dashboard/list/details/endorsement_details_page.dart';
 import 'package:drivemate/screens/dashboard/list/details/dl_service_details_page.dart';
 import 'package:drivemate/screens/dashboard/list/details/rc_details_page.dart';
+import 'package:drivemate/screens/profile/admin/manage_vehicles_page.dart';
 import 'dart:math' as math;
 
 /// Card widget to display on home page showing urgent tasks count and preview
@@ -310,6 +311,9 @@ class _UrgentTaskCardState extends State<UrgentTaskCard>
               break;
             case 'vehicleDetails':
               detailPage = RCDetailsPage(vehicleDetails: data);
+              break;
+            case 'school_vehicles':
+              detailPage = const ManageVehiclesPage();
               break;
           }
 

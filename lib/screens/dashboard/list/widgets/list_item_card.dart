@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:drivemate/widgets/persistent_cached_image.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:drivemate/constants/colors.dart';
 
@@ -137,16 +137,18 @@ class ListItemCard extends StatelessWidget {
       ),
       child: ClipOval(
         child: (imageUrl != null && imageUrl!.isNotEmpty)
-            ? CachedNetworkImage(
+            ? PersistentCachedImage(
                 imageUrl: imageUrl!,
                 fit: BoxFit.cover,
-                placeholder: (context, url) => Shimmer.fromColors(
+                memCacheWidth: 150,
+                memCacheHeight: 150,
+                placeholder: Shimmer.fromColors(
                   baseColor: isDark ? Colors.grey[800]! : Colors.grey[300]!,
                   highlightColor:
                       isDark ? Colors.grey[700]! : Colors.grey[100]!,
                   child: Container(color: Colors.white),
                 ),
-                errorWidget: (context, url, error) => Container(
+                errorWidget: Container(
                   alignment: Alignment.center,
                   child: _initials(textColor),
                 ),

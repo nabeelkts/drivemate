@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:in_app_update/in_app_update.dart';
 import 'package:drivemate/screens/profile/dialog_box.dart';
 
+@pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 }
@@ -46,6 +47,9 @@ class AppController extends GetxController {
       print("Current version: ${currentVersion.value}");
     }
     if (!kIsWeb) {
+      // Check for pending update that needs to be completed
+      await _checkAndCompletePendingUpdate();
+
       // Check for updates from Play Store silently on app startup
       await checkForUpdatesSilently();
       await _initMessaging();
@@ -55,12 +59,88 @@ class AppController extends GetxController {
     }
   }
 
+  // Check and complete any pending update that was downloaded but not installed
+  Future<void> _checkAndCompletePendingUpdate() async {
+    if (!GetPlatform.isAndroid) return;
+
+    final pendingUpdate = _box.read('pendingUpdate');
+    if (pendingUpdate == true) {
+      if (kDebugMode) {
+        print('Found pending update - attempting to complete...');
+      }
+      try {
+        // Try to complete the flexible update
+        await InAppUpdate.completeFlexibleUpdate();
+        // Clear pending state after successful completion
+        await _box.remove('pendingUpdate');
+        // Update the version tracking
+        PackageInfo packageInfo = await PackageInfo.fromPlatform();
+        await _box.write('lastAppVersion', packageInfo.version);
+        if (kDebugMode) {
+          print('Pending update completed successfully!');
+        }
+        Get.snackbar(
+          'Update Complete',
+          'App has been updated to the latest version.',
+          snackPosition: SnackPosition.BOTTOM,
+          duration: const Duration(seconds: 3),
+        );
+      } catch (e) {
+        // If completion fails, clear the pending state
+        // The app might already be up to date or there's another issue
+        await _box.remove('pendingUpdate');
+        if (kDebugMode) {
+          print('Could not complete pending update: $e');
+        }
+      }
+    }
+  }
+
   // Silent update check on app startup (shows custom dialog when update available)
   Future<void> checkForUpdatesSilently() async {
     // Only check for updates on Android
     if (!GetPlatform.isAndroid) return;
 
     try {
+      PackageInfo packageInfo = await PackageInfo.fromPlatform();
+      final currentVersionStr = packageInfo.version;
+
+      // Check if we just updated - skip check if app was updated recently
+      final lastVersion = _box.read('lastAppVersion');
+
+      // Debug: print versions
+      if (kDebugMode) {
+        print("Last version in storage: $lastVersion");
+        print("Current app version: $currentVersionStr");
+      }
+
+      // If this is a new version (app was just updated), don't show update dialog
+      if (lastVersion != null && lastVersion != currentVersionStr) {
+        // App was updated - save new version and skip update check
+        await _box.write('lastAppVersion', currentVersionStr);
+        // Also clear any pending update state
+        await _box.remove('pendingUpdate');
+        if (kDebugMode) {
+          print(
+              'App was updated from $lastVersion to $currentVersionStr - skipping update check');
+        }
+        return;
+      }
+
+      // First time or same version - check for updates
+      if (lastVersion == null) {
+        await _box.write('lastAppVersion', currentVersionStr);
+      }
+
+      // Check if there's a pending update that needs to be completed
+      final pendingUpdate = _box.read('pendingUpdate');
+      if (pendingUpdate == true) {
+        // We have a pending update - check if it's still available
+        if (kDebugMode) {
+          print('Found pending update - checking status...');
+        }
+      }
+
       final appUpdateInfo = await InAppUpdate.checkForUpdate();
 
       if (appUpdateInfo.updateAvailability ==
@@ -75,6 +155,15 @@ class AppController extends GetxController {
 
         // Show update dialog
         _showUpdateDialog(appUpdateInfo);
+      } else if (appUpdateInfo.updateAvailability ==
+          UpdateAvailability.updateNotAvailable) {
+        // No update available - ensure version is saved
+        if (lastVersion != currentVersionStr) {
+          await _box.write('lastAppVersion', currentVersionStr);
+        }
+        if (kDebugMode) {
+          print('No update available - app is up to date');
+        }
       }
     } catch (e) {
       // Silently fail on startup check - don't bother user
@@ -95,8 +184,43 @@ class AppController extends GetxController {
     ).then((confirmed) async {
       if (confirmed == true) {
         try {
-          await InAppUpdate.startFlexibleUpdate();
+          // Mark that we have a pending update
+          await _box.write('pendingUpdate', true);
+
+          final result = await InAppUpdate.startFlexibleUpdate();
+
+          if (kDebugMode) {
+            print('Flexible update started: $result');
+          }
+
+          // If flexible update was successful, we need to restart the app
+          if (result == AppUpdateResult.success) {
+            // The update is downloaded but not installed yet
+            // Show dialog to restart
+            if (Get.context != null) {
+              showCustomConfirmBoolDialog(
+                Get.context!,
+                'Update Ready',
+                'The update has been downloaded. Restart now to apply the update?',
+                confirmText: 'Restart Now',
+                cancelText: 'Later',
+              ).then((restartConfirmed) async {
+                if (restartConfirmed == true) {
+                  await InAppUpdate.completeFlexibleUpdate();
+                  // App will restart automatically
+                } else {
+                  // Keep pending update state for next app launch
+                  if (kDebugMode) {
+                    print(
+                        'User deferred restart - update will apply on next launch');
+                  }
+                }
+              });
+            }
+          }
         } catch (e) {
+          // Clear pending update state on failure
+          await _box.remove('pendingUpdate');
           if (kDebugMode) {
             print('Flexible update failed: $e');
           }
@@ -124,15 +248,66 @@ class AppController extends GetxController {
     }
 
     try {
+      // First, check if there's a pending update that needs to be completed
+      final pendingUpdate = _box.read('pendingUpdate');
+      if (pendingUpdate == true) {
+        try {
+          await InAppUpdate.completeFlexibleUpdate();
+          await _box.remove('pendingUpdate');
+          PackageInfo packageInfo = await PackageInfo.fromPlatform();
+          await _box.write('lastAppVersion', packageInfo.version);
+          Get.snackbar(
+            'Update Complete',
+            'App has been updated to the latest version.',
+            snackPosition: SnackPosition.BOTTOM,
+            duration: const Duration(seconds: 3),
+          );
+          return;
+        } catch (e) {
+          // Continue to check for updates
+          await _box.remove('pendingUpdate');
+        }
+      }
+
       // Check if update is available from Play Store
       final appUpdateInfo = await InAppUpdate.checkForUpdate();
 
       if (appUpdateInfo.updateAvailability ==
           UpdateAvailability.updateAvailable) {
-        // Update is available - start the update flow
-        await InAppUpdate.startFlexibleUpdate();
-      } else {
-        // No update available - show up-to-date message
+        // Update is available - start flexible update
+        try {
+          await _box.write('pendingUpdate', true);
+          final result = await InAppUpdate.startFlexibleUpdate();
+
+          if (result == AppUpdateResult.success) {
+            // Show dialog to restart
+            if (Get.context != null) {
+              showCustomConfirmBoolDialog(
+                Get.context!,
+                'Update Ready',
+                'The update has been downloaded. Restart now to apply the update?',
+                confirmText: 'Restart Now',
+                cancelText: 'Later',
+              ).then((restartConfirmed) async {
+                if (restartConfirmed == true) {
+                  await InAppUpdate.completeFlexibleUpdate();
+                } else {
+                  // Keep pending state for next launch
+                }
+              });
+            }
+          }
+        } catch (e) {
+          // Fallback to Play Store
+          await _box.remove('pendingUpdate');
+          _openPlayStore();
+        }
+      } else if (appUpdateInfo.updateAvailability ==
+          UpdateAvailability.updateNotAvailable) {
+        // No update available - update local version tracking
+        PackageInfo packageInfo = await PackageInfo.fromPlatform();
+        await _box.write('lastAppVersion', packageInfo.version);
+        await _box.remove('pendingUpdate');
         _showUpToDateDialog();
       }
     } on PlatformException catch (e) {

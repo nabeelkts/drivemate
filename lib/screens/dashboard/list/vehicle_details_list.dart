@@ -14,6 +14,8 @@ import 'package:drivemate/screens/dashboard/list/details/vehicle_details_page.da
 import 'package:drivemate/screens/dashboard/list/widgets/list_item_card.dart';
 import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:drivemate/screens/widget/base_list_widget.dart';
+import 'package:drivemate/services/excel_import_service.dart';
+import 'package:drivemate/screens/dashboard/import/import_screen.dart';
 
 class VehicleDetailsList extends StatelessWidget {
   const VehicleDetailsList({super.key});
@@ -40,6 +42,17 @@ class VehicleDetailsList extends StatelessWidget {
               builder: (context) => const DeactivatedVehicleDetailsList()),
         );
       },
+      onImport: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ImportScreen(
+              importType: ImportType.vehicleDetails,
+            ),
+          ),
+        );
+      },
+      exportType: ImportType.vehicleDetails,
       itemBuilder: (context, doc) {
         final data = Map<String, dynamic>.from(doc.data());
         // Inject document ID for navigation to details pages

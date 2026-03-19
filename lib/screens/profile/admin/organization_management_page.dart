@@ -1,14 +1,15 @@
+import 'package:drivemate/widgets/persistent_cached_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:iconly/iconly.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:drivemate/constants/colors.dart';
 import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:drivemate/screens/profile/admin/branches_page.dart';
 import 'package:drivemate/screens/profile/admin/manage_staff_page.dart';
 import 'package:drivemate/screens/profile/admin/staff_requests_page.dart';
+import 'package:drivemate/screens/profile/admin/manage_vehicles_page.dart';
 import 'package:drivemate/screens/profile/edit_company_profile.dart';
 import 'package:drivemate/screens/widget/custom_back_button.dart';
 
@@ -212,13 +213,14 @@ class OrganizationManagementPage extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(14),
         child: (url != null && url.isNotEmpty)
-            ? CachedNetworkImage(
-                key: ValueKey(url),
+            ? PersistentCachedImage(
                 imageUrl: url,
                 fit: BoxFit.cover,
-                placeholder: (context, url) =>
+                memCacheWidth: 100,
+                memCacheHeight: 100,
+                placeholder:
                     const Icon(Icons.business, size: 40, color: kPrimaryColor),
-                errorWidget: (context, url, error) =>
+                errorWidget:
                     const Icon(Icons.business, size: 40, color: kPrimaryColor),
               )
             : const Icon(Icons.business, size: 40, color: kPrimaryColor),
@@ -311,6 +313,24 @@ class OrganizationManagementPage extends StatelessWidget {
                 textColor,
               ),
             ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _buildManagementTile(
+                context,
+                Icons.directions_car_outlined,
+                'Manage\nVehicles',
+                const ManageVehiclesPage(),
+                Colors.blue,
+                cardColor,
+                textColor,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Spacer(),
           ],
         ),
         const SizedBox(height: 12),

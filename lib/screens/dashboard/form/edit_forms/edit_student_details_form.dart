@@ -310,6 +310,14 @@ class _EditStudentDetailsFormState extends State<EditStudentDetailsForm> {
       // Convert numeric fields to proper types
       _convertNumericFields(updatedStudent);
 
+      // Preserve the status/deactivated field to ensure correct collection is used
+      if (widget.initialValues['status'] != null) {
+        updatedStudent['status'] = widget.initialValues['status'];
+      }
+      if (widget.initialValues['deactivated'] != null) {
+        updatedStudent['deactivated'] = widget.initialValues['deactivated'];
+      }
+
       if (kDebugMode) {
         print('Updating Firestore document:');
         print('User ID: ${user.uid}');

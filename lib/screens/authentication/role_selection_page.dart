@@ -16,23 +16,101 @@ class RoleSelectionPage extends StatefulWidget {
 class _RoleSelectionPageState extends State<RoleSelectionPage> {
   String selectedRole = 'Owner';
   final TextEditingController _schoolIdController = TextEditingController();
+  final TextEditingController _mobileController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
 
   @override
   void dispose() {
     _schoolIdController.dispose();
+    _mobileController.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
     if (selectedRole == 'Staff' && !_formKey.currentState!.validate()) return;
+    if (selectedRole == 'Student' && !_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
 
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
+
+      if (selectedRole == 'Student') {
+        // For student, verify student ID and mobile number match an existing student
+        final studentId = _schoolIdController.text.trim();
+        final mobileNumber = _mobileController.text.trim();
+
+        // Search for the student in all schools
+        final schoolsSnapshot = await FirebaseFirestore.instance
+            .collection('users')
+            .where('role', isEqualTo: 'Owner')
+            .get();
+
+        String? foundSchoolId;
+        String? foundStudentDocId;
+
+        for (final schoolDoc in schoolsSnapshot.docs) {
+          final schoolId = schoolDoc.id;
+          // Search in this school's students collection
+          final studentQuery = await FirebaseFirestore.instance
+              .collection('users')
+              .doc(schoolId)
+              .collection('students')
+              .where('studentId', isEqualTo: studentId)
+              .limit(1)
+              .get();
+
+          if (studentQuery.docs.isNotEmpty) {
+            final studentData = studentQuery.docs.first.data();
+            final storedMobile = studentData['mobileNumber']?.toString() ?? '';
+            // Normalize mobile numbers for comparison
+            final normalizedInput =
+                mobileNumber.replaceAll(RegExp(r'[^0-9]'), '');
+            final normalizedStored =
+                storedMobile.replaceAll(RegExp(r'[^0-9]'), '');
+
+            if (normalizedInput == normalizedStored) {
+              foundSchoolId = schoolId;
+              foundStudentDocId = studentQuery.docs.first.id;
+              break;
+            }
+          }
+        }
+
+        if (foundSchoolId == null || foundStudentDocId == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                    'Student ID and mobile number do not match our records'),
+                backgroundColor: Colors.red,
+              ),
+            );
+          }
+          return;
+        }
+
+        // Store the student's info in user's document
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
+          'role': selectedRole,
+          'schoolId': foundSchoolId,
+          'studentDocId': foundStudentDocId,
+          'studentId': studentId,
+          'hasRoleSelected': true,
+        }, SetOptions(merge: true));
+
+        if (mounted) {
+          final workspaceController = Get.find<WorkspaceController>();
+          await workspaceController.initializeWorkspace();
+
+          if (mounted) {
+            Navigator.pushReplacementNamed(context, '/home');
+          }
+        }
+        return;
+      }
 
       final schoolId =
           selectedRole == 'Owner' ? user.uid : _schoolIdController.text.trim();
@@ -108,6 +186,8 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> {
                   _buildRoleCard('Owner', Icons.business, theme),
                   const SizedBox(width: 16),
                   _buildRoleCard('Staff', Icons.person_outline, theme),
+                  const SizedBox(width: 16),
+                  _buildRoleCard('Student', Icons.school_outlined, theme),
                 ],
               ),
               const SizedBox(height: 32),
@@ -143,6 +223,68 @@ class _RoleSelectionPageState extends State<RoleSelectionPage> {
                         : (v.trim() == FirebaseAuth.instance.currentUser?.uid
                             ? 'Cannot use personal UID'
                             : null),
+                  ),
+                ),
+              ] else if (selectedRole == 'Student') ...[
+                Text(
+                  'Student Verification',
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      TextFormField(
+                        controller: _schoolIdController,
+                        style: TextStyle(color: textColor),
+                        decoration: InputDecoration(
+                          hintText: 'Enter Student ID from your Driving School',
+                          hintStyle:
+                              TextStyle(color: textColor.withOpacity(0.5)),
+                          filled: true,
+                          fillColor: isDark
+                              ? Colors.grey.shade900
+                              : Colors.grey.shade100,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          prefixIcon:
+                              Icon(Icons.badge_outlined, color: kPrimaryColor),
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Student ID required'
+                            : null,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _mobileController,
+                        style: TextStyle(color: textColor),
+                        decoration: InputDecoration(
+                          hintText: 'Enter Mobile Number',
+                          hintStyle:
+                              TextStyle(color: textColor.withOpacity(0.5)),
+                          filled: true,
+                          fillColor: isDark
+                              ? Colors.grey.shade900
+                              : Colors.grey.shade100,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none,
+                          ),
+                          prefixIcon:
+                              Icon(Icons.phone_outlined, color: kPrimaryColor),
+                        ),
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? 'Mobile number required'
+                            : null,
+                      ),
+                    ],
                   ),
                 ),
               ] else ...[

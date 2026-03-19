@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:drivemate/widgets/persistent_cached_image.dart';
 
 class ShortcutIcon extends StatefulWidget {
   const ShortcutIcon({super.key});
@@ -110,24 +110,38 @@ class _ShortcutIconState extends State<ShortcutIcon> {
       String fullName, String activityDescription, String? imageUrl) {
     return Column(
       children: [
-        SizedBox(
+        Container(
           width: 80,
           height: 74,
-          child: CircleAvatar(
-            backgroundColor: Colors.blueGrey,
-            backgroundImage: (imageUrl != null && imageUrl.isNotEmpty)
-                ? CachedNetworkImageProvider(imageUrl)
-                : null,
-            child: (imageUrl == null || imageUrl.isEmpty)
-                ? Text(
+          decoration: const BoxDecoration(
+            color: Colors.blueGrey,
+            shape: BoxShape.circle,
+          ),
+          child: (imageUrl != null && imageUrl.isNotEmpty)
+              ? PersistentCachedImage(
+                  imageUrl: imageUrl,
+                  borderRadius: BorderRadius.circular(40),
+                  memCacheWidth: 150,
+                  memCacheHeight: 150,
+                  errorWidget: Center(
+                    child: Text(
+                      _getFirstSixLetters(fullName),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                      ),
+                    ),
+                  ),
+                )
+              : Center(
+                  child: Text(
                     _getFirstSixLetters(fullName),
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 18,
                     ),
-                  )
-                : null,
-          ),
+                  ),
+                ),
         ),
         Text(
           activityDescription,

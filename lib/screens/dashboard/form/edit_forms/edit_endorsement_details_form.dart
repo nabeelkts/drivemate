@@ -313,6 +313,14 @@ class _EditEndorsementDetailsFormState
           initialValues: widget.initialValues,
           onFormSubmit: (endorsement) async {
             try {
+              // Preserve the status/deactivated field to ensure correct collection is used
+              if (widget.initialValues['status'] != null) {
+                endorsement['status'] = widget.initialValues['status'];
+              }
+              if (widget.initialValues['deactivated'] != null) {
+                endorsement['deactivated'] = widget.initialValues['deactivated'];
+              }
+
               // Use the WorkspaceController to handle collection separation based on status
               await workspaceController.updateDocumentWithStatus(
                 'endorsement',

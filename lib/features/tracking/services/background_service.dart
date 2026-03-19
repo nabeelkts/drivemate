@@ -14,7 +14,9 @@ import 'package:drivemate/firebase_options.dart';
 ///
 /// Runs in separate isolate with own Dart VM instance.
 /// Independent of UI state - works when app is closed.
+@pragma('vm:entry-point')
 class BackgroundService {
+  @pragma('vm:entry-point')
   static Future<void> initialize() async {
     final service = FlutterBackgroundService();
 
@@ -28,7 +30,8 @@ class BackgroundService {
         autoStart: false,
         onStart: onStart,
         isForegroundMode: true,
-        autoStartOnBoot: true,
+        autoStartOnBoot:
+            false, // ✅ Disable auto-start on boot to save resources
         initialNotificationTitle: 'Drivemate',
         initialNotificationContent: 'Location tracking active',
         foregroundServiceNotificationId: 888,

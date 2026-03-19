@@ -10,6 +10,8 @@ import 'package:drivemate/screens/dashboard/list/deactivated_dl_services_list.da
 import 'package:drivemate/screens/dashboard/list/details/dl_service_details_page.dart';
 import 'package:drivemate/screens/dashboard/list/widgets/list_item_card.dart';
 import 'package:drivemate/screens/widget/base_list_widget.dart';
+import 'package:drivemate/services/excel_import_service.dart';
+import 'package:drivemate/screens/dashboard/import/import_screen.dart';
 import 'package:drivemate/screens/profile/dialog_box.dart';
 
 class DlServicesList extends StatelessWidget {
@@ -39,6 +41,17 @@ class DlServicesList extends StatelessWidget {
               builder: (context) => const DeactivatedDlServicesList()),
         );
       },
+      onImport: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const ImportScreen(
+              importType: ImportType.dlService,
+            ),
+          ),
+        );
+      },
+      exportType: ImportType.dlService,
       itemBuilder: (context, doc) {
         final data = Map<String, dynamic>.from(doc.data());
         // Inject document ID for navigation to details pages

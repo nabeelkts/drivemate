@@ -209,13 +209,18 @@ class SoftDeleteService {
       ];
 
       for (String collection in collections) {
-        final query = FirebaseFirestore.instance
+        Query query = FirebaseFirestore.instance
             .collectionGroup(collection)
             .where('isDeleted', isEqualTo: true)
-            .where('expiryDate', isLessThan: now)
-            .limit(100); // Process in batches
+            .where('expiryDate', isLessThan: now);
 
-        final snapshot = await query.get();
+        // If userId is provided, restrict cleanup to documents deleted by this user
+        // This avoids PERMISSION_DENIED errors when querying across all users
+        if (userId != null) {
+          query = query.where('deletedBy', isEqualTo: userId);
+        }
+
+        final snapshot = await query.limit(100).get();
 
         for (var doc in snapshot.docs) {
           try {

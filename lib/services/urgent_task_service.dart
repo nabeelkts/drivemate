@@ -59,7 +59,9 @@ class UrgentTaskService {
       final basePath = _getBasePath(userId, schoolId);
 
       // Fetch from both active and deactivated collections
-      final collectionsToCheck = [collection, 'deactivated_$collection'];
+      final collectionsToCheck = collection == 'school_vehicles'
+          ? [collection]
+          : [collection, 'deactivated_$collection'];
 
       for (final col in collectionsToCheck) {
         Query query = _firestore.collection('$basePath/$col');
@@ -89,7 +91,10 @@ class UrgentTaskService {
           // Check if student has passed (course completed) or is deactivated
 
           final docId = doc.id;
-          final name = data['fullName'] ?? data['name'] ?? 'Unknown';
+          final name = data['fullName'] ??
+              data['name'] ??
+              data['vehicleNumber'] ??
+              'Unknown';
           final photoUrl =
               data['image'] as String? ?? data['photoUrl'] as String?;
 
@@ -204,6 +209,36 @@ class UrgentTaskService {
                 ));
               }
             }
+          } else if (collection == 'school_vehicles') {
+            // Check school vehicle expiries
+            final expiries = [
+              {
+                'field': 'fitnessExpiry',
+                'type': ExpiryTypes.registrationFitness
+              },
+              {'field': 'insuranceExpiry', 'type': ExpiryTypes.insurance},
+              {'field': 'taxExpiry', 'type': ExpiryTypes.tax},
+              {'field': 'pollutionExpiry', 'type': ExpiryTypes.pollution},
+            ];
+
+            for (var expiry in expiries) {
+              final expiryTimestamp = data[expiry['field']] as Timestamp?;
+              final date = expiryTimestamp?.toDate();
+
+              if (_isUrgent(date)) {
+                tasks.add(UrgentTaskModel(
+                  id: '${docId}_${expiry['field']}',
+                  name: name,
+                  photoUrl: photoUrl,
+                  expiryType: expiry['type']!,
+                  expiryDate: DateFormat('dd-MM-yyyy').format(date!),
+                  expiryDateTime: date,
+                  collection: col,
+                  documentId: docId,
+                  daysRemaining: _calculateDaysRemaining(date),
+                ));
+              }
+            }
           }
         }
       }
@@ -228,6 +263,7 @@ class UrgentTaskService {
       'endorsement',
       'dl_services',
       'vehicleDetails',
+      'school_vehicles',
     ];
 
     // Add overall timeout for all collections

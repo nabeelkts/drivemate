@@ -50,19 +50,17 @@ class AttendancePdfService {
         : '${totalMins}m';
 
     // ── Table columns ─────────────────────────────────────────────────────────
-    const colWidths = [
-      0.04, // #
-      0.14, // Date
-      0.18, // Time
-      0.20, // Instructor
-      0.12, // Duration
-      0.12, // Distance
-      0.20, // Status
-    ];
-
     final headers = [
-      '#', 'Date', 'Time Range', 'Instructor', 'Duration', 'Distance', 'Status'
+      '#',
+      'Date',
+      'Time Slot',
+      'Instructor',
+      'Vehicle',
+      'Duration',
+      'Distance',
+      'Status'
     ];
+    final colWidths = [0.08, 0.15, 0.18, 0.2, 0.15, 0.1, 0.1, 0.04];
 
     pdf.addPage(
       pw.MultiPage(
@@ -154,6 +152,7 @@ class AttendancePdfService {
                 }
 
                 final instructor = r['instructorName']?.toString() ?? 'N/A';
+                final vehicle = r['vehicleName']?.toString() ?? 'N/A';
                 final duration = r['duration']?.toString() ?? 'N/A';
                 final distance = r['distance']?.toString() ?? '0 KM';
 
@@ -167,6 +166,7 @@ class AttendancePdfService {
                     _cell(dateStr, regularFont, textDark),
                     _cell(timeStr, regularFont, textMed, fontSize: 7.5),
                     _cell(instructor, regularFont, textDark),
+                    _cell(vehicle, regularFont, textDark),
                     _cell(duration, boldFont, primary,
                         align: pw.TextAlign.center),
                     _cell(distance, regularFont, textDark,

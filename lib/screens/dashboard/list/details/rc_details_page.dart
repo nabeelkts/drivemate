@@ -10,6 +10,7 @@ import 'package:get/get.dart';
 import 'package:drivemate/constants/colors.dart';
 import 'package:drivemate/screens/widget/custom_back_button.dart';
 import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/services/ownership_service.dart';
 import 'package:drivemate/screens/dashboard/form/edit_forms/edit_vehicle_details_form.dart';
 import 'package:drivemate/screens/profile/action_button.dart';
 import 'package:intl/intl.dart';
@@ -29,6 +30,7 @@ import 'package:drivemate/screens/dashboard/list/details/document_preview_screen
 import 'package:drivemate/services/pdf_service.dart';
 import 'package:drivemate/screens/dashboard/list/widgets/details_tabs_bar.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:drivemate/widgets/additional_info_sheet.dart';
 import 'package:drivemate/utils/date_utils.dart';
 import 'package:drivemate/utils/test_utils.dart';
@@ -1746,7 +1748,8 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               tileColor: const Color(0xFF25D366).withOpacity(0.08),
-              leading: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
+              leading: const FaIcon(FontAwesomeIcons.whatsapp,
+                  color: Color(0xFF25D366)),
               title: Text('WhatsApp',
                   style: TextStyle(
                       color: isDark ? Colors.white : Colors.black,

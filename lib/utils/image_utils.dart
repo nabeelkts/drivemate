@@ -1,5 +1,5 @@
+import 'package:drivemate/widgets/persistent_cached_image.dart';
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 
 class ImageUtils {
   static void showImagePopup(
@@ -34,12 +34,12 @@ class ImageUtils {
             const SizedBox(height: 10),
             ClipRRect(
               borderRadius: BorderRadius.circular(15),
-              child: CachedNetworkImage(
+              child: PersistentCachedImage(
                 imageUrl: imageUrl,
-                placeholder: (context, url) => const Center(
+                placeholder: const Center(
                   child: CircularProgressIndicator(color: Colors.white),
                 ),
-                errorWidget: (context, url, error) => const Icon(
+                errorWidget: const Icon(
                   Icons.error,
                   color: Colors.white,
                   size: 50,

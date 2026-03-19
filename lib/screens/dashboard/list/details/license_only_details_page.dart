@@ -1,6 +1,6 @@
 import 'dart:io';
 import 'package:android_intent_plus/android_intent.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+import 'package:drivemate/widgets/persistent_cached_image.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter/material.dart';
 import 'package:drivemate/constants/colors.dart';
@@ -32,6 +32,7 @@ import 'package:drivemate/utils/payment_utils.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:drivemate/services/storage_service.dart';
 import 'package:drivemate/utils/date_utils.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -338,6 +339,11 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
     final Color subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
     final cardColor = Theme.of(context).cardColor;
 
+    // Resilience: check multiple possible image field names
+    final String? imageUrl = licenseDetails['image']?.toString() ??
+        licenseDetails['photoUrl']?.toString() ??
+        licenseDetails['profileImageUrl']?.toString();
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
       decoration: BoxDecoration(
@@ -360,8 +366,8 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
             tag: 'profile_${licenseDetails['id']}',
             child: GestureDetector(
               onTap: () {
-                final imageUrl = licenseDetails['image']?.toString() ?? '';
-                if (imageUrl.isEmpty) return;
+                if (imageUrl == null || imageUrl.isEmpty || imageUrl == 'null')
+                  return;
                 ImageUtils.showImagePopup(
                   context,
                   imageUrl,
@@ -376,24 +382,22 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                   border: Border.all(color: kAccentRed, width: 2),
                 ),
                 child: ClipOval(
-                  child: licenseDetails['image'] != null &&
-                          licenseDetails['image'].toString().isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: licenseDetails['image'],
+                  child: (imageUrl != null &&
+                          imageUrl.isNotEmpty &&
+                          imageUrl != 'null')
+                      ? PersistentCachedImage(
+                          imageUrl: imageUrl,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => Shimmer.fromColors(
+                          memCacheWidth: 270,
+                          memCacheHeight: 270,
+                          placeholder: Shimmer.fromColors(
                             baseColor: Colors.grey[300]!,
                             highlightColor: Colors.grey[100]!,
                             child: Container(color: Colors.white),
                           ),
-                          errorWidget: (context, url, error) =>
-                              const Icon(Icons.person, size: 50),
+                          errorWidget: _buildInitialsPlaceholder(),
                         )
-                      : Container(
-                          color: kAccentRed.withOpacity(0.1),
-                          child: const Icon(Icons.person,
-                              size: 50, color: kAccentRed),
-                        ),
+                      : _buildInitialsPlaceholder(),
                 ),
               ),
             ),
@@ -404,7 +408,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  licenseDetails['fullName'] ?? 'N/A',
+                  licenseDetails['fullName'] ?? licenseDetails['name'] ?? 'N/A',
                   style: TextStyle(
                     color: textColor,
                     fontSize: 22,
@@ -442,6 +446,24 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildInitialsPlaceholder() {
+    final name = licenseDetails['fullName'] ?? licenseDetails['name'] ?? '?';
+    final initials = name.isNotEmpty ? name[0].toUpperCase() : '?';
+
+    return Container(
+      alignment: Alignment.center,
+      color: kAccentRed.withOpacity(0.1),
+      child: Text(
+        initials,
+        style: const TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.bold,
+          color: kAccentRed,
+        ),
       ),
     );
   }
@@ -487,7 +509,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
           await FirebaseFirestore.instance
               .collection('users')
               .doc(targetId)
-              .collection('licenseonly')
+              .collection(_collectionName)
               .doc(_docId)
               .update({'image': url});
         });
@@ -2122,7 +2144,8 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12)),
               tileColor: const Color(0xFF25D366).withOpacity(0.08),
-              leading: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
+              leading: const FaIcon(FontAwesomeIcons.whatsapp,
+                  color: Color(0xFF25D366)),
               title: Text('WhatsApp',
                   style: TextStyle(
                       color: isDark ? Colors.white : Colors.black,

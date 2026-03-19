@@ -210,6 +210,14 @@ class _EditLicenseOnlyFormState extends State<EditLicenseOnlyForm> {
           initialValues: widget.initialValues,
           onFormSubmit: (licenseonly) async {
             try {
+              // Preserve the status/deactivated field to ensure correct collection is used
+              if (widget.initialValues['status'] != null) {
+                licenseonly['status'] = widget.initialValues['status'];
+              }
+              if (widget.initialValues['deactivated'] != null) {
+                licenseonly['deactivated'] = widget.initialValues['deactivated'];
+              }
+
               // Use the WorkspaceController to handle collection separation based on status
               await workspaceController.updateDocumentWithStatus(
                 'licenseonly',

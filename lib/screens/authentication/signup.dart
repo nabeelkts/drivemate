@@ -16,6 +16,8 @@ import 'package:drivemate/screens/authentication/widgets/password_validator.dart
 import 'package:provider/provider.dart';
 import 'package:drivemate/screens/profile/edit_company_profile.dart';
 import 'package:drivemate/screens/authentication/role_selection_page.dart';
+import 'package:drivemate/services/security_service.dart';
+import 'package:get/get.dart';
 
 class SignUpPage extends StatefulWidget {
   final Function()? onTap;
@@ -35,18 +37,52 @@ class _SignUpPageState extends State<SignUpPage> {
   bool isLoading = false;
   bool agreedToTerms = false;
   bool passwordObscured = true;
+  bool isRateLimited = false;
+  int remainingLockoutSeconds = 0;
   final nameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
-  final schoolIdController = TextEditingController();
-  String selectedRole = 'Owner'; // Default to Owner
+  late SecurityService _securityService;
+  // Role selection removed - handled in RoleSelectionPage after email verification
 
   Future addUserDetails(Map<String, dynamic> userDetails, String uid) async {
     await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
         .set(userDetails, SetOptions(merge: true));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _securityService = Get.find<SecurityService>();
+    _checkRateLimitStatus();
+  }
+
+  void _checkRateLimitStatus() {
+    isRateLimited = _securityService.isAccountCreationRateLimited();
+    if (isRateLimited) {
+      remainingLockoutSeconds =
+          _securityService.getAccountCreationRemainingSeconds();
+      _startLockoutCountdown();
+    }
+  }
+
+  void _startLockoutCountdown() {
+    Future.doWhile(() async {
+      await Future.delayed(const Duration(seconds: 1));
+      if (!mounted) return false;
+      setState(() {
+        if (remainingLockoutSeconds > 0) {
+          remainingLockoutSeconds--;
+        } else {
+          isRateLimited = false;
+          _checkRateLimitStatus();
+        }
+      });
+      return isRateLimited && mounted;
+    });
   }
 
   @override
@@ -60,11 +96,43 @@ class _SignUpPageState extends State<SignUpPage> {
     for (var controller in controllers) {
       controller.dispose();
     }
-    schoolIdController.dispose();
     super.dispose();
   }
 
   Future signUp() async {
+    // ABUSE PROTECTION: Check account creation rate limiting
+    if (_securityService.isAccountCreationRateLimited()) {
+      final remainingSeconds =
+          _securityService.getAccountCreationRemainingSeconds();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                'Too many account creation attempts. Please wait ${remainingSeconds ~/ 60} minutes.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => isLoading = false);
+      }
+      return;
+    }
+
+    // ABUSE PROTECTION: Check email registration rate limiting
+    if (_securityService
+        .isEmailRegistrationRateLimited(emailController.text.trim())) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+                'This email has been used too many times. Please try again later.'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        setState(() => isLoading = false);
+      }
+      return;
+    }
+
     if (mounted) {
       setState(() {
         isLoading = true;
@@ -73,6 +141,10 @@ class _SignUpPageState extends State<SignUpPage> {
 
     if (passwordConfirmed()) {
       try {
+        // Record email registration attempt for abuse protection
+        _securityService
+            .recordEmailRegistrationAttempt(emailController.text.trim());
+
         UserCredential userCredential =
             await FirebaseAuth.instance.createUserWithEmailAndPassword(
           email: emailController.text.trim(),
@@ -81,16 +153,18 @@ class _SignUpPageState extends State<SignUpPage> {
 
         User? user = userCredential.user;
         if (user != null) {
-          final schoolId = selectedRole == 'Owner'
-              ? user.uid
-              : schoolIdController.text.trim();
+          // ABUSE PROTECTION: Record successful account creation
+          _securityService.onSuccessfulAccountCreation();
+
+          // Role will be selected in RoleSelectionPage after email verification
+          // Don't set role here - let user choose in role_selection_page
 
           await addUserDetails({
             'name': nameController.text.trim(),
             'email': emailController.text.trim(),
-            'role': selectedRole,
-            'schoolId': schoolId,
-            'hasRoleSelected': true,
+            // Role not set here - will be selected in RoleSelectionPage
+            'hasRoleSelected':
+                false, // User needs to select role after verification
             'registrationDate': DateTime.now().toIso8601String(),
           }, user.uid);
 
@@ -107,7 +181,29 @@ class _SignUpPageState extends State<SignUpPage> {
           );
         }
       } on FirebaseAuthException catch (e) {
-        if (e.code == 'weak-password') {
+        // ABUSE PROTECTION: Record failed account creation attempt
+        _securityService.recordFailedAccountCreationAttempt();
+
+        // Check if account creation is now rate limited
+        if (_securityService.isAccountCreationRateLimited()) {
+          final remainingSeconds =
+              _securityService.getAccountCreationRemainingSeconds();
+          if (mounted) {
+            setState(() {
+              isRateLimited = true;
+              remainingLockoutSeconds = remainingSeconds;
+            });
+            _startLockoutCountdown();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                    'Too many attempts. Account creation locked for ${remainingSeconds ~/ 60} minutes.'),
+                backgroundColor: Colors.red,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
+        } else if (e.code == 'weak-password') {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text("The password provided is too weak."),
@@ -182,6 +278,7 @@ class _SignUpPageState extends State<SignUpPage> {
         ),
       ),
       body: SafeArea(
+        bottom: true,
         child: SingleChildScrollView(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -231,92 +328,6 @@ class _SignUpPageState extends State<SignUpPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => selectedRole = 'Owner'),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: selectedRole == 'Owner'
-                                ? kPrimaryColor
-                                : theme.cardColor,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: selectedRole == 'Owner'
-                                    ? kPrimaryColor
-                                    : Colors.grey.withOpacity(0.3)),
-                          ),
-                          child: Center(
-                            child: Text(
-                              'Owner',
-                              style: TextStyle(
-                                color: selectedRole == 'Owner'
-                                    ? Colors.white
-                                    : textColor,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: GestureDetector(
-                        onTap: () => setState(() => selectedRole = 'Staff'),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          decoration: BoxDecoration(
-                            color: selectedRole == 'Staff'
-                                ? kPrimaryColor
-                                : theme.cardColor,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                                color: selectedRole == 'Staff'
-                                    ? kPrimaryColor
-                                    : Colors.grey.withOpacity(0.3)),
-                          ),
-                          child: Center(
-                            child: Text(
-                              'Staff',
-                              style: TextStyle(
-                                color: selectedRole == 'Staff'
-                                    ? Colors.white
-                                    : textColor,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              if (selectedRole == 'Staff')
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 32),
-                  child: MyFormTextField(
-                    controller: schoolIdController,
-                    hintText: 'Enter School ID provided by Admin',
-                    obscureText: false,
-                    labelText: 'School ID',
-                    validator: (value) {
-                      if (selectedRole == 'Staff' &&
-                          (value == null || value.trim().isEmpty)) {
-                        return 'Required to link your workspace';
-                      }
-                      return null;
-                    },
-                    onTapEyeIcon: togglePasswordVisibility,
-                  ),
-                ),
               const SizedBox(height: 10),
               Form(
                 key: formKey,
@@ -393,19 +404,50 @@ class _SignUpPageState extends State<SignUpPage> {
                 ),
               ),
               const SizedBox(height: 16),
+              // Show rate limit warning if applicable
+              if (isRateLimited)
+                Padding(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.lock_clock, color: Colors.red.shade700),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Too many signup attempts. Try again in ${remainingLockoutSeconds ~/ 60}:${(remainingLockoutSeconds % 60).toString().padLeft(2, '0')}',
+                            style: TextStyle(
+                              color: Colors.red.shade700,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
                 child: MyButton(
-                  onTap: () {
-                    if (formKey.currentState?.validate() ??
-                        true && agreedToTerms) {
-                      signUp();
-                    }
-                  },
+                  onTap: isRateLimited
+                      ? null
+                      : () {
+                          if (formKey.currentState?.validate() ??
+                              true && agreedToTerms) {
+                            signUp();
+                          }
+                        },
                   text: 'Sign up',
                   isLoading: isLoading,
-                  isEnabled: agreedToTerms,
+                  isEnabled: agreedToTerms && !isRateLimited,
                   width: double.infinity,
                 ),
               ),
