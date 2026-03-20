@@ -4,18 +4,20 @@ import 'package:get/get.dart';
 import 'package:drivemate/controller/network_controller.dart';
 import 'package:drivemate/controller/app_controller.dart';
 import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/controller/chat_controller.dart';
 import 'package:drivemate/services/app_lifecycle_service.dart';
 import 'package:drivemate/services/security_service.dart';
 import 'package:drivemate/services/ownership_service.dart';
 import 'package:drivemate/services/audit_log_service.dart';
 import 'package:drivemate/services/abuse_protection_service.dart';
+import 'package:drivemate/services/chat_service.dart';
 import 'package:drivemate/features/tracking/data/repositories/firebase_tracking_repository.dart';
 import 'package:drivemate/features/tracking/data/repositories/tracking_repository.dart';
 import 'package:drivemate/features/tracking/services/location_tracking_service.dart';
 import 'package:drivemate/controller/permission_controller.dart';
 
 class DependencyInjection {
-  static void init() {
+  static void init() async {
     Get.put<PermissionController>(PermissionController(), permanent: true);
     Get.put<NetworkController>(NetworkController(), permanent: true);
     Get.put<AppLifecycleService>(AppLifecycleService(), permanent: true);
@@ -23,6 +25,12 @@ class DependencyInjection {
     Get.put<OwnershipService>(OwnershipService(), permanent: true);
     Get.put<AuditLogService>(AuditLogService(), permanent: true);
     Get.put<AbuseProtectionService>(AbuseProtectionService(), permanent: true);
+    
+    // Initialize ChatService
+    final chatService = await ChatService().init();
+    Get.put<ChatService>(chatService, permanent: true);
+    
+    Get.put<ChatController>(ChatController(), permanent: true);
     Get.put<AppController>(AppController(), permanent: true);
     Get.put<WorkspaceController>(WorkspaceController(), permanent: true);
 

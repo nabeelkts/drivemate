@@ -415,6 +415,8 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
               ],
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 100,
@@ -467,9 +469,12 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                   studentDetails['fullName'] ?? 'N/A',
                   style: TextStyle(
                     color: textColor,
-                    fontSize: 22,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
+                  softWrap: true,
+                  maxLines: 3,
+                  overflow: TextOverflow.visible,
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -516,8 +521,6 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
   }
 
   Widget _buildInfoGrid(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1716,7 +1719,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           companyLogoBytes: logoBytes,
         );
       });
-      if (pdfBytes != null) _showPdfPreview(context, pdfBytes);
+      _showPdfPreview(context, pdfBytes);
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -1841,9 +1844,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           .collection('attendance')
           .orderBy('date', descending: true)
           .get();
-      final logs = attendanceSnap.docs
-          .map((d) => d.data() as Map<String, dynamic>)
-          .toList();
+      final logs = attendanceSnap.docs.map((d) => d.data()).toList();
       final pdfBytes = await AttendancePdfService.generate(
         studentName: studentDetails['fullName'] ?? 'N/A',
         studentId: studentDetails['studentId'].toString(),
@@ -1852,7 +1853,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         companyData: companyData,
         companyLogoBytes: logoBytes,
       );
-      if (pdfBytes != null) _showPdfPreview(context, pdfBytes);
+      _showPdfPreview(context, pdfBytes);
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -2178,7 +2179,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
           companyLogoBytes: logoBytes,
         );
       });
-      if (pdfBytes != null) _showPdfPreview(context, pdfBytes);
+      _showPdfPreview(context, pdfBytes);
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -2747,43 +2748,79 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
             final data = docs[index].data() as Map<String, dynamic>;
             final date =
                 (data['date'] as Timestamp?)?.toDate() ?? DateTime.now();
-            return ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading:
-                  const Icon(Icons.label_important_outline, color: Colors.blue),
-              title: Text(data['description'] ?? 'No Description',
-                  style: const TextStyle(fontWeight: FontWeight.w500)),
-              subtitle: Text(DateFormat('dd MMM yyyy').format(date)),
-              trailing: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text('₹${(data['amount'] as num?)?.toInt() ?? 0}',
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, color: Colors.red)),
-                  // Hide edit/delete for students - they can only view extra fees
-                  if (!widget.isStudentView)
-                    PopupMenuButton<String>(
-                      icon: const Icon(Icons.more_vert, size: 20),
-                      onSelected: (value) =>
-                          _handleExtraFeeAction(value, docs[index], targetId),
-                      itemBuilder: (context) => [
-                        const PopupMenuItem(
-                            value: 'edit',
-                            child: ListTile(
-                                leading: Icon(Icons.edit, size: 18),
-                                title: Text('Edit'),
-                                dense: true)),
-                        const PopupMenuItem(
-                            value: 'delete',
-                            child: ListTile(
-                                leading: Icon(Icons.delete,
-                                    color: Colors.red, size: 18),
-                                title: Text('Delete',
-                                    style: TextStyle(color: Colors.red)),
-                                dense: true)),
-                      ],
-                    ),
-                ],
+            final isPaid =
+                (data['status']?.toString() ?? '').toLowerCase() == 'paid';
+            return Card(
+              margin: const EdgeInsets.only(bottom: 8),
+              child: ListTile(
+                leading: isPaid
+                    ? Checkbox(
+                        value: _selectedTransactionIds.contains(docs[index].id),
+                        onChanged: (val) {
+                          setState(() {
+                            if (val == true)
+                              _selectedTransactionIds.add(docs[index].id);
+                            else
+                              _selectedTransactionIds.remove(docs[index].id);
+                          });
+                        },
+                      )
+                    : const Icon(Icons.label_important_outline, color: Colors.blue),
+                title: Text(data['description'] ?? 'No Description',
+                    style: const TextStyle(fontWeight: FontWeight.w500)),
+                subtitle: Text(DateFormat('dd MMM yyyy').format(date)),
+                trailing: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('₹${(data['amount'] as num?)?.toInt() ?? 0}',
+                        style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isPaid ? Colors.green : Colors.red)),
+                    if (!widget.isStudentView && !isPaid)
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        child: TextButton(
+                          onPressed: () =>
+                              PaymentUtils.showCollectExtraFeeDialog(
+                            context: context,
+                            docRef: FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(targetId)
+                                .collection('students')
+                                .doc(_docId),
+                            feeDoc: docs[index],
+                            targetId: targetId,
+                            branchId:
+                                _workspaceController.currentBranchId.value,
+                          ),
+                          child: const Text('Collect',
+                              style: TextStyle(color: Colors.green, fontSize: 12)),
+                        ),
+                      ),
+                    if (!widget.isStudentView && !isPaid)
+                      PopupMenuButton<String>(
+                        icon: const Icon(Icons.more_vert, size: 20),
+                        onSelected: (value) =>
+                            _handleExtraFeeAction(value, docs[index], targetId),
+                        itemBuilder: (context) => [
+                          const PopupMenuItem(
+                              value: 'edit',
+                              child: ListTile(
+                                  leading: Icon(Icons.edit, size: 18),
+                                  title: Text('Edit'),
+                                  dense: true)),
+                          const PopupMenuItem(
+                              value: 'delete',
+                              child: ListTile(
+                                  leading: Icon(Icons.delete,
+                                      color: Colors.red, size: 18),
+                                  title: Text('Delete',
+                                      style: TextStyle(color: Colors.red)),
+                                  dense: true)),
+                        ],
+                      ),
+                  ],
+                ),
               ),
             );
           },

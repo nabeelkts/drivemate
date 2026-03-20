@@ -56,7 +56,6 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
   static const Color kAccentRed = Color.fromRGBO(241, 135, 71, 1);
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
-  bool _isTransactionHistoryExpanded = false;
   List<Map<String, dynamic>> _cachedPayments =
       []; // Cache for seamless transitions
 
@@ -357,6 +356,8 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
               ],
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Stack(
             children: [
@@ -408,8 +409,11 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                 Text(endorsementDetails['fullName'] ?? 'N/A',
                     style: TextStyle(
                         color: textColor,
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold)),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold),
+                    softWrap: true,
+                    maxLines: 3,
+                    overflow: TextOverflow.visible),
                 const SizedBox(height: 8),
                 Text('ID: ${endorsementDetails['studentId'] ?? 'N/A'}',
                     style: TextStyle(color: subTextColor, fontSize: 14)),
@@ -502,7 +506,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
             Expanded(
               child: _buildInfoCard(
                 context,
-                'Personal Information',
+                'Personal Info',
                 [
                   {
                     'label': 'Guardian',
@@ -802,7 +806,6 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
 
   Widget _buildExtraFeesSection(BuildContext context, String targetId) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
     final subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
 
     return StreamBuilder<QuerySnapshot>(
@@ -872,25 +875,25 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                         ),
                       ),
                       if (!isPaid)
-                        TextButton(
-                          onPressed: () =>
-                              PaymentUtils.showCollectExtraFeeDialog(
-                            context: context,
-                            docRef: FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(targetId)
-                                .collection('endorsement')
-                                .doc(_docId),
-                            feeDoc: doc,
-                            targetId: targetId,
-                            branchId:
-                                _workspaceController.currentBranchId.value,
+                        Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          child: TextButton(
+                            onPressed: () =>
+                                PaymentUtils.showCollectExtraFeeDialog(
+                              context: context,
+                              docRef: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(targetId)
+                                  .collection('endorsement')
+                                  .doc(_docId),
+                              feeDoc: doc,
+                              targetId: targetId,
+                              branchId:
+                                  _workspaceController.currentBranchId.value,
+                            ),
+                            child: const Text('Collect'),
                           ),
-                          child: const Text('Collect'),
-                        )
-                      else
-                        const Icon(Icons.check_circle,
-                            color: Colors.green, size: 20),
+                        ),
                       IconButton(
                         icon: const Icon(Icons.edit_outlined,
                             color: Colors.blue, size: 20),
@@ -924,7 +927,8 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                   ),
                 ),
               );
-            }).toList(),
+            },
+            ),
           ],
         );
       },

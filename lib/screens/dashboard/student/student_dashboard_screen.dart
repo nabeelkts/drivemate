@@ -371,7 +371,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                 child: _buildSummaryCard(
                   context,
                   'Total',
-                  '${totalAmount.toStringAsFixed(2)}',
+                  totalAmount.toStringAsFixed(2),
                   Icons.account_balance_wallet,
                   Colors.blue,
                 ),
@@ -381,7 +381,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                 child: _buildSummaryCard(
                   context,
                   'Paid',
-                  '${totalPaid.toStringAsFixed(2)}',
+                  totalPaid.toStringAsFixed(2),
                   Icons.check_circle,
                   Colors.green,
                 ),
@@ -391,7 +391,7 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
                 child: _buildSummaryCard(
                   context,
                   'Pending',
-                  '${totalPending.toStringAsFixed(2)}',
+                  totalPending.toStringAsFixed(2),
                   Icons.pending,
                   Colors.orange,
                 ),
@@ -675,7 +675,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
   Widget _buildTestTab(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
-    final subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
 
     // Get test date from student data
     final testDate = _studentData['testDate'] ?? _studentData['test_date'];
@@ -1063,7 +1062,6 @@ class _StudentDashboardScreenState extends State<StudentDashboardScreen>
   Widget _buildAdditionalInfoTab(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final textColor = isDark ? Colors.white : Colors.black;
-    final subTextColor = isDark ? Colors.grey : Colors.grey[700]!;
 
     // Get additional info from student data
     final package =

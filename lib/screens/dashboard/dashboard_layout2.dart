@@ -87,7 +87,7 @@ class DashboardLayout2 extends StatelessWidget {
                           textColor, targetId),
                       const SizedBox(height: 12),
                       _buildSchoolNews(context, isDark, textColor),
-                      const SizedBox(height: 16),
+                      const SizedBox(height: 12),
                     ],
                   ),
                 ),
@@ -102,7 +102,7 @@ class DashboardLayout2 extends StatelessWidget {
   Widget _buildHeader(BuildContext context, WorkspaceController controller,
       bool isDark, Color textColor) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
       decoration: BoxDecoration(
         color: isDark ? Colors.black : Colors.white,
         boxShadow: [
@@ -115,8 +115,36 @@ class DashboardLayout2 extends StatelessWidget {
       ),
       child: Obx(() {
         final isOrg = controller.isOrganizationMode.value;
-        final branchData = controller.currentBranchData;
-        final branchName = branchData['branchName'] ?? 'Branch';
+        // Explicitly access reactive observables to ensure Obx tracks them
+        final branchId = controller.currentBranchId.value;
+        final ownedBranches = controller.ownedBranches;
+        final companyData = controller.companyData;
+        final staffBranchData = controller.staffBranchData;
+        
+        // Compute branch name based on role
+        String branchName = 'Branch';
+        if (branchId.isEmpty) {
+          if (companyData.isNotEmpty) {
+            branchName = companyData['companyName'] ?? 
+                         companyData['branchName'] ?? 
+                         'Branch';
+          }
+        } else {
+          // For owners: look in ownedBranches
+          final branch = ownedBranches.firstWhere(
+            (b) => b['id'] == branchId,
+            orElse: () => {},
+          );
+          if (branch.isNotEmpty) {
+            branchName = branch['branchName'] ?? 'Branch';
+          } else if (staffBranchData.isNotEmpty) {
+            branchName = staffBranchData['branchName'] ?? 'Branch';
+          } else if (companyData.isNotEmpty) {
+            branchName = companyData['companyName'] ?? 
+                         companyData['branchName'] ?? 
+                         'Branch';
+          }
+        }
 
         return Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -867,14 +895,28 @@ class DashboardLayout2 extends StatelessWidget {
             color: Colors.blueGrey.shade700,
             shape: BoxShape.circle,
           ),
-          child: (activity['imageUrl'] != null &&
-                  activity['imageUrl'].toString().isNotEmpty)
-              ? PersistentCachedImage(
-                  imageUrl: activity['imageUrl'],
-                  borderRadius: BorderRadius.circular(20),
-                  memCacheWidth: 100,
-                  memCacheHeight: 100,
-                  errorWidget: Center(
+          child: ClipOval(
+            child: (activity['imageUrl'] != null &&
+                    activity['imageUrl'].toString().isNotEmpty)
+                ? PersistentCachedImage(
+                    imageUrl: activity['imageUrl'],
+                    memCacheWidth: 100,
+                    memCacheHeight: 100,
+                    fit: BoxFit.cover,
+                    width: 40,
+                    height: 40,
+                    errorWidget: Center(
+                      child: Text(
+                        name.isNotEmpty ? name[0].toUpperCase() : '?',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  )
+                : Center(
                     child: Text(
                       name.isNotEmpty ? name[0].toUpperCase() : '?',
                       style: const TextStyle(
@@ -884,17 +926,7 @@ class DashboardLayout2 extends StatelessWidget {
                       ),
                     ),
                   ),
-                )
-              : Center(
-                  child: Text(
-                    name.isNotEmpty ? name[0].toUpperCase() : '?',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
+          ),
         ),
         const SizedBox(width: 12),
         Expanded(
@@ -975,13 +1007,10 @@ class DashboardLayout2 extends StatelessWidget {
                     ),
                   );
                 },
-                child: Text(
-                  'View All >',
-                  style: TextStyle(
-                    color: kOrange,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                  ),
+                child: Icon(
+                  Icons.chevron_right,
+                  color: textColor.withOpacity(0.3),
+                  size: 20,
                 ),
               ),
             ],
@@ -1178,7 +1207,6 @@ class _TodayScheduleWidgetState extends State<_TodayScheduleWidget> {
   };
   final List<StreamSubscription> _subscriptions = [];
   bool _isLoading = true;
-  List<Map<String, dynamic>> _items = [];
   int _learnersCount = 0;
   int _drivingCount = 0;
 
@@ -1270,7 +1298,6 @@ class _TodayScheduleWidgetState extends State<_TodayScheduleWidget> {
     }
 
     setState(() {
-      _items = newItems;
       _learnersCount = allLearners.length;
       _drivingCount = allDriving.length;
       _isLoading = false;

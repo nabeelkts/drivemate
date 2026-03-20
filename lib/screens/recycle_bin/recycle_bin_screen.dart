@@ -222,20 +222,24 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
   }
 
   Widget _buildDeletedItemCard(DeletedItem item) {
+    final isDark = Get.isDarkMode;
     final isExpiringSoon = item.daysRemaining <= 7;
-    final textColor = Get.isDarkMode ? Colors.white : Colors.black87;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final cardColor = isDark ? const Color(0xFF1F1F1F) : Colors.white;
+    final subtitleColor = isDark ? Colors.white70 : Colors.black54;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       elevation: 2,
+      color: cardColor,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           gradient: LinearGradient(
             colors: [
-              Colors.red[50]!,
-              Colors.white,
+              isDark ? const Color(0xFF3D1010) : Colors.red[50]!,
+              cardColor,
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -246,13 +250,13 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
             ListTile(
               leading: CircleAvatar(
                 radius: 24,
-                backgroundColor: Colors.red[100],
+                backgroundColor: isDark ? Colors.red[800] : Colors.red[100],
                 backgroundImage:
                     item.imageUrl != null && item.imageUrl!.isNotEmpty
                         ? NetworkImage(item.imageUrl!)
                         : null,
                 child: item.imageUrl == null || item.imageUrl!.isEmpty
-                    ? Icon(Icons.person, color: Colors.red[700])
+                    ? Icon(Icons.person, color: isDark ? Colors.red[200] : Colors.red[700])
                     : null,
               ),
               title: Text(
@@ -270,7 +274,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                   Text(
                     'Deleted on ${DateFormat('dd/MM/yyyy').format(item.deletedAt)}',
                     style: TextStyle(
-                        fontSize: 12, color: textColor.withOpacity(0.6)),
+                        fontSize: 12, color: subtitleColor),
                   ),
                   const SizedBox(height: 2),
                   Row(
@@ -278,7 +282,7 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                       Icon(
                         Icons.schedule,
                         size: 14,
-                        color: isExpiringSoon ? Colors.red : Colors.green,
+                        color: isExpiringSoon ? Colors.red : (isDark ? Colors.green[300] : Colors.green),
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -287,44 +291,14 @@ class _RecycleBinScreenState extends State<RecycleBinScreen> {
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                           color:
-                              isExpiringSoon ? Colors.red : Colors.green[700],
+                              isExpiringSoon ? Colors.red : (isDark ? Colors.green[300] : Colors.green[700]),
                         ),
                       ),
                     ],
                   ),
                 ],
               ),
-              trailing: PopupMenuButton<String>(
-                onSelected: (value) {
-                  if (value == 'restore') {
-                    _confirmRestore(item);
-                  } else if (value == 'delete') {
-                    _confirmPermanentDelete(item);
-                  }
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'restore',
-                    child: Row(
-                      children: [
-                        Icon(Icons.restore, color: Colors.green),
-                        SizedBox(width: 8),
-                        Text('Restore'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'delete',
-                    child: Row(
-                      children: [
-                        Icon(Icons.delete_forever, color: Colors.red),
-                        SizedBox(width: 8),
-                        Text('Delete Permanently'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+
             ),
             // Action Buttons
             Padding(

@@ -26,8 +26,8 @@ class EndorsementList extends StatelessWidget {
     return BaseListWidget(
       title: 'Endorsement List',
       collectionName: 'endorsement',
-      searchField: 'Name',
-      secondarySearchField: 'Mobile Number', // Add mobile number search
+      searchField: 'fullName',
+      secondarySearchField: 'mobileNumber', // Mobile number search
       summaryLabel: 'Total:',
       addButtonText: 'Create New Endorsement',
       onAddNew: () {

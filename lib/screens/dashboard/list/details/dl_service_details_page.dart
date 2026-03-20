@@ -379,6 +379,8 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
               ],
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
             onTap: () {
@@ -432,9 +434,12 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
                   serviceDetails['fullName'] ?? serviceDetails['name'] ?? 'N/A',
                   style: TextStyle(
                     color: textColor,
-                    fontSize: 22,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
+                  softWrap: true,
+                  maxLines: 3,
+                  overflow: TextOverflow.visible,
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -624,7 +629,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
           companyLogoBytes: logoBytes,
         );
       });
-      if (pdfBytes != null) _showPdfPreview(context, pdfBytes);
+      _showPdfPreview(context, pdfBytes);
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -638,7 +643,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
         Expanded(
           child: _buildInfoCard(
             context,
-            'Personal Information',
+            'Personal Info',
             [
               {
                 'label': 'Guardian',
@@ -1243,22 +1248,25 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (!isPaid)
-                        TextButton(
-                          onPressed: () =>
-                              PaymentUtils.showCollectExtraFeeDialog(
-                            context: context,
-                            docRef: FirebaseFirestore.instance
-                                .collection('users')
-                                .doc(targetId)
-                                .collection('dl_services')
-                                .doc(_docId),
-                            feeDoc: docs[index],
-                            targetId: targetId,
-                            branchId:
-                                _workspaceController.currentBranchId.value,
+                        Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          child: TextButton(
+                            onPressed: () =>
+                                PaymentUtils.showCollectExtraFeeDialog(
+                              context: context,
+                              docRef: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(targetId)
+                                  .collection('dl_services')
+                                  .doc(_docId),
+                              feeDoc: docs[index],
+                              targetId: targetId,
+                              branchId:
+                                  _workspaceController.currentBranchId.value,
+                            ),
+                            child: const Text('Collect',
+                                style: TextStyle(color: Colors.green)),
                           ),
-                          child: const Text('Collect',
-                              style: TextStyle(color: Colors.green)),
                         ),
                       PopupMenuButton<String>(
                         onSelected: (val) {

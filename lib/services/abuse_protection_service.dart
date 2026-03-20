@@ -41,6 +41,7 @@ class AbuseProtectionService extends GetxService {
   // ============================================================
   // API ENDPOINT RATE LIMITING (NEW)
   // ============================================================
+  // ignore: unused_field
   static const String _apiRateLimitKey = 'api_rate_limit';
   static const int _maxApiRequestsPerMinute = 60;
   static const int _maxApiRequestsPerHour = 500;
@@ -69,13 +70,16 @@ class AbuseProtectionService extends GetxService {
   static const int _maxSuspiciousActions = 5;
   static const int _botSuspicionWindowMinutes = 10;
 
-  // Device fingerprint tracking
+  // Device fingerprint tracking (reserved for future use)
+  // ignore: unused_field
   static const String _deviceFingerprintKey = 'device_fingerprint';
+  // ignore: unused_field
   static const int _maxDevicesPerAccount = 5;
 
   // ============================================================
   // DATA SCRAPING PROTECTION (NEW)
   // ============================================================
+  // ignore: unused_field
   static const String _scrapingDetectionKey = 'scraping_detection';
   static const int _maxBulkRequests = 100;
   static const int _bulkRequestWindowMinutes = 5;
@@ -418,7 +422,6 @@ class AbuseProtectionService extends GetxService {
     final lastAttemptTime =
         DateTime.parse(attempts['lastAttemptTime'] as String);
     final hourlyCount = attempts['hourlyCount'] as int;
-    final dailyCount = attempts['dailyCount'] as int;
 
     // Check hourly limit
     if (hourlyCount >= _maxAIRequestsPerHour) {
@@ -444,7 +447,6 @@ class AbuseProtectionService extends GetxService {
     final lastAttemptTime =
         DateTime.parse(attempts['lastAttemptTime'] as String);
     final hourlyCount = attempts['hourlyCount'] as int;
-    final dailyCount = attempts['dailyCount'] as int;
 
     // Check hourly limit
     if (hourlyCount >= _maxOCRRequestsPerHour) {
@@ -503,14 +505,12 @@ class AbuseProtectionService extends GetxService {
     final attempts = _box.read<Map<String, dynamic>>(key);
     int hourlyCount = 1;
     int dailyCount = 1;
-    DateTime lastAttemptTime = DateTime.now();
     DateTime? hourlyResetTime;
     DateTime? dailyResetTime;
 
     if (attempts != null) {
       hourlyCount = (attempts['hourlyCount'] as int) + 1;
       dailyCount = (attempts['dailyCount'] as int) + 1;
-      lastAttemptTime = DateTime.parse(attempts['lastAttemptTime'] as String);
       hourlyResetTime = attempts['hourlyResetTime'] != null
           ? DateTime.parse(attempts['hourlyResetTime'] as String)
           : null;
@@ -537,8 +537,8 @@ class AbuseProtectionService extends GetxService {
       'hourlyCount': hourlyCount,
       'dailyCount': dailyCount,
       'lastAttemptTime': now.toIso8601String(),
-      'hourlyResetTime': hourlyResetTime?.toIso8601String(),
-      'dailyResetTime': dailyResetTime?.toIso8601String(),
+      'hourlyResetTime': hourlyResetTime.toIso8601String(),
+      'dailyResetTime': dailyResetTime.toIso8601String(),
     });
   }
 

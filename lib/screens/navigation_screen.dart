@@ -207,6 +207,19 @@ class _BottomNavScreenState extends State<BottomNavScreen> {
       body: SafeArea(
         child: PopScope(
           canPop: false,
+          onPopInvokedWithResult: (didPop, result) async {
+            if (didPop) return;
+
+            // If on home screen (index 0), exit directly
+            if (_currentIndex == 0) {
+              SystemNavigator.pop();
+            } else {
+              // Go back to home screen
+              setState(() {
+                _currentIndex = 0;
+              });
+            }
+          },
           child: Stack(
             children: [
               IndexedStack(

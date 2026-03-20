@@ -17,13 +17,13 @@ import 'package:drivemate/screens/profile/admin/organization_management_page.dar
 import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
-import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:drivemate/services/subscription_service.dart';
 import 'package:drivemate/screens/profile/admin/admin_subscription_page.dart';
 import 'package:drivemate/screens/profile/settings_page.dart';
 import 'package:drivemate/screens/profile/about_page.dart'; // ← new
 import 'package:drivemate/screens/profile/all_services_page.dart'; // ← new
 import 'package:drivemate/screens/recycle_bin/recycle_bin_screen.dart'; // Recycle Bin
+import 'package:drivemate/screens/chat/contact_support_screen.dart'; // Chat Support
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onSubscriptionRenewed;
@@ -298,7 +298,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
 
                 // ✅ FIX: Proper spacing between header and subscription
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
 
                 // ── Subscription card ──────────────────────────────────
                 Obx(() {
@@ -315,7 +315,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 }),
 
                 // ✅ FIX: Generous spacing before ORGANIZATION label
-                const SizedBox(height: 24),
+                const SizedBox(height: 12),
 
                 // ── Organization ───────────────────────────────────────
                 Obx(() {
@@ -353,7 +353,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                   );
                 }),
 
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
 
                 // ── Settings & About ───────────────────────────────────
                 _buildLabel('PREFERENCES', subColor),
@@ -361,6 +361,20 @@ class _ProfileScreenState extends State<ProfileScreen>
                   cardColor: cardColor,
                   borderColor: borderColor,
                   children: [
+                    _MenuRow(
+                      icon: Icons.support_agent,
+                      iconColor: kPrimaryColor,
+                      label: 'Contact Support',
+                      subtitle: 'Chat with support team',
+                      textColor: textColor,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ContactSupportScreen(),
+                        ),
+                      ),
+                    ),
+                    _Divider(color: borderColor),
                     _MenuRow(
                       icon: Icons.settings_outlined,
                       iconColor: Colors.grey,
@@ -425,17 +439,17 @@ class _ProfileScreenState extends State<ProfileScreen>
 
                 const SizedBox(height: 32),
 
-                // ── Footer ─────────────────────────────────────────────
-                Center(
-                  child: Text(
-                    '© ${DateTime.now().year} MDS Management',
-                    style: TextStyle(
-                      color: subColor,
-                      fontSize: 11,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
+                // // ── Footer ─────────────────────────────────────────────
+                // Center(
+                //   child: Text(
+                //     '© ${DateTime.now().year} MDS Management',
+                //     style: TextStyle(
+                //       color: subColor,
+                //       fontSize: 11,
+                //     ),
+                //   ),
+                // ),
+                // const SizedBox(height: 24),
               ],
             ),
           ),
@@ -470,12 +484,44 @@ class _ProfileScreenState extends State<ProfileScreen>
     return Obx(() {
       final isStaff = controller.userRole.value == 'Staff';
       final isConnected = controller.isConnected.value;
-      final branchData = controller.currentBranchData;
+      // Explicitly access reactive observables to ensure Obx tracks them
+      final branchId = controller.currentBranchId.value;
+      final ownedBranches = controller.ownedBranches;
+      final companyData = controller.companyData;
+      final staffBranchData = controller.staffBranchData;
+      
+      // Compute branch data based on role
+      String branchName = '';
+      String? location;
+      String? phone;
+      
+      if (isStaff && isConnected) {
+        // Staff connected to branch
+        if (branchId.isNotEmpty) {
+          final branch = ownedBranches.firstWhere(
+            (b) => b['id'] == branchId,
+            orElse: () => staffBranchData.isNotEmpty ? staffBranchData : {},
+          );
+          branchName = branch['branchName'] ?? 
+                       staffBranchData['branchName'] ?? 
+                       companyData['companyName'] ?? 
+                       'Connected School';
+          location = branch['location'] ?? 
+                     staffBranchData['location'] ?? 
+                     companyData['companyAddress'];
+          phone = branch['contactPhone'] ?? 
+                  staffBranchData['contactPhone'] ?? 
+                  companyData['companyPhone'];
+        } else {
+          branchName = companyData['companyName'] ?? 'Connected School';
+          location = companyData['companyAddress'];
+          phone = companyData['companyPhone'];
+        }
+      }
 
       String sectionTitle = 'ORGANIZATION';
-      String name =
-          controller.userProfileData['schoolName'] ?? 'My Organization';
-      String subtitle = branchData['branchName'] ?? 'Manage Organization';
+      String name = controller.userProfileData['schoolName'] ?? 'My Organization';
+      String subtitle = branchName.isNotEmpty ? branchName : 'Manage Organization';
       IconData icon = Icons.business_center_outlined;
       Color iconColor = kOrange;
       VoidCallback onTap = () => Navigator.push(
@@ -492,16 +538,7 @@ class _ProfileScreenState extends State<ProfileScreen>
           icon = Icons.add_business_outlined;
           onTap = _showJoinSchoolDialog;
         } else {
-          name = branchData['branchName'] ??
-              controller.companyData['companyName'] ??
-              'Connected School';
-          final location = branchData['location'] ??
-              branchData['companyAddress'] ??
-              controller.companyData['companyAddress'];
-          final phone = branchData['contactPhone'] ??
-              branchData['companyPhone'] ??
-              controller.companyData['companyPhone'];
-
+          name = branchName.isNotEmpty ? branchName : 'Connected School';
           // Build detailed subtitle with available info
           if (location != null && phone != null) {
             subtitle = '$location\n📞 $phone';
@@ -697,7 +734,7 @@ class _SectionCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: borderColor),
         boxShadow: [
           BoxShadow(
@@ -728,6 +765,7 @@ class _MenuRow extends StatelessWidget {
     required this.textColor,
     this.subtitle,
     this.onTap,
+    // ignore: unused_element_parameter
     this.trailing,
   });
 
@@ -735,7 +773,7 @@ class _MenuRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
         child: Row(
@@ -812,7 +850,7 @@ class _BannerAlert extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: color.withOpacity(0.08),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: color.withOpacity(0.35), width: 1),
       ),
       child: Row(

@@ -377,9 +377,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
       // Process extra fees data (similar to how it was done before)
       final extraFeesIndices = [0, 1, 2, 3, 4]; // 5 extra fees collections
       for (var idx in extraFeesIndices) {
-        if (extraFeesDataList.length > idx &&
-            extraFeesDataList[idx]!.docs != null) {
-          for (var doc in extraFeesDataList[idx]!.docs) {
+        if (extraFeesDataList.length > idx) {
+          for (var doc in extraFeesDataList[idx].docs) {
             final data = doc.data();
 
             // Skip soft-deleted documents
@@ -451,7 +450,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
           'date': transaction.date,
           'label': transaction.type,
           'source': transaction.collectionId,
-          'id': transaction.doc?.id ?? '',
+          'id': transaction.doc.id,
         });
       }
 
@@ -540,9 +539,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     // 1. Process main collections (indices 0, 1, 2, 3, 5)
                     final mainIndices = [0, 1, 2, 3, 5];
                     for (var idx in mainIndices) {
-                      if (dataList.length > idx &&
-                          dataList[idx]!.docs != null) {
-                        for (var doc in dataList[idx]!.docs) {
+                      if (dataList.length > idx) {
+                        for (var doc in dataList[idx].docs) {
                           final data = doc.data();
 
                           // Skip soft-deleted documents
@@ -618,8 +616,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     }
 
                     // 2. Process Expenses (index 4)
-                    if (dataList.length > 4 && dataList[4]!.docs != null) {
-                      for (var doc in dataList[4]!.docs) {
+                    if (dataList.length > 4) {
+                      for (var doc in dataList[4].docs) {
                         final data = doc.data();
 
                         // Skip soft-deleted documents
@@ -646,8 +644,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                     }
 
                     // 3. Process Payments (index 6)
-                    if (dataList.length > 6 && dataList[6]?.docs != null) {
-                      for (var doc in dataList[6].docs!) {
+                    if (dataList.length > 6) {
+                      for (var doc in dataList[6].docs) {
                         final data = doc.data();
 
                         // Skip soft-deleted documents
@@ -935,7 +933,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: cardColor,
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: borderColor, width: 1),
       ),
       child: Row(

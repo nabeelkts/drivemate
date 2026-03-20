@@ -19,14 +19,8 @@ class EditRCDetailsForm extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    User? user = FirebaseAuth.instance.currentUser;
     final WorkspaceController workspaceController =
         Get.find<WorkspaceController>();
-    final CollectionReference usersCollection =
-        FirebaseFirestore.instance.collection('users');
-
-    final schoolId = workspaceController.currentSchoolId.value;
-    final targetId = schoolId.isNotEmpty ? schoolId : user?.uid;
 
     return Scaffold(
       appBar: AppBar(

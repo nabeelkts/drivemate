@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:drivemate/services/soft_delete_service.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'dart:async';
 import 'package:drivemate/services/subscription_service.dart';
@@ -31,8 +32,9 @@ class WorkspaceController extends GetxController {
   final RxBool isAppDataLoading = false.obs;
   bool _isInitializing = false;
   bool _trackingStarted = false; // Prevent duplicate tracking starts
-  final SubscriptionService _subscriptionService = SubscriptionService();
+  final   SubscriptionService _subscriptionService = SubscriptionService();
   StreamSubscription? _userDocSubscription;
+  StreamSubscription? _authStateSubscription;
 
   // Branch Management State
   final RxList<Map<String, dynamic>> ownedBranches =
@@ -98,7 +100,7 @@ class WorkspaceController extends GetxController {
       if (branchDoc.exists) {
         final data = branchDoc.data() ?? {};
         // Normalize field names to match expected format
-        staffBranchData.value = {
+        staffBranchData.assignAll({
           'id': branchDoc.id,
           'branchName':
               data['branchName'] ?? data['companyName'] ?? 'Main Branch',
@@ -109,8 +111,8 @@ class WorkspaceController extends GetxController {
               data['contactPhone'] ?? data['companyPhone'] ?? data['phone'],
           'contactEmail':
               data['contactEmail'] ?? data['companyEmail'] ?? data['email'],
-        };
-        print('DEBUG: Fetched staff branch data: ${staffBranchData.value}');
+        });
+        debugPrint('DEBUG: Fetched staff branch data: $staffBranchData');
       }
     } catch (e) {
       print('Error fetching staff branch data: $e');
@@ -195,11 +197,8 @@ class WorkspaceController extends GetxController {
     super.onInit();
     _loadMode();
 
-    // Auth state changes will handle initialization.
-    // This avoids double-init on startup.
-    _auth.authStateChanges().listen((user) {
+    _authStateSubscription = _auth.authStateChanges().listen((user) {
       if (user != null) {
-        // Only re-initialize if the user ID changed or if we haven't successfully initialized yet
         if (currentSchoolId.value != user.uid ||
             !isConnectedInitialized.value) {
           _trackingStarted = false;
@@ -558,12 +557,15 @@ class WorkspaceController extends GetxController {
       final personalId = user.uid;
       await _firestore.collection('users').doc(user.uid).update({
         'schoolId': personalId,
+        'branchId': FieldValue.delete(),
       });
       currentSchoolId.value = personalId;
+      currentBranchId.value = "";
       if (userRole.value == 'Staff') {
         isConnected.value = false;
         isConnectedInitialized.value = true;
       }
+      staffBranchData.clear();
       Get.snackbar("Success", "Returned to personal workspace");
     } catch (e) {
       Get.snackbar("Error", "Failed to leave workspace: $e");
@@ -893,6 +895,7 @@ class WorkspaceController extends GetxController {
   @override
   void onClose() {
     _userDocSubscription?.cancel();
+    _authStateSubscription?.cancel();
     super.onClose();
   }
 }

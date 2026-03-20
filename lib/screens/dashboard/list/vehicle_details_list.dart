@@ -26,7 +26,8 @@ class VehicleDetailsList extends StatelessWidget {
       title: 'Vehicle Details List',
       collectionName: 'vehicleDetails',
       searchField: 'fullName',
-      secondarySearchField: 'mobileNumber', // Add mobile number search
+      secondarySearchField: 'mobileNumber',
+      tertiarySearchField: 'vehicleNumber', // Vehicle number search
       summaryLabel: 'Total Vehicles:',
       addButtonText: 'Create New Vehicle Details',
       onAddNew: () {

@@ -36,12 +36,39 @@ class OrganizationManagementPage extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
 
-        final branchData = controller.currentBranchData;
+        // Explicitly access reactive observables to ensure Obx tracks them
         final branchId = controller.currentBranchId.value;
+        final ownedBranches = controller.ownedBranches;
+        final companyData = controller.companyData;
+        final staffBranchData = controller.staffBranchData;
         final isOwner = controller.userRole.value == 'Owner';
-
-        // Check if user is connected (for staff) or has branch data (for owners)
         final isConnected = controller.isConnected.value;
+        
+        // Compute branchData based on role
+        Map<String, dynamic> branchData = {};
+        if (branchId.isEmpty) {
+          if (companyData.isNotEmpty) {
+            branchData = {
+              'id': controller.targetId,
+              'branchName': companyData['companyName'] ?? companyData['branchName'] ?? 'Main Branch',
+              'logoUrl': companyData['companyLogo'] ?? companyData['logoUrl'],
+              'location': companyData['companyAddress'] ?? companyData['location'],
+              'contactPhone': companyData['companyPhone'] ?? companyData['contactPhone'],
+              'contactEmail': companyData['companyEmail'] ?? companyData['contactEmail'],
+            };
+          }
+        } else {
+          final branch = ownedBranches.firstWhere(
+            (b) => b['id'] == branchId,
+            orElse: () => {},
+          );
+          if (branch.isNotEmpty) {
+            branchData = branch;
+          } else if (staffBranchData.isNotEmpty) {
+            branchData = staffBranchData;
+          }
+        }
+        
         final hasBranchData = branchData.isNotEmpty;
 
         if (!isConnected && !hasBranchData) {
@@ -346,8 +373,34 @@ class OrganizationManagementPage extends StatelessWidget {
     Color cardColor,
     Color textColor,
   ) {
+    final isStaff = controller.userRole.value == 'Staff';
+    final isConnected = controller.isConnected.value;
     final showSwitchBranch = isOwner && controller.ownedBranches.length > 1;
-    final showLeaveBranch = !isOwner;
+    final showLeaveBranch = isStaff && isConnected;
+
+    // For disconnected staff, show join option
+    if (isStaff && !isConnected) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionTitle('Actions', null, null),
+          const SizedBox(height: 12),
+          Container(
+            decoration: BoxDecoration(
+              color: cardColor,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: textColor.withOpacity(0.1)),
+            ),
+            child: _buildActionRow(
+              Icons.add_business_outlined,
+              'Join School Workspace',
+              () => _showJoinSchoolDialog(context, controller),
+              kPrimaryColor,
+            ),
+          ),
+        ],
+      );
+    }
 
     if (!showSwitchBranch && !showLeaveBranch) {
       return const SizedBox.shrink();
@@ -659,5 +712,59 @@ class OrganizationManagementPage extends StatelessWidget {
       confirmText: 'Leave',
       cancelText: 'Cancel',
     );
+  }
+
+  Future<void> _showJoinSchoolDialog(
+      BuildContext context, WorkspaceController controller) async {
+    final TextEditingController idController = TextEditingController();
+    final bool? confirmed = await showCustomStatefulDialogResult<bool>(
+      context,
+      'Join School Workspace',
+      (ctx, setDialogState, choose) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 8),
+          const Text(
+            'Enter the School ID provided by your administrator.',
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 16),
+          TextField(
+            controller: idController,
+            decoration: InputDecoration(
+              hintText: 'Enter School ID',
+              border:
+                  OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+      confirmText: 'Join',
+      cancelText: 'Cancel',
+      onConfirmResult: () => true,
+    );
+    if (confirmed == true) {
+      final id = idController.text.trim();
+      if (id.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Please enter a School ID')));
+        return;
+      }
+      final result = await controller.joinSchool(id);
+      if (!context.mounted) return;
+      if (result['success'] == true) {
+        Get.snackbar(
+          'Success',
+          result['message'] ?? 'Joined school workspace successfully',
+          snackPosition: SnackPosition.BOTTOM,
+          backgroundColor: Colors.green.withOpacity(0.1),
+          duration: const Duration(seconds: 2),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Failed to join school')),
+        );
+      }
+    }
   }
 }

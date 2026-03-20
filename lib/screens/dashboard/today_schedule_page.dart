@@ -58,7 +58,7 @@ class _TodaySchedulePageState extends State<TodaySchedulePage>
       // Run all 6 queries in parallel for faster loading (3x speedup)
       final futures = <Future>[];
       final results =
-          Map<String, Map<String, QuerySnapshot<Map<String, dynamic>>>>();
+          <String, Map<String, QuerySnapshot<Map<String, dynamic>>>>{};
 
       for (var col in collections) {
         final colRef = FirebaseFirestore.instance

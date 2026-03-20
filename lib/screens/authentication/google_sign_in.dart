@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +25,7 @@ class GoogleSignInProvider extends ChangeNotifier {
   bool _isSigningIn = false;
   User? _currentUser;
   String? _errorMessage;
+  StreamSubscription<User?>? _authSubscription;
 
   GoogleSignInProvider() {
     _init();
@@ -34,10 +36,16 @@ class GoogleSignInProvider extends ChangeNotifier {
   String? get errorMessage => _errorMessage;
 
   Future<void> _init() async {
-    _auth.authStateChanges().listen((User? user) {
+    _authSubscription = _auth.authStateChanges().listen((User? user) {
       _currentUser = user;
       notifyListeners();
     });
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    super.dispose();
   }
 
   Future<UserCredential?> signInWithGoogle(BuildContext context) async {

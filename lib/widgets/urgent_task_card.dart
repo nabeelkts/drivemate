@@ -25,6 +25,7 @@ class UrgentTaskCard extends StatefulWidget {
   // Track if tasks have been loaded in this app session
   static bool _hasLoadedOnce = false;
   static List<UrgentTaskModel> _cachedTasks = [];
+  // ignore: unused_field
   static DateTime? _lastLoadTime;
 
   /// Refresh urgent tasks (call when user manually refreshes or after completing a task)
@@ -162,7 +163,7 @@ class _UrgentTaskCardState extends State<UrgentTaskCard>
       animation: _rotationAnimation,
       builder: (context, child) {
         return Container(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          margin: const EdgeInsets.symmetric(horizontal: 16),
           decoration: BoxDecoration(
             color: cardColor,
             borderRadius: BorderRadius.circular(16),
@@ -243,7 +244,11 @@ class _UrgentTaskCardState extends State<UrgentTaskCard>
                           _loadTasks();
                         }
                       },
-                      child: const Text('View All'),
+                      child: const Icon(
+                  Icons.chevron_right,
+                  //color: textColor.withOpacity(0.3),
+                  size: 20,
+                ),
                     ),
                   ],
                 ),

@@ -50,7 +50,6 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
   static const Color kAccentRed = Color.fromRGBO(241, 135, 71, 1);
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
-  bool _isTransactionHistoryExpanded = false;
 
   final TextStyle labelStyle = const TextStyle(
       fontFamily: 'Inter',
@@ -344,6 +343,8 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
               ],
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 80,
@@ -362,7 +363,10 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
                     style: TextStyle(
                         color: textColor,
                         fontSize: 20,
-                        fontWeight: FontWeight.bold)),
+                        fontWeight: FontWeight.bold),
+                    softWrap: true,
+                    maxLines: 3,
+                    overflow: TextOverflow.visible),
                 const SizedBox(height: 4),
                 Builder(builder: (context) {
                   String serviceLabel =
@@ -425,7 +429,7 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
             Expanded(
               child: _buildInfoCard(
                 context,
-                'Personal Information',
+                'Personal Info',
                 [
                   {
                     'label': 'Service',
@@ -943,7 +947,7 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
   Future<void> _generateSelectedReceipts() async {
     if (_selectedTransactionIds.isEmpty) return;
     try {
-      final pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
+      await LoadingUtils.wrapWithLoading(context, () async {
         final workspace = Get.find<WorkspaceController>();
         final companyData = workspace.companyData;
         final selectedPayments = _cachedPayments
@@ -955,14 +959,14 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
           logoBytes = await ImageCacheService()
               .fetchAndCache(companyData['companyLogo']);
         }
-        return await PdfService.generateReceipt(
+        final pdfBytes = await PdfService.generateReceipt(
           companyData: companyData,
           studentDetails: vehicleDetails,
           transactions: selectedPayments,
           companyLogoBytes: logoBytes,
         );
+        _showPdfPreview(context, pdfBytes);
       });
-      if (pdfBytes != null) _showPdfPreview(context, pdfBytes);
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -999,7 +1003,6 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
             const SizedBox(height: 12),
             ...docs.map((doc) {
               final data = doc.data() as Map<String, dynamic>;
-              final date = (data['date'] as Timestamp).toDate();
               final isPaid = data['status'] == 'paid';
               return Card(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -1017,21 +1020,24 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (!isPaid)
-                        TextButton(
-                            onPressed:
-                                () =>
-                                    PaymentUtils.showCollectExtraFeeDialog(
-                                        context: context,
-                                        docRef: FirebaseFirestore.instance
-                                            .collection('users')
-                                            .doc(targetId)
-                                            .collection('rc_services')
-                                            .doc(_docId),
-                                        feeDoc: doc,
-                                        targetId: targetId,
-                                        branchId: _workspaceController
-                                            .currentBranchId.value),
-                            child: const Text('Collect')),
+                        Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          child: TextButton(
+                              onPressed:
+                                  () =>
+                                      PaymentUtils.showCollectExtraFeeDialog(
+                                          context: context,
+                                          docRef: FirebaseFirestore.instance
+                                              .collection('users')
+                                              .doc(targetId)
+                                              .collection('rc_services')
+                                              .doc(_docId),
+                                          feeDoc: doc,
+                                          targetId: targetId,
+                                          branchId: _workspaceController
+                                              .currentBranchId.value),
+                              child: const Text('Collect')),
+                        ),
                       IconButton(
                           icon: const Icon(Icons.edit_outlined,
                               color: Colors.blue, size: 20),

@@ -20,7 +20,8 @@ class BaseListWidget extends StatefulWidget {
   final String title;
   final String collectionName;
   final String searchField;
-  final String? secondarySearchField; // New field for mobile number search
+  final String? secondarySearchField; // Field for mobile number search
+  final String? tertiarySearchField; // Field for vehicle number search
   final Widget Function(
       BuildContext, QueryDocumentSnapshot<Map<String, dynamic>>) itemBuilder;
   final VoidCallback? onAddNew;
@@ -36,7 +37,8 @@ class BaseListWidget extends StatefulWidget {
     required this.title,
     required this.collectionName,
     required this.searchField,
-    this.secondarySearchField, // Make it optional
+    this.secondarySearchField,
+    this.tertiarySearchField,
     required this.itemBuilder,
     this.onAddNew,
     this.onViewDeactivated,
@@ -216,7 +218,14 @@ class _BaseListWidgetState extends State<BaseListWidget> {
           matchesSecondary = secondaryFieldValue.contains(query.toLowerCase());
         }
 
-        return matchesPrimary || matchesSecondary;
+        bool matchesTertiary = false;
+        if (widget.tertiarySearchField != null) {
+          final tertiaryFieldValue =
+              data[widget.tertiarySearchField]?.toString().toLowerCase() ?? '';
+          matchesTertiary = tertiaryFieldValue.contains(query.toLowerCase());
+        }
+
+        return matchesPrimary || matchesSecondary || matchesTertiary;
       }).toList();
     }
     _sortItems();

@@ -1,31 +1,37 @@
+import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 
 class NetworkController extends GetxController {
   final Connectivity _connectivity = Connectivity();
+  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
 
   @override
   void onInit() {
     super.onInit();
-
-    // Check the initial connectivity status
     _checkInitialConnectivity();
-
-    // Listen for connectivity changes
-    _connectivity.onConnectivityChanged.listen((results) {
+    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((results) {
       if (results.isNotEmpty) {
         _updateConnectionStatus(results.first);
       }
     });
   }
 
+  @override
+  void onClose() {
+    _connectivitySubscription?.cancel();
+    super.onClose();
+  }
+
   void _checkInitialConnectivity() async {
     try {
       final results = await _connectivity.checkConnectivity();
-      _updateConnectionStatus(results.first);
+      if (results.isNotEmpty) {
+        _updateConnectionStatus(results.first);
+      }
     } catch (e) {
-      print('Error checking connectivity: $e');
+      debugPrint('Error checking connectivity: $e');
     }
   }
 
@@ -35,8 +41,8 @@ class NetworkController extends GetxController {
         messageText: const Text('No internet connection',
             style: TextStyle(color: Colors.white, fontSize: 14)),
         isDismissible: false,
-        duration: const Duration(days: 1), // Keep visible until reconnected
-        backgroundColor: Colors.grey[900]!, // More professional dark theme
+        duration: const Duration(days: 1),
+        backgroundColor: Colors.grey[900]!,
         icon: const Icon(
           Icons.wifi_off_rounded,
           color: Colors.white,
@@ -59,7 +65,6 @@ class NetworkController extends GetxController {
     } else {
       if (Get.isSnackbarOpen) {
         Get.closeCurrentSnackbar();
-        // Show a brief success message when reconnected
         Get.rawSnackbar(
           messageText: const Text('Back online',
               style: TextStyle(color: Colors.white, fontSize: 14)),

@@ -377,7 +377,7 @@ class ExcelImportService {
     ImportType importType,
   ) async {
     try {
-      final excel = Excel.decodeBytes(bytes as List<int>);
+      final excel = Excel.decodeBytes(bytes);
 
       final List<Map<String, dynamic>> results = [];
 

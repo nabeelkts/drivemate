@@ -361,6 +361,8 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
               ],
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Hero(
             tag: 'profile_${licenseDetails['id']}',
@@ -411,9 +413,12 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                   licenseDetails['fullName'] ?? licenseDetails['name'] ?? 'N/A',
                   style: TextStyle(
                     color: textColor,
-                    fontSize: 22,
+                    fontSize: 18,
                     fontWeight: FontWeight.bold,
                   ),
+                  softWrap: true,
+                  maxLines: 3,
+                  overflow: TextOverflow.visible,
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -528,7 +533,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
-          child: _buildInfoCard(context, 'Personal Information', [
+          child: _buildInfoCard(context, 'Personal Info', [
             {
               'label': 'Guardian',
               'value': licenseDetails['guardianName'] ?? 'N/A'
@@ -640,15 +645,6 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
 
   Widget _buildTabSection(BuildContext context, String targetId,
       DocumentSnapshot<Map<String, dynamic>>? licenseSnapshot) {
-    final tabs = [
-      {'label': 'Payment', 'icon': Icons.account_balance_wallet},
-      {'label': 'Tests', 'icon': Icons.assignment},
-      {'label': 'Documents', 'icon': Icons.description},
-      {'label': 'Notes', 'icon': Icons.note},
-      {'label': 'Additional', 'icon': Icons.info_outline},
-    ];
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Column(
       children: [
         DetailsTabsBar(
@@ -1032,26 +1028,26 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (!isPaid)
-                        TextButton(
-                          onPressed: () =>
-                              PaymentUtils.showCollectExtraFeeDialog(
-                                  context: context,
-                                  docRef: FirebaseFirestore.instance
-                                      .collection('users')
-                                      .doc(targetId)
-                                      .collection('licenseonly')
-                                      .doc(_docId),
-                                  feeDoc: doc,
-                                  targetId: targetId,
-                                  branchId: _workspaceController
-                                      .currentBranchId.value),
-                          child: const Text('Collect',
-                              style:
-                                  TextStyle(color: Colors.green, fontSize: 12)),
-                        )
-                      else
-                        const Icon(Icons.check_circle,
-                            color: Colors.green, size: 16),
+                        Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          child: TextButton(
+                            onPressed: () =>
+                                PaymentUtils.showCollectExtraFeeDialog(
+                                    context: context,
+                                    docRef: FirebaseFirestore.instance
+                                        .collection('users')
+                                        .doc(targetId)
+                                        .collection('licenseonly')
+                                        .doc(_docId),
+                                    feeDoc: doc,
+                                    targetId: targetId,
+                                    branchId: _workspaceController
+                                        .currentBranchId.value),
+                            child: const Text('Collect',
+                                style:
+                                    TextStyle(color: Colors.green, fontSize: 12)),
+                          ),
+                        ),
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_vert, size: 18),
                         onSelected: (val) {

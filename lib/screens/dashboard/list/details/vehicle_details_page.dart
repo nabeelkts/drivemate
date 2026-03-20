@@ -233,14 +233,21 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
               ],
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
             width: 80,
             height: 80,
             decoration: BoxDecoration(
                 color: kAccentRed.withOpacity(0.1), shape: BoxShape.circle),
-            child: const Icon(Icons.directions_car_outlined,
-                color: kAccentRed, size: 40),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(4.0),
+                child: _buildVehicleNumberTwoLines(
+                    vehicleDetails['vehicleNumber']),
+              ),
+            ),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -250,12 +257,23 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
                 Text(vehicleDetails['vehicleNumber'] ?? 'N/A',
                     style: TextStyle(
                         color: textColor,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold)),
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold),
+                    softWrap: true,
+                    maxLines: 3,
+                    overflow: TextOverflow.visible),
                 const SizedBox(height: 4),
-                Text('Owner: ${vehicleDetails['fullName'] ?? 'N/A'}',
-                    style: TextStyle(color: subTextColor, fontSize: 14)),
-                const SizedBox(height: 8),
+                if (_docId.isNotEmpty)
+                  Text('ID: $_docId',
+                      style: TextStyle(color: subTextColor, fontSize: 11)),
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text('Owner: ${vehicleDetails['fullName'] ?? 'N/A'}',
+                      style: TextStyle(color: subTextColor, fontSize: 14)),
+                ),
+                const SizedBox(height: 4),
                 Builder(builder: (context) {
                   String serviceLabel =
                       vehicleDetails['service']?.toString().trim() ?? '';
@@ -776,7 +794,7 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
           companyLogoBytes: logoBytes,
         );
       });
-      if (pdfBytes != null) _showPdfPreview(context, pdfBytes);
+      _showPdfPreview(context, pdfBytes);
     } catch (e) {
       ScaffoldMessenger.of(context)
           .showSnackBar(SnackBar(content: Text('Error: $e')));
@@ -830,21 +848,24 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (!isPaid)
-                        TextButton(
-                            onPressed:
-                                () =>
-                                    PaymentUtils.showCollectExtraFeeDialog(
-                                        context: context,
-                                        docRef: FirebaseFirestore.instance
-                                            .collection('users')
-                                            .doc(targetId)
-                                            .collection('vehicleDetails')
-                                            .doc(_docId),
-                                        feeDoc: doc,
-                                        targetId: targetId,
-                                        branchId: _workspaceController
-                                            .currentBranchId.value),
-                            child: const Text('Collect')),
+                        Container(
+                          margin: const EdgeInsets.only(right: 8),
+                          child: TextButton(
+                              onPressed:
+                                  () =>
+                                      PaymentUtils.showCollectExtraFeeDialog(
+                                          context: context,
+                                          docRef: FirebaseFirestore.instance
+                                              .collection('users')
+                                              .doc(targetId)
+                                              .collection('vehicleDetails')
+                                              .doc(_docId),
+                                          feeDoc: doc,
+                                          targetId: targetId,
+                                          branchId: _workspaceController
+                                              .currentBranchId.value),
+                              child: const Text('Collect')),
+                        ),
                       IconButton(
                           icon: const Icon(Icons.edit_outlined,
                               color: Colors.blue, size: 20),
@@ -1543,6 +1564,42 @@ class _VehicleDetailsPageState extends State<VehicleDetailsPage> {
           ],
         ),
       ),
+    );
+  }
+
+  // Helper to show vehicle number in two lines (e.g., KL10AC | 2244)
+  Widget _buildVehicleNumberTwoLines(dynamic vehicleNumber) {
+    final String? number = vehicleNumber?.toString();
+    if (number == null || number.isEmpty) {
+      return const Text('N/A',
+          style: TextStyle(color: kAccentRed, fontSize: 11));
+    }
+
+    // Split number into two parts - first half and second half
+    final int mid = (number.length / 2).ceil();
+    final String firstPart = number.substring(0, mid);
+    final String secondPart = number.substring(mid);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          firstPart,
+          style: const TextStyle(
+            color: kAccentRed,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        Text(
+          secondPart,
+          style: const TextStyle(
+            color: kAccentRed,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
     );
   }
 }

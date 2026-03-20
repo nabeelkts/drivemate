@@ -43,9 +43,8 @@ class _ImportScreenState extends State<ImportScreen> {
   @override
   void initState() {
     super.initState();
-    // Auto-open file picker on init
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _pickFile();
+      if (mounted) _pickFile();
     });
   }
 

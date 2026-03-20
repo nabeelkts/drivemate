@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   User? user = FirebaseAuth.instance.currentUser;
   final WorkspaceController _workspaceController =
       Get.find<WorkspaceController>();
+  StreamSubscription<QuerySnapshot>? _notificationsSubscription;
 
   @override
   void initState() {
@@ -26,16 +28,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _listenToNotifications() {
-    _firestore
+    _notificationsSubscription = _firestore
         .collection('users')
         .doc(_workspaceController.currentSchoolId.value)
         .collection('notifications')
         .orderBy('timestamp', descending: true)
         .snapshots()
         .listen((snapshot) {
-      setState(() {
-        notifications = snapshot.docs;
-      });
+      if (mounted) {
+        setState(() {
+          notifications = snapshot.docs;
+        });
+      }
+    }, onError: (error) {
+      debugPrint('Notifications stream error: $error');
     });
   }
 
@@ -56,21 +62,31 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           .collection('notifications')
           .doc(docId)
           .delete();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Notification deleted')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Notification deleted')),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to delete notification: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to delete notification: $e')),
+        );
+      }
     }
+  }
+
+  @override
+  void dispose() {
+    _notificationsSubscription?.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Notifications'),
+        title: const Text('Notifications'),
       ),
       body: ListView.builder(
         itemCount: notifications.length,
@@ -88,8 +104,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               child: Container(
                 color: Colors.red,
                 alignment: Alignment.centerRight,
-                padding: EdgeInsets.symmetric(horizontal: 20),
-                child: Icon(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: const Icon(
                   Icons.delete,
                   color: Colors.white,
                 ),
@@ -108,14 +124,14 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       Expanded(
                         child: Text(
                           notification['title'] ?? 'No Title',
-                          style: TextStyle(fontWeight: FontWeight.bold),
+                          style: const TextStyle(fontWeight: FontWeight.bold),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      SizedBox(width: 10),
+                      const SizedBox(width: 10),
                       Text(
                         _formatDate(notification['date'] ?? ''),
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 12,
                           color: Colors.grey,
                         ),

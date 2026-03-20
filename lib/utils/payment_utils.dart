@@ -1551,34 +1551,6 @@ class PaymentUtils {
             'paymentNote': noteController.text.trim(),
           });
 
-          // Add payment record to payments subcollection to ensure it appears in revenue and transaction history
-          // Extract the parent collection name from the reference path
-          String parentPath =
-              docRef.parent.path; // e.g., users/{userId}/students/{docId}
-          List<String> pathParts = parentPath.split('/');
-          // Get the collection name (second to last element)
-          String parentCollection = '';
-          if (pathParts.length >= 3) {
-            parentCollection = pathParts[pathParts.length - 2];
-          } else {
-            parentCollection = 'unknown';
-          }
-          final paymentRef = docRef.collection('payments').doc();
-          batch.set(paymentRef, {
-            'amount': feeAmount,
-            'mode': selectedMode,
-            'date': Timestamp.fromDate(combinedDateTime),
-            'description': 'Additional Fee',
-            'createdAt': FieldValue.serverTimestamp(),
-            'targetId': targetId,
-            'recordId': parentDoc.id,
-            'recordName':
-                parentData['fullName'] ?? parentData['vehicleNumber'] ?? 'N/A',
-            'category': parentCollection,
-            'branchId': branchId ?? targetId,
-            'note': noteController.text.trim(),
-          });
-
           // Log activity
           final activityRef = firestore
               .collection('users')

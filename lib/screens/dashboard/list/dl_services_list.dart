@@ -24,8 +24,8 @@ class DlServicesList extends StatelessWidget {
     return BaseListWidget(
       title: 'DL Services List',
       collectionName: 'dl_services',
-      searchField: 'Name',
-      secondarySearchField: 'Mobile Number', // Add mobile number search
+      searchField: 'fullName',
+      secondarySearchField: 'mobileNumber', // Mobile number search
       summaryLabel: 'Total:',
       addButtonText: 'Create New Service',
       onAddNew: () {

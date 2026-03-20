@@ -80,7 +80,7 @@ class _CarouselSliderCardState extends State<CarouselSliderCard> {
                     ),
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(24.0),
+                      borderRadius: BorderRadius.circular(12.0),
                       color: Colors.grey,
                     ),
                   ),

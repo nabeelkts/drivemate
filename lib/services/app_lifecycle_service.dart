@@ -3,7 +3,6 @@ import 'package:get/get.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:get_storage/get_storage.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:drivemate/services/security_service.dart';
 
 class AppLifecycleService extends GetxService with WidgetsBindingObserver {
   final LocalAuthentication _auth = LocalAuthentication();
@@ -11,21 +10,11 @@ class AppLifecycleService extends GetxService with WidgetsBindingObserver {
   final FirebaseAuth _firebaseAuth = FirebaseAuth.instance;
   bool _isAuthenticated = false;
   bool _hasCheckedInitialAuth = false;
-  int _retryCount = 0;
-  static const int maxRetries = 2;
-  DateTime? _pausedTime;
-  SecurityService? _securityService;
 
   @override
   void onInit() {
     super.onInit();
     WidgetsBinding.instance.addObserver(this);
-    // Initialize SecurityService if available
-    try {
-      _securityService = Get.find<SecurityService>();
-    } catch (e) {
-      // SecurityService not yet available
-    }
   }
 
   @override
@@ -35,23 +24,37 @@ class AppLifecycleService extends GetxService with WidgetsBindingObserver {
   }
 
   /// Check biometric authentication when app first starts
+  /// Only runs once per app launch - not on every resume
   Future<void> checkBiometricOnAppStart() async {
+    // Skip if already checked or no user logged in
     if (_hasCheckedInitialAuth) return;
 
-    if (_firebaseAuth.currentUser != null &&
-        (_box.read('biometricEnabled') ?? false)) {
+    // Check if biometric is actually enabled before attempting
+    final biometricEnabled = _box.read('biometricEnabled') ?? false;
+    if (_firebaseAuth.currentUser == null || !biometricEnabled) {
       _hasCheckedInitialAuth = true;
-      _retryCount = 0;
-      await _authenticateWithBiometrics();
+      return;
     }
+
+    _hasCheckedInitialAuth = true;
+
+    // Check if device supports biometrics before attempting
+    final canCheckBiometrics = await _auth.canCheckBiometrics;
+    final isDeviceSupported = await _auth.isDeviceSupported();
+
+    if (!canCheckBiometrics && !isDeviceSupported) {
+      // Device doesn't support biometrics - don't require it
+      return;
+    }
+
+    await _authenticateWithBiometrics();
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.paused:
-        // Record the time when app goes to background
-        _pausedTime = DateTime.now();
+        // App went to background
         break;
       case AppLifecycleState.resumed:
         // SECURITY: Check session expiration when app resumes from background
@@ -65,55 +68,15 @@ class AppLifecycleService extends GetxService with WidgetsBindingObserver {
     }
   }
 
-  /// SECURITY: Check session expiration when app resumes from background
+  /// Check session when app resumes from background
+  /// Session expiration is disabled - users stay logged in until they manually log out
   Future<void> _checkSessionOnResume() async {
-    if (_pausedTime == null) return;
-
-    // Initialize SecurityService if not already done
-    if (_securityService == null) {
-      try {
-        _securityService = Get.find<SecurityService>();
-      } catch (e) {
-        return;
-      }
-    }
-
-    // Check if session has expired
-    if (_securityService!.isSessionExpired()) {
-      // Session expired - sign out user
-      await _firebaseAuth.signOut();
-
-      // Clear security storage
-      _securityService!.clearSecurityStorage();
-
-      // Navigate to login
-      Get.offAllNamed('/login');
-
-      // Show session expired message
-      Get.snackbar(
-        'Session Expired',
-        'Your session has expired. Please log in again.',
-        snackPosition: SnackPosition.BOTTOM,
-        duration: const Duration(seconds: 4),
-      );
-    } else {
-      // Session still valid - refresh session timer
-      _securityService!.refreshSession();
-    }
-
-    _pausedTime = null;
+    // Session expiry is disabled - no need to check
+    // Users stay logged in until they manually log out
   }
 
   Future<bool> _authenticateWithBiometrics() async {
     try {
-      // Check if device supports biometrics or device credentials (PIN/pattern)
-      final canCheckBiometrics = await _auth.canCheckBiometrics;
-      final isDeviceSupported = await _auth.isDeviceSupported();
-
-      if (!canCheckBiometrics && !isDeviceSupported) {
-        return false;
-      }
-
       // Use biometricOnly: false to allow PIN/pattern as fallback
       final authenticated = await _auth.authenticate(
         localizedReason: 'Please authenticate to continue',
@@ -124,36 +87,18 @@ class AppLifecycleService extends GetxService with WidgetsBindingObserver {
       );
 
       if (!authenticated) {
-        // User cancelled or failed - retry
-        _retryCount++;
-        if (_retryCount <= maxRetries) {
-          // Retry authentication after a short delay
-          await Future.delayed(const Duration(milliseconds: 500));
-          return await _authenticateWithBiometrics();
-        } else {
-          // Max retries reached - sign out and go to login page
-          await _firebaseAuth.signOut();
-          Get.offAllNamed('/login');
-          return false;
-        }
+        // User cancelled or failed - don't retry automatically, just return
+        // This prevents accidental logouts when user doesn't want to authenticate
+        return false;
       }
 
       _isAuthenticated = authenticated;
-      _retryCount = 0; // Reset retry count on success
       return authenticated;
     } catch (e) {
-      print('Error during biometric authentication: $e');
-      // On error, retry
-      _retryCount++;
-      if (_retryCount <= maxRetries) {
-        await Future.delayed(const Duration(milliseconds: 500));
-        return await _authenticateWithBiometrics();
-      } else {
-        // Max retries reached - sign out and go to login page
-        await _firebaseAuth.signOut();
-        Get.offAllNamed('/login');
-        return false;
-      }
+      debugPrint('Error during biometric authentication: $e');
+      // On error, don't sign out - just return false and let user continue
+      // The session is still valid, user just couldn't authenticate with biometrics
+      return false;
     }
   }
 
@@ -163,6 +108,10 @@ class AppLifecycleService extends GetxService with WidgetsBindingObserver {
   void resetAuthentication() {
     _isAuthenticated = false;
     _hasCheckedInitialAuth = false;
-    _retryCount = 0;
+  }
+
+  /// Allow re-checking biometric on app resume if needed
+  void allowBiometricCheckAgain() {
+    _hasCheckedInitialAuth = false;
   }
 }

@@ -102,7 +102,7 @@ class SecurityService extends GetxService {
   // SESSION MANAGEMENT
   // ============================================================
   static const String _sessionStartKey = 'session_start_time';
-  static const int _sessionTimeoutMinutes = 30;
+  static const int _sessionTimeoutMinutes = 129600;
 
   /// Check if session has expired
   bool isSessionExpired() {
@@ -302,6 +302,7 @@ class SecurityService extends GetxService {
   // ============================================================
   // API RATE LIMITING (Simplified)
   // ============================================================
+  // ignore: unused_field
   static const String _apiRateLimitKey = 'api_rate_limit';
   static const int _maxApiRequestsPerMinute = 60;
   static const String _apiRequestTimestampsKey = 'api_request_timestamps';
@@ -351,8 +352,10 @@ class SecurityService extends GetxService {
   // ============================================================
   // AI GENERATION REQUEST RATE LIMITING
   // ============================================================
+  // ignore: unused_field
   static const String _aiRequestKey = 'ai_request_attempts';
   static const int _maxAIRequestsPerHour = 20;
+  // ignore: unused_field
   static const int _aiLockoutMinutes = 30;
 
   /// Check if AI requests are rate limited

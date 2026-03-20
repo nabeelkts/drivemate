@@ -30,7 +30,8 @@ class DeactivatedVehicleDetailsList extends StatelessWidget {
 
           final isDark = Theme.of(context).brightness == Brightness.dark;
           return ListItemCard(
-            title: data['fullName'] ?? 'No Name',
+            title: data['vehicleNumber'] ?? 'No Number',
+            avatarText: data['vehicleNumber'],
             subTitle:
                 'COV: ${data['cov'] ?? 'N/A'}\nMobile: ${data['mobileNumber'] ?? 'N/A'}',
             imageUrl: data['image'],

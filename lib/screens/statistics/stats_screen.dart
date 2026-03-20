@@ -122,9 +122,9 @@ class _StatsScreenState extends State<StatsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _buildHeader(textColor, isDark),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
                     _buildBusinessPerformanceCard(isDark),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
                     _buildMetricsGrid(isDark),
                     const SizedBox(height: 12),
                     _buildExpensesCard(isDark),
@@ -563,12 +563,12 @@ class _StatsScreenState extends State<StatsScreen> {
             totalBalance += balance;
           }
 
-          // Calculate Total Learners Growth
+          // Calculate Total Customers Growth
           final endOfLastMonth =
               DateTime(selectedDate.year, selectedDate.month, 0);
 
-          int learnersLastMonthEnd = 0;
-          int learnersCurrentTotal = activeItems.length;
+          int customersLastMonthEnd = 0;
+          int customersCurrentTotal = activeItems.length;
 
           for (var item in activeItems) {
             final data = item['data'] as Map<String, dynamic>;
@@ -577,16 +577,16 @@ class _StatsScreenState extends State<StatsScreen> {
             if (regDate != null &&
                 regDate
                     .isBefore(endOfLastMonth.add(const Duration(seconds: 1)))) {
-              learnersLastMonthEnd++;
+              customersLastMonthEnd++;
             }
           }
 
           double growthPercentage = 0;
-          if (learnersLastMonthEnd > 0) {
-            growthPercentage = ((learnersCurrentTotal - learnersLastMonthEnd) /
-                    learnersLastMonthEnd) *
+          if (customersLastMonthEnd > 0) {
+            growthPercentage = ((customersCurrentTotal - customersLastMonthEnd) /
+                    customersLastMonthEnd) *
                 100;
-          } else if (learnersCurrentTotal > 0) {
+          } else if (customersCurrentTotal > 0) {
             growthPercentage = 100; // From 0 to something is 100% (or infinite)
           }
 
@@ -622,7 +622,7 @@ class _StatsScreenState extends State<StatsScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Total Learners',
+                            'Total Customers',
                             style: TextStyle(
                               fontSize: 13,
                               color: (isDark ? Colors.white : Colors.black)
@@ -717,7 +717,7 @@ class _StatsScreenState extends State<StatsScreen> {
                         'Revenue (${DateFormat('MMM').format(selectedDate)})',
                         'Rs. ${currentMonthRevenue.toStringAsFixed(0)}',
                         null,
-                        Colors.greenAccent,
+                        Colors.green,
                         isDark,
                       ),
                     ),

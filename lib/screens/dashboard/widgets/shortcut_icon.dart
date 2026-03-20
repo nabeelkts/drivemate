@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,7 @@ class _ShortcutIconState extends State<ShortcutIcon> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   List<QueryDocumentSnapshot<Map<String, dynamic>>> recentActivities = [];
   User? user = FirebaseAuth.instance.currentUser;
+  StreamSubscription<QuerySnapshot>? _activitiesSubscription;
 
   @override
   void initState() {
@@ -23,7 +25,7 @@ class _ShortcutIconState extends State<ShortcutIcon> {
 
   void _listenToRecentActivities() {
     if (user != null) {
-      _firestore
+      _activitiesSubscription = _firestore
           .collection('users')
           .doc(user!.uid)
           .collection('recentActivity')
@@ -31,20 +33,29 @@ class _ShortcutIconState extends State<ShortcutIcon> {
           .limit(3)
           .snapshots()
           .listen((snapshot) {
-        // Filter out duplicate entries based on studentId
-        final uniqueActivities =
-            <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
-        for (var doc in snapshot.docs) {
-          final data = doc.data();
-          if (data['studentId'] != null) {
-            uniqueActivities[data['studentId']] = doc;
+        if (mounted) {
+          final uniqueActivities =
+              <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            if (data['studentId'] != null) {
+              uniqueActivities[data['studentId']] = doc;
+            }
           }
+          setState(() {
+            recentActivities = uniqueActivities.values.toList();
+          });
         }
-        setState(() {
-          recentActivities = uniqueActivities.values.toList();
-        });
+      }, onError: (error) {
+        debugPrint('Recent activities stream error: $error');
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _activitiesSubscription?.cancel();
+    super.dispose();
   }
 
   @override
@@ -86,13 +97,13 @@ class _ShortcutIconState extends State<ShortcutIcon> {
         padding: const EdgeInsets.symmetric(horizontal: 8.0),
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: [
+          children: const [
             Icon(
               Icons.hourglass_empty,
               size: 50,
               color: Colors.grey,
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: 10),
             Text(
               'No recent activity available',
               style: TextStyle(
@@ -161,7 +172,6 @@ class _ShortcutIconState extends State<ShortcutIcon> {
   }
 
   String _extractFullName(String details) {
-    // Assuming details are in the format "Name: John Doe\nCourse: XYZ"
     final nameLine = details.split('\n').firstWhere(
           (line) => line.startsWith(''),
           orElse: () => 'N/A',

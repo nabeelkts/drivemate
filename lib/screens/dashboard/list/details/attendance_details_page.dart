@@ -108,8 +108,6 @@ class _AttendanceDetailsPageState extends State<AttendanceDetailsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor = isDark ? Colors.white : Colors.black;
     final cardColor = Theme.of(context).cardColor;
 
     final date = (widget.attendanceData['date'] as Timestamp?)?.toDate() ?? DateTime.now();

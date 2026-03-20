@@ -11,6 +11,7 @@ class ListItemCard extends StatelessWidget {
   final VoidCallback onMenuPressed;
   final bool isDark;
   final String? status; // 'passed', 'failed', or null
+  final String? avatarText; // Custom text for avatar (e.g., vehicle number)
 
   const ListItemCard({
     super.key,
@@ -21,6 +22,7 @@ class ListItemCard extends StatelessWidget {
     required this.onMenuPressed,
     this.isDark = false,
     this.status,
+    this.avatarText,
   });
 
   @override
@@ -69,22 +71,17 @@ class ListItemCard extends StatelessWidget {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: Text(
-                                        title,
-                                        style: TextStyle(
-                                          color: textColor,
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.bold,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    if (status != null) _buildStatusBadge(),
-                                  ],
+                                Text(
+                                  title,
+                                  style: TextStyle(
+                                    color: textColor,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  softWrap: true,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.visible,
+                                  textAlign: TextAlign.left,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
@@ -100,15 +97,21 @@ class ListItemCard extends StatelessWidget {
                               ],
                             ),
                           ),
-                          IconButton(
-                            icon: Icon(
-                              Icons.more_horiz,
-                              color: subTextColor,
-                              size: 20,
-                            ),
-                            onPressed: onMenuPressed,
-                            constraints: const BoxConstraints(),
-                            padding: EdgeInsets.zero,
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (status != null) _buildStatusBadge(),
+                              IconButton(
+                                icon: Icon(
+                                  Icons.more_horiz,
+                                  color: subTextColor,
+                                  size: 20,
+                                ),
+                                onPressed: onMenuPressed,
+                                constraints: const BoxConstraints(),
+                                padding: EdgeInsets.zero,
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -161,15 +164,20 @@ class ListItemCard extends StatelessWidget {
   }
 
   Widget _initials(Color textColor) {
+    // Use avatarText if provided (e.g., vehicle number), otherwise use first letter of title
+    final String displayText =
+        avatarText ?? (title.isNotEmpty ? title[0].toUpperCase() : '?');
     return Center(
       child: Text(
-        title.isNotEmpty ? title[0].toUpperCase() : '?',
+        displayText,
         style: const TextStyle(
-          fontSize: 18,
+          fontSize: 14, // Smaller font for longer text like vehicle numbers
           fontWeight: FontWeight.bold,
           color: kPrimaryColor,
         ),
         textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
       ),
     );
   }

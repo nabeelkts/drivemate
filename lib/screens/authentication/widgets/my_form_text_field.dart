@@ -52,6 +52,14 @@ class _MyFormTextFieldState extends State<MyFormTextField> {
               borderSide: const BorderSide(color: kOrange),
               borderRadius: BorderRadius.circular(10),
             ),
+            errorBorder: OutlineInputBorder(
+              borderSide: const BorderSide(color: kOrange),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderSide: const BorderSide(color: kOrange),
+              borderRadius: BorderRadius.circular(10),
+            ),
             labelText: widget.labelText,
             labelStyle: const TextStyle(
               fontSize: 12,

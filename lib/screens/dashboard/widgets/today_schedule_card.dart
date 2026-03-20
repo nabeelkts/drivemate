@@ -235,7 +235,7 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
           child: InkWell(
             onTap: () => Navigator.pushNamed(context, '/today_schedule'),
             child: Padding(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.all(items.isEmpty ? 12 : 16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -278,7 +278,7 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
                           color: textColor.withOpacity(0.3), size: 18),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  SizedBox(height: items.isEmpty ? 4 : 16),
                   if (isLoading)
                     Column(
                       children: List.generate(
@@ -300,15 +300,16 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
                       ),
                     )
                   else if (items.isEmpty)
-                    Center(
-                      child: Column(
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           Icon(Icons.calendar_today_outlined,
-                              color: textColor.withOpacity(0.1), size: 40),
-                          const SizedBox(height: 8),
+                              color: textColor.withOpacity(0.2), size: 20),
+                          const SizedBox(width: 8),
                           Text(
-                            'No exams scheduled',
+                            'No exams scheduled today',
                             style: TextStyle(
                                 color: textColor.withOpacity(0.4),
                                 fontSize: 12,
@@ -344,119 +345,6 @@ class _TodayScheduleCardState extends State<TodayScheduleCard> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _ScheduleRow extends StatelessWidget {
-  final String time;
-  final String name;
-  final String role;
-  final String? profileUrl;
-  final Color textColor;
-
-  const _ScheduleRow({
-    required this.time,
-    required this.name,
-    required this.role,
-    this.profileUrl,
-    required this.textColor,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final rowColor = isDark ? Colors.white.withOpacity(0.03) : Colors.white;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: rowColor,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark
-              ? Colors.white.withOpacity(0.05)
-              : Colors.black.withOpacity(0.02),
-        ),
-      ),
-      child: Row(
-        children: [
-          _buildAvatar(isDark),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  time,
-                  style: TextStyle(
-                    color: textColor.withOpacity(0.5),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w400,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: (role == 'LL' ? Colors.blue : kOrange).withOpacity(0.1),
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Text(
-              role,
-              style: TextStyle(
-                color: role == 'LL' ? Colors.blue : kOrange,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAvatar(bool isDark) {
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        border: Border.all(
-          color: kOrange.withOpacity(0.2),
-          width: 1.5,
-        ),
-      ),
-      child: CircleAvatar(
-        radius: 15,
-        backgroundColor: isDark ? Colors.grey[800] : Colors.grey[200],
-        backgroundImage: profileUrl != null && profileUrl!.isNotEmpty
-            ? CachedNetworkImageProvider(profileUrl!)
-            : null,
-        child: profileUrl == null || profileUrl!.isEmpty
-            ? Text(
-                name.isNotEmpty ? name[0].toUpperCase() : '?',
-                style: TextStyle(
-                  color: textColor.withOpacity(0.8),
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              )
-            : null,
       ),
     );
   }

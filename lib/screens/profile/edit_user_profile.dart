@@ -241,7 +241,7 @@ class _EditUserProfileState extends State<EditUserProfile> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Personal Information',
+                      'Personal Infor',
                       style: TextStyle(
                         color: textColor,
                         fontSize: 16,

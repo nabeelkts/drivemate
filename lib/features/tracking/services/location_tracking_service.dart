@@ -153,7 +153,7 @@ class LocationTrackingService extends GetxService {
     _lessonStreamSubscription = query.snapshots().listen((snapshot) async {
       if (snapshot.docs.isNotEmpty) {
         final doc = snapshot.docs.first;
-        final data = doc.data() as Map<String, dynamic>;
+        final data = doc.data();
         // Prefer lessonSessionId if set, otherwise fallback to docId (backward compatibility)
         final lessonId = data['lessonSessionId'] ?? doc.id;
 

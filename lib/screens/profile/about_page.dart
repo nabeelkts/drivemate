@@ -288,6 +288,7 @@ class _MenuRow extends StatelessWidget {
     required this.textColor,
     this.subtitle,
     this.onTap,
+    // ignore: unused_element_parameter
     this.trailing,
   });
 

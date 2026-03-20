@@ -298,9 +298,9 @@ class SoftDeleteService {
           .doc();
 
       await activityRef.set({
-        'title': 'Document Permanently Deleted',
+        'title': 'Customer Permanently Deleted',
         'details': documentName != null
-            ? '"$documentName" permanently deleted'
+            ? '$documentName permanently deleted'
             : 'Document ID: ${docRef.id} removed from recycle bin',
         'timestamp': FieldValue.serverTimestamp(),
         'type': 'permanent_delete',

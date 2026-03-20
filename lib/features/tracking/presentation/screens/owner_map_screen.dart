@@ -92,6 +92,18 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
     _startListening();
     _startAnimationLoop();
     _startTrailRebuildLoop();
+    _setupThemeListener();
+  }
+
+  bool _isDarkModeInitialized = false;
+
+  void _setupThemeListener() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final isDark = Theme.of(context).brightness == Brightness.dark;
+      _lastDarkMode = isDark;
+      _isDarkModeInitialized = true;
+    });
   }
 
   // ── Car icons ─────────────────────────────────────────────────────────────
@@ -550,9 +562,11 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    if (isDark != _lastDarkMode) {
+    if (!_isDarkModeInitialized || isDark != _lastDarkMode) {
+      _isDarkModeInitialized = true;
       _lastDarkMode = isDark;
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
         _mapController?.setMapStyle(isDark ? _darkStyle : null);
         _refreshAllMarkerIcons(isDark);
       });
@@ -727,7 +741,7 @@ class _OwnerMapScreenState extends State<OwnerMapScreen>
                           color: isFollowing
                               ? accentColor.withOpacity(0.12)
                               : cardColor,
-                          borderRadius: BorderRadius.circular(20),
+                          borderRadius: BorderRadius.circular(24),
                           border: Border.all(
                             color: isFollowing ? accentColor : borderColor,
                             width: isFollowing ? 1.5 : 1,
