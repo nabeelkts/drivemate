@@ -3,16 +3,10 @@ import 'package:drivemate/constants/colors.dart';
 import 'package:drivemate/screens/profile/admin/manage_carousel_page.dart';
 import 'package:drivemate/screens/profile/admin/manage_codes_page.dart';
 import 'package:drivemate/screens/profile/admin/manage_users_page.dart';
-import 'package:drivemate/screens/profile/admin/manage_support_chats_page.dart';
 
-class AdminSubscriptionPage extends StatefulWidget {
+class AdminSubscriptionPage extends StatelessWidget {
   const AdminSubscriptionPage({super.key});
 
-  @override
-  State<AdminSubscriptionPage> createState() => _AdminSubscriptionPageState();
-}
-
-class _AdminSubscriptionPageState extends State<AdminSubscriptionPage> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -60,7 +54,8 @@ class _AdminSubscriptionPageState extends State<AdminSubscriptionPage> {
                 context: context,
                 isDark: isDark,
                 title: 'Subscription Codes',
-                description: 'Generate and manage subscription codes for new users',
+                description:
+                    'Generate and manage subscription codes for new users',
                 icon: Icons.confirmation_number,
                 color: Colors.blue,
                 onTap: () => Navigator.push(
@@ -76,28 +71,13 @@ class _AdminSubscriptionPageState extends State<AdminSubscriptionPage> {
                 context: context,
                 isDark: isDark,
                 title: 'Manage Users',
-                description: 'View and manage all registered users and their subscriptions',
+                description:
+                    'View and manage all registered users and their subscriptions',
                 icon: Icons.people,
                 color: Colors.purple,
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const ManageUsersPage()),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 130,
-              child: _buildAdminCard(
-                context: context,
-                isDark: isDark,
-                title: 'Support Chats',
-                description: 'View and respond to user support requests',
-                icon: Icons.support_agent,
-                color: Colors.green,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ManageSupportChatsPage()),
                 ),
               ),
             ),

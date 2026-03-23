@@ -113,6 +113,20 @@ class WorkspaceController extends GetxController {
               data['contactEmail'] ?? data['companyEmail'] ?? data['email'],
         });
         debugPrint('DEBUG: Fetched staff branch data: $staffBranchData');
+      } else {
+        // Branch document doesn't exist - use companyData as fallback
+        // This happens when staff connects to a main branch (company profile)
+        if (companyData.isNotEmpty) {
+          staffBranchData.assignAll({
+            'id': currentBranchId.value,
+            'branchName': companyData['branchName'] ?? companyData['companyName'] ?? 'Branch',
+            'logoUrl': companyData['logoUrl'] ?? companyData['companyLogo'],
+            'location': companyData['location'] ?? companyData['companyAddress'],
+            'contactPhone': companyData['contactPhone'] ?? companyData['companyPhone'],
+            'contactEmail': companyData['contactEmail'] ?? companyData['companyEmail'],
+          });
+          debugPrint('DEBUG: Using companyData as fallback for staff branch data: $staffBranchData');
+        }
       }
     } catch (e) {
       print('Error fetching staff branch data: $e');
@@ -528,6 +542,11 @@ class WorkspaceController extends GetxController {
       _trackingStarted = false;
 
       await _fetchAllAppData();
+
+      // For staff: fetch the specific branch data they're assigned to
+      if (userRole.value == 'Staff' && isConnected.value) {
+        await fetchStaffBranchData();
+      }
 
       return {
         'success': true,

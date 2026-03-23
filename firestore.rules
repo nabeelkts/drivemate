@@ -3,263 +3,270 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
-    // =========================================================================
-    // HELPER FUNCTIONS
-    // =========================================================================
-    
     // Check if user is authenticated
-    function isAuthenticated() {
+    function isAuth() {
       return request.auth != null;
     }
     
-    // Check if user is owner of the document (their UID matches the path)
+    // Check if user owns the document path
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
     
-    // Check if user has valid role in their profile
-    function hasValidRole() {
-      return request.auth.token.role in ['Owner', 'Staff', 'Student'];
+    // Get user's schoolId from their profile (returns null if not set)
+    function getMySchoolId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.schoolId;
     }
     
-    // Get user's role from their profile
-    function getUserRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
+    // Get user's role (returns null if not set)
+    function getMyRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
     }
     
-    // Get user's assigned schoolId from their profile
-    function getUserSchoolId(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.schoolId;
+    // Check if I'm a Staff member of the school
+    function amIStaff() {
+      let myRole = getMyRole();
+      return myRole == 'Staff';
     }
     
-    // Check if authenticated user can access this school's data
-    // For Owner: their UID equals schoolId
-    // For Staff: their schoolId field equals the target schoolId
-    function canAccessSchool(schoolId) {
-      let userId = request.auth.uid;
-      let userRole = getUserRole(userId);
-      let userSchoolId = getUserSchoolId(userId);
-      
-      return userRole == 'Owner' && userId == schoolId ||
-             userRole == 'Staff' && userSchoolId == schoolId ||
-             userRole == 'Student' && userSchoolId == schoolId;
+    // Check if I'm staff of the target user's school
+    function amIStaffOfSchool(targetUserId) {
+      return amIStaff() && getMySchoolId() == targetUserId;
     }
     
-    // Check if user can write (modify) data - Students cannot modify
-    function canWrite() {
-      let userId = request.auth.uid;
-      let userRole = getUserRole(userId);
-      return userRole in ['Owner', 'Staff'];
+    // Check if I'm a student accessing my own data
+    function amIStudent() {
+      return getMyRole() == 'Student';
     }
     
-    // Validate email format
-    function isValidEmail(email) {
-      return email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+    // Get my student docId from my profile (stored when student was created)
+    function getMyStudentDocId() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.studentDocId;
     }
     
-    // Validate required string fields
-    function isValidString(value, minLen, maxLen) {
-      return value is string && value.size() >= minLen && value.size() <= maxLen;
+    // Check if I'm the app developer (specific admin email)
+    function amIDeveloper() {
+      return request.auth.token.email == '3muhammednabeelkt@gmail.com';
     }
     
-    // =========================================================================
-    // USER PROFILES
-    // =========================================================================
+    // Check if I'm admin (Owner of a driving school)
+    function amIAdmin() {
+      let role = getMyRole();
+      return role == 'Admin' || role == 'Owner';
+    }
     
-    // User can read their own profile
-    // Admins can read all profiles
-    match /users/{userId} {
-      allow read: if isAuthenticated() && (
-        isOwner(userId) || 
-        request.auth.token.admin == true
-      );
-      
-      // Users can only create their own profile
-      allow create: if isAuthenticated() && isOwner(userId);
-      
-      // Users can update their own profile (with validation)
-      // Admins can update any profile
-      allow update: if isAuthenticated() && (
-        isOwner(userId) || 
-        request.auth.token.admin == true
-      );
-      
-      allow delete: if false; // Never allow user account deletion
+    // Check if I can access (owner, staff of the school, admin, or student accessing own data)
+    function canAccess(userId) {
+      return isAuth() && (isOwner(userId) || amIStaffOfSchool(userId) || amIAdmin());
+    }
+    
+    // Check if I'm a student accessing my own student document
+    function canAccessStudentData(userId, docId) {
+      return isAuth() && 
+             getMyRole() == 'Student' && 
+             getMySchoolId() == userId &&
+             getMyStudentDocId() == docId;
     }
     
     // =========================================================================
-    // USER SUBCOLLECTIONS - Protected by school ownership
+    // ADMIN ACCESS COLLECTION - For admin panel configuration
     // =========================================================================
     
-    // Helper for school-based access
-    function canAccessSchoolData(schoolId) {
-      return isAuthenticated() && canAccessSchool(schoolId);
+    match /admin_access/{docId} {
+      allow read, write: if isAuth() && amIAdmin();
     }
     
-    function canWriteSchoolData(schoolId) {
-      return isAuthenticated() && canAccessSchool(schoolId) && canWrite();
-    }
+    // =========================================================================
+    // ROOT USERS COLLECTION
+    // =========================================================================
     
-    // Students subcollection - owned by school
-    match /users/{ownerId}/students/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // License Only subcollection - owned by school
-    match /users/{ownerId}/licenseonly/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // Endorsement subcollection - owned by school
-    match /users/{ownerId}/endorsement/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // Vehicle Details subcollection - owned by school
-    match /users/{ownerId}/vehicleDetails/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // DL Services subcollection - owned by school
-    match /users/{ownerId}/dl_services/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // Expenses subcollection - owned by school
-    match /users/{ownerId}/expenses/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // Payments subcollection - owned by school
-    match /users/{ownerId}/payments/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // Extra Fees subcollection - owned by school
-    match /users/{ownerId}/extra_fees/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // Recent Activity - owned by school
-    match /users/{ownerId}/recentActivity/{activityId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // Notifications - per user
-    match /users/{ownerId}/notifications/{notificationId} {
-      allow read: if isAuthenticated() && isOwner(ownerId);
-      allow create: if isAuthenticated() && isOwner(ownerId);
-      allow update: if isAuthenticated() && isOwner(ownerId);
+    // Root level - for listing/querying all users
+    match /users {
+      // Allow read for all authenticated users (needed for support chat to find admin)
+      allow read: if isAuth();
+      allow create: if isAuth() && request.auth.uid == request.resource.data.uid;
+      allow update: if isAuth() && amIAdmin();
       allow delete: if false;
     }
     
-    // Branches - owned by school
-    match /users/{ownerId}/branches/{branchId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // Device tokens - per user
-    match /users/{ownerId}/device_tokens/{tokenId} {
-      allow read: if isAuthenticated() && isOwner(ownerId);
-      allow write: if isAuthenticated() && isOwner(ownerId);
-    }
-    
-    // School vehicles - owned by school
-    match /users/{ownerId}/school_vehicles/{vehicleId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // Lesson paths - owned by school
-    match /users/{ownerId}/lesson_paths/{sessionId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // RC Services - owned by school
-    match /users/{ownerId}/rc_services/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // Deactivated collections - read only, no writes
-    match /users/{ownerId}/deactivated_students/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if false;
-    }
-    
-    match /users/{ownerId}/deactivated_vehicle_details/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if false;
-    }
-    
-    match /users/{ownerId}/deactivated_vehicle_list/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if false;
-    }
-    
-    match /users/{ownerId}/deactivated_licenseonly/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if false;
-    }
-    
-    match /users/{ownerId}/deactivated_endorsement/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if false;
-    }
-    
-    match /users/{ownerId}/deactivated_dl_services/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if false;
-    }
-    
-    // Soft delete recycle bin
-    match /users/{ownerId}/recycle_bin/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // Staff requests
-    match /users/{ownerId}/staff_requests/{requestId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
-    }
-    
-    // Catch-all for any other subcollections
-    match /users/{ownerId}/{collection}/{documentId} {
-      allow read: if canAccessSchoolData(ownerId);
-      allow write: if canWriteSchoolData(ownerId);
+    // Individual user documents
+    match /users/{userId} {
+      // Allow reading: own doc, admin, Owner's staff members, students of the school
+      allow read: if isAuth() && (
+        isOwner(userId) || 
+        amIAdmin() ||
+        amIStaffOfSchool(userId) ||
+        (getMyRole() == 'Student' && getMySchoolId() == userId)
+      );
+      allow create: if isAuth() && isOwner(userId);
+      allow update: if isAuth() && (isOwner(userId) || amIAdmin());
+      allow delete: if false;
+      
+      // ===== ACTIVE SUB COLLECTIONS =====
+      
+      // Students
+      match /students/{docId} {
+        // Allow owner/staff to read/write all students
+        allow read, write: if canAccess(userId);
+        // Allow students to read their own data
+        allow read: if isAuth() && getMyRole() == 'Student' && getMySchoolId() == userId;
+        // Allow read for verification during role selection (any authenticated user can search students in a school)
+        allow read: if isAuth();
+      }
+      match /students/{docId}/{subcol}/{subdocId} {
+        allow read, write: if canAccess(userId);
+        allow read: if isAuth() && getMyRole() == 'Student' && getMySchoolId() == userId;
+      }
+      match /students/{docId}/{subcol}/{subdocId}/{thirdcol}/{thirddocId} {
+        allow read, write: if canAccess(userId);
+        allow read: if isAuth() && getMyRole() == 'Student' && getMySchoolId() == userId;
+      }
+      
+      // License Only
+      match /licenseonly/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      match /licenseonly/{docId}/{subcol}/{subdocId} {
+        allow read, write: if canAccess(userId);
+      }
+      
+      // Endorsement
+      match /endorsement/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      match /endorsement/{docId}/{subcol}/{subdocId} {
+        allow read, write: if canAccess(userId);
+      }
+      
+      // Vehicle Details
+      match /vehicleDetails/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      match /vehicleDetails/{docId}/{subcol}/{subdocId} {
+        allow read, write: if canAccess(userId);
+      }
+      
+      // DL Services
+      match /dl_services/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      match /dl_services/{docId}/{subcol}/{subdocId} {
+        allow read, write: if canAccess(userId);
+      }
+      
+      // School Vehicles (stored under users/{userId}/school_vehicles/{docId})
+      match /school_vehicles/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      
+      // Expenses
+      match /expenses/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      
+      // Payments
+      match /payments/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      
+      // Extra Fees
+      match /extra_fees/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      
+      // Recent Activity
+      match /recentActivity/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      
+      // Notifications
+      match /notifications/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      
+      // Branches
+      match /branches/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      match /branches/{docId}/{subcol}/{subdocId} {
+        allow read, write: if canAccess(userId);
+      }
+      
+      // Join Requests
+      match /join_requests/{docId} {
+        allow read, write: if isAuth() && (isOwner(userId) || amIAdmin());
+      }
+      
+      // ===== DEACTIVATED SUB COLLECTIONS =====
+      
+      match /deactivated_students/{docId} {
+        allow read, write: if canAccess(userId);
+        allow read: if isAuth() && getMyRole() == 'Student' && getMySchoolId() == userId;
+      }
+      match /deactivated_licenseOnly/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      match /deactivated_endorsement/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      match /deactivated_vehicleDetails/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      match /deactivated_dl_services/{docId} {
+        allow read, write: if canAccess(userId);
+      }
+      match /deactivated_rc_services/{docId} {
+        allow read, write: if canAccess(userId);
+      }
     }
     
     // =========================================================================
-    // COLLECTION GROUP QUERIES
-    // These enable cross-collection queries for searching all schools
-    // STRICTLY READ-ONLY and requires proper authentication
+    // SUBSCRIPTION CODES - Admin/Owner only
     // =========================================================================
     
-    // For collection group queries, we check if user belongs to the school
-    // that owns the document via path: users/{schoolId}/...
-    match /{path=**}/payments/{paymentId} {
-      allow read: if isAuthenticated();
-      // Collection groups cannot be written directly
-      allow write: if false;
+    match /subscription_codes/{codeId} {
+      allow read, write: if isAuth() && amIAdmin();
     }
     
     // =========================================================================
-    // DEFAULT DENY - Security by default
+    // CHAT SUPPORT - All authenticated users can participate in chats
     // =========================================================================
     
-    // Deny all other access by default
+    match /chats/{chatId} {
+      // Developer can read ALL chats, participants can read their chats
+      allow read: if isAuth() && (
+        amIDeveloper() ||
+        request.auth.uid in resource.data.participants
+      );
+      // Allow write only for participants
+      allow write: if isAuth() && request.auth.uid in resource.data.participants;
+      allow create: if isAuth();
+      
+      match /messages/{messageId} {
+        allow read, write: if isAuth();
+      }
+    }
+    
+    // =========================================================================
+    // USER NOTIFICATIONS - Client-side notification system
+    // =========================================================================
+    
+    // notifications/{userId}/user_notifications/{notificationId}
+    match /notifications/{userId} {
+      allow read: if isAuth() && request.auth.uid == userId;
+      
+      match /user_notifications/{notificationId} {
+        allow create: if isAuth();
+        allow read: if isAuth() && request.auth.uid == userId;
+        allow update: if isAuth() && request.auth.uid == userId;
+        allow delete: if isAuth() && request.auth.uid == userId;
+      }
+    }
+    
+    // =========================================================================
+    // DEFAULT DENY
+    // =========================================================================
+    
     match /{document=**} {
       allow read, write: if false;
     }

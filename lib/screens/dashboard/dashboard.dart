@@ -34,9 +34,10 @@ class Dashboard extends StatelessWidget {
         ),
       ),
       body: SafeArea(
+        top: false,
         child: SingleChildScrollView(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            padding: const EdgeInsets.only(left: 12, right: 12, top: 0, bottom: 8),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [

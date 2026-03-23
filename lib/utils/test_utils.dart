@@ -7,6 +7,7 @@ import 'package:drivemate/screens/profile/dialog_box.dart';
 import 'package:iconly/iconly.dart';
 import 'package:drivemate/utils/date_utils.dart';
 import 'package:drivemate/controller/workspace_controller.dart';
+import 'package:drivemate/services/email_service.dart';
 
 class TestUtils {
   static Future<void> showUpdateTestDateDialog({
@@ -58,6 +59,8 @@ class TestUtils {
         studentId: studentId,
         llDate: tempLLStorage,
         dlDate: tempDLStorage,
+        email: item['email']?.toString(),
+        fullName: item['fullName']?.toString(),
       );
       if (onUpdate != null) onUpdate();
     }
@@ -106,6 +109,8 @@ class TestUtils {
     required String studentId,
     required String llDate,
     required String dlDate,
+    String? email,
+    String? fullName,
   }) async {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) return;
@@ -127,6 +132,16 @@ class TestUtils {
         'learnersTestDate': llDate,
         'drivingTestDate': dlDate,
       });
+
+      if (email != null && email.isNotEmpty && fullName != null) {
+        if (llDate.isNotEmpty || dlDate.isNotEmpty) {
+           EmailService.sendTestScheduledEmail(
+             email, 
+             fullName, 
+             dlDate.isNotEmpty ? AppDateUtils.formatDateForDisplay(dlDate) : AppDateUtils.formatDateForDisplay(llDate)
+           );
+        }
+      }
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Dates updated successfully')),

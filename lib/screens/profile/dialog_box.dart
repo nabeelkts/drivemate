@@ -277,6 +277,9 @@ Future<void> showCustomInfoDialog(
   );
 }
 
+// Callback type for async operations
+typedef AsyncCallback = Future<void> Function();
+
 Future<void> showCustomStatefulDialog(
   BuildContext context,
   String title,
@@ -285,60 +288,233 @@ Future<void> showCustomStatefulDialog(
   String confirmText = 'Confirm',
   String cancelText = 'Cancel',
   VoidCallback? onConfirm,
+  AsyncCallback? onConfirmAsync,
+  VoidCallback? onCancel,
+  bool isLoading = false,
+}) {
+  return showDialog<void>(
+    context: context,
+    builder: (BuildContext context) {
+      return StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          // Internal loading state that can be controlled externally
+          bool _isLoading = isLoading;
+
+          // Function to update loading state from outside
+          void setLoading(bool loading) {
+            setDialogState(() {
+              _isLoading = loading;
+            });
+          }
+
+          return Dialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 30),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 18.0,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  if (_isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 12),
+                          Text(
+                            'Processing...',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    contentBuilder(ctx, setDialogState),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ActionButton(
+                          text: cancelText,
+                          backgroundColor: const Color(0xFFFFF1F1),
+                          textColor: const Color(0xFFFF0000),
+                          onPressed: _isLoading
+                              ? () {}
+                              : (onCancel ?? () => Navigator.of(ctx).pop()),
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ActionButton(
+                          text: confirmText,
+                          backgroundColor: const Color(0xFFF6FFF0),
+                          textColor: kBlack,
+                          onPressed: _isLoading
+                              ? () {}
+                              : () async {
+                                  // Prefer async callback if provided
+                                  if (onConfirmAsync != null) {
+                                    setLoading(true);
+                                    try {
+                                      await onConfirmAsync!();
+                                      if (ctx.mounted) {
+                                        Navigator.of(ctx).pop();
+                                      }
+                                    } catch (e) {
+                                      setLoading(false);
+                                    }
+                                  } else if (onConfirm != null) {
+                                    // Sync callback - call directly and close
+                                    onConfirm!();
+                                    if (ctx.mounted) {
+                                      Navigator.of(ctx).pop();
+                                    }
+                                  } else {
+                                    Navigator.of(ctx).pop();
+                                  }
+                                },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+// Alternative version that provides setLoading callback to onConfirm
+Future<void> showCustomStatefulDialogWithLoading(
+  BuildContext context,
+  String title,
+  Widget Function(BuildContext, void Function(void Function()), bool isLoading)
+      contentBuilder, {
+  String confirmText = 'Confirm',
+  String cancelText = 'Cancel',
+  Future<void> Function(void Function(bool))? onConfirm,
   VoidCallback? onCancel,
 }) {
   return showDialog<void>(
     context: context,
     builder: (BuildContext context) {
       return StatefulBuilder(
-        builder: (ctx, setDialogState) => Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 30),
-            decoration: BoxDecoration(
+        builder: (ctx, setDialogState) {
+          bool _isLoading = false;
+
+          void setLoading(bool loading) {
+            setDialogState(() {
+              _isLoading = loading;
+            });
+          }
+
+          return Dialog(
+            shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(20),
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w600,
-                    fontSize: 18.0,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 30),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 18.0,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                contentBuilder(ctx, setDialogState),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ActionButton(
-                        text: cancelText,
-                        backgroundColor: const Color(0xFFFFF1F1),
-                        textColor: const Color(0xFFFF0000),
-                        onPressed: onCancel ?? () => Navigator.of(ctx).pop(),
+                  const SizedBox(height: 16),
+                  if (_isLoading)
+                    const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: Column(
+                        children: [
+                          CircularProgressIndicator(),
+                          SizedBox(height: 12),
+                          Text(
+                            'Processing...',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        ],
                       ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: ActionButton(
-                        text: confirmText,
-                        backgroundColor: const Color(0xFFF6FFF0),
-                        textColor: kBlack,
-                        onPressed: onConfirm ?? () => Navigator.of(ctx).pop(),
+                    )
+                  else
+                    contentBuilder(ctx, setDialogState, _isLoading),
+                  const SizedBox(height: 16),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ActionButton(
+                          text: cancelText,
+                          backgroundColor: const Color(0xFFFFF1F1),
+                          textColor: const Color(0xFFFF0000),
+                          onPressed: _isLoading
+                              ? () {}
+                              : (onCancel ?? () => Navigator.of(ctx).pop()),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-              ],
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: ActionButton(
+                          text: confirmText,
+                          backgroundColor: const Color(0xFFF6FFF0),
+                          textColor: kBlack,
+                          onPressed: _isLoading
+                              ? () {}
+                              : () async {
+                                  if (onConfirm != null) {
+                                    setLoading(true);
+                                    try {
+                                      await onConfirm(setLoading);
+                                    } catch (e) {
+                                      setLoading(false);
+                                      if (ctx.mounted) {
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
+                                          SnackBar(content: Text('Error: $e')),
+                                        );
+                                      }
+                                    }
+                                  } else {
+                                    Navigator.of(ctx).pop();
+                                  }
+                                },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       );
     },
   );

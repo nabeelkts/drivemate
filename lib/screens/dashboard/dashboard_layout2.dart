@@ -13,6 +13,7 @@ import 'package:flutter_svg/svg.dart';
 import 'package:drivemate/screens/dashboard/recent_activity_screen.dart';
 import 'package:carousel_slider/carousel_slider.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 
 import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:drivemate/widgets/urgent_task_card.dart';
@@ -57,7 +58,6 @@ class DashboardLayout2 extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(context, workspaceController, isDark, textColor),
-                const SizedBox(height: 12),
                 const UrgentTaskCard(),
                 const SizedBox(height: 12),
                 Padding(
@@ -140,8 +140,10 @@ class DashboardLayout2 extends StatelessWidget {
           } else if (staffBranchData.isNotEmpty) {
             branchName = staffBranchData['branchName'] ?? 'Branch';
           } else if (companyData.isNotEmpty) {
-            branchName = companyData['companyName'] ?? 
-                         companyData['branchName'] ?? 
+            // For staff connected to a branch: use companyData as fallback
+            // The branchId was set but branch data wasn't fetched yet
+            branchName = companyData['branchName'] ?? 
+                         companyData['companyName'] ?? 
                          'Branch';
           }
         }
@@ -1315,10 +1317,53 @@ class _TodayScheduleWidgetState extends State<_TodayScheduleWidget> {
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Container(
-        height: 100,
-        alignment: Alignment.center,
-        child: const CircularProgressIndicator(),
+      return Shimmer.fromColors(
+        baseColor: widget.isDark ? Colors.grey[800]! : Colors.grey[300]!,
+        highlightColor: widget.isDark ? Colors.grey[700]! : Colors.grey[100]!,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: widget.isDark ? const Color(0xFF2a2a2a) : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      width: 130,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: widget.isDark ? Colors.grey[700] : Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      width: 160,
+                      height: 16,
+                      decoration: BoxDecoration(
+                        color: widget.isDark ? Colors.grey[700] : Colors.grey[300],
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  color: widget.isDark ? Colors.grey[700] : Colors.grey[300],
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ],
+          ),
+        ),
       );
     }
 

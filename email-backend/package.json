@@ -1,0 +1,12 @@
+{
+  "name": "drivemate-email-backend",
+  "version": "1.0.0",
+  "description": "Vercel serverless API for emailing",
+  "main": "api/send.js",
+  "scripts": {
+    "start": "node api/send.js"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.7"
+  }
+}

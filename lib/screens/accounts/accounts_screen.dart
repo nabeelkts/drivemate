@@ -44,6 +44,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
   DateTime? endDate;
   String selectedFilter = 'All'; // Default to All
   String selectedPeriod = 'This Month'; // Default to This Month
+  Key _refreshKey = UniqueKey(); // Key to force rebuild on refresh
   List<String> filterOptions = [
     'All',
     'Students',
@@ -389,9 +390,9 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 double.tryParse(data['amount']?.toString() ?? '0') ?? 0.0;
             final note = data['note'] ?? '';
 
-            // Only add if amount > 0 and fee is unpaid
-            final status = data['status']?.toString() ?? 'unpaid';
-            if (amount > 0 && status != 'paid') {
+            // Add all extra fees with amount > 0 (both paid and unpaid)
+            // Unpaid fees show as pending income, paid fees show as received income
+            if (amount > 0) {
               // Extract the parent document ID and collection from the reference path
               final parentPath = doc.reference.parent.parent?.path ?? '';
               final pathParts = parentPath.split('/');
@@ -425,16 +426,23 @@ class _AccountsScreenState extends State<AccountsScreen> {
                 }
               }
 
+              // Check if paid or unpaid
+              final status = data['status']?.toString() ?? 'unpaid';
+              final bool isPaid = status == 'paid';
+
               extraFeesTransactions.add(TransactionData(
                 date: date,
                 name: name,
                 amount: amount,
-                type: 'Additional Fee',
+                type: isPaid
+                    ? 'Additional Fee (Paid)'
+                    : 'Additional Fee (Pending)',
                 collectionId:
                     parentCollection, // Use the parent collection for navigation
                 doc: doc,
                 note: note,
                 recordId: recordId, // Add the record ID for navigation
+                isExpense: false, // Extra fees are income, not expense
               ));
             }
           }
@@ -506,6 +514,7 @@ class _AccountsScreenState extends State<AccountsScreen> {
                         : (user?.uid ?? '');
 
                 return StreamBuilder<List<QuerySnapshot<Map<String, dynamic>>>>(
+                  key: _refreshKey,
                   // Use combined stream to ensure real-time updates from ANY collection
                   stream: _getCombinedTransactionsStream(targetId),
                   builder: (context, snapshot) {
@@ -748,8 +757,26 @@ class _AccountsScreenState extends State<AccountsScreen> {
                       }).toList();
                     }
 
-                    // Sort
+                    // Sort by newest first
                     filtered.sort((a, b) => b.date.compareTo(a.date));
+
+                    // Calculate Today's transactions
+                    final now = DateTime.now();
+                    final today = DateTime(now.year, now.month, now.day);
+                    final todayTransactions = filtered.where((t) {
+                      final tDate =
+                          DateTime(t.date.year, t.date.month, t.date.day);
+                      return tDate.isAtSameMomentAs(today);
+                    }).toList();
+
+                    // Today's totals
+                    double todayIncome = todayTransactions
+                        .where((t) => !t.isExpense)
+                        .fold(0.0, (sum, t) => sum + t.amount);
+                    double todayExpense = todayTransactions
+                        .where((t) => t.isExpense)
+                        .fold(0.0, (sum, t) => sum + t.amount);
+                    double todayNet = todayIncome - todayExpense;
 
                     // Period Totals (Dynamic based on filter)
                     double tIncome = filtered
@@ -771,29 +798,39 @@ class _AccountsScreenState extends State<AccountsScreen> {
                                         date: DateTime.now(),
                                         allTransactions: _allTransactions,
                                       ))),
-                          child: _buildFinancialSummaryCard(
-                              cardColor, borderColor, textColor, tNet),
+                          child: _buildFinancialSummaryCard(cardColor,
+                              borderColor, textColor, todayNet, tNet),
                         ),
                         const SizedBox(height: 12),
                         Row(
                           children: [
                             Expanded(
                                 child: _buildActionButton(
-                                    'Add Income', Colors.green, () {
-                              Navigator.push(
+                                    'Add Income', Colors.green, () async {
+                              await Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                       builder: (c) => ReceiveMoneyPage()));
+                              if (mounted) {
+                                setState(() {
+                                  _refreshKey = UniqueKey();
+                                });
+                              }
                             })),
                             const SizedBox(width: 12),
                             Expanded(
                                 child: _buildActionButton(
-                                    'Add Expense', Colors.red.shade700, () {
-                              Navigator.push(
+                                    'Add Expense', Colors.red.shade700, () async {
+                              await Navigator.push(
                                   context,
                                   MaterialPageRoute(
                                       builder: (c) =>
                                           const AddExpenseScreen()));
+                              if (mounted) {
+                                setState(() {
+                                  _refreshKey = UniqueKey();
+                                });
+                              }
                             })),
                           ],
                         ),
@@ -810,22 +847,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
                           child: filtered.isEmpty
                               ? const Center(
                                   child: Text('No transactions found'))
-                              : ListView.builder(
-                                  itemCount: filtered.length,
-                                  itemBuilder: (context, index) {
-                                    final t = filtered[index];
-                                    return buildTransactionRow(
-                                      context,
-                                      t,
-                                      DateFormat('dd/MM/yyyy hh:mm a')
-                                          .format(t.date),
-                                      t.type,
-                                      cardColor,
-                                      borderColor,
-                                      textColor,
-                                    );
-                                  },
-                                ),
+                              : _buildReorderedTransactionList(filtered,
+                                  context, cardColor, borderColor, textColor),
                         ),
                       ],
                     );
@@ -854,8 +877,8 @@ class _AccountsScreenState extends State<AccountsScreen> {
     }
   }
 
-  Widget _buildFinancialSummaryCard(
-      Color cardColor, Color borderColor, Color textColor, double netBalance) {
+  Widget _buildFinancialSummaryCard(Color cardColor, Color borderColor,
+      Color textColor, double todayNetBalance, double totalNetBalance) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -881,28 +904,30 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   color: textColor.withOpacity(0.5), size: 14),
             ],
           ),
-          const SizedBox(height: 8),
-          Text('Net Balance:',
+          const SizedBox(height: 12),
+          // Today's Balance
+          Text("Today's Balance:",
               style:
                   TextStyle(color: textColor.withOpacity(0.9), fontSize: 14)),
           const SizedBox(height: 4),
           Row(
             children: [
               Text(
-                'Rs. ${NumberFormat('#,##0').format(netBalance)}',
+                'Rs. ${NumberFormat('#,##0').format(todayNetBalance)}',
                 style: TextStyle(
-                    color: netBalance >= 0 ? Colors.green : Colors.red,
+                    color: todayNetBalance >= 0 ? Colors.green : Colors.red,
                     fontSize: 20,
                     fontWeight: FontWeight.bold),
               ),
               const SizedBox(width: 8),
               Icon(
-                netBalance >= 0 ? Icons.show_chart : Icons.trending_down,
-                color: netBalance >= 0 ? Colors.green : Colors.red,
+                todayNetBalance >= 0 ? Icons.show_chart : Icons.trending_down,
+                color: todayNetBalance >= 0 ? Colors.green : Colors.red,
                 size: 28,
               ),
             ],
           ),
+          const SizedBox(height: 8),
         ],
       ),
     );
@@ -925,6 +950,75 @@ class _AccountsScreenState extends State<AccountsScreen> {
                   fontWeight: FontWeight.w600)),
         ),
       ),
+    );
+  }
+
+  Widget _buildReorderedTransactionList(
+      List<TransactionData> filtered,
+      BuildContext context,
+      Color cardColor,
+      Color borderColor,
+      Color textColor) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    final reorderedTransactions = filtered;
+
+    return ListView.builder(
+      itemCount: reorderedTransactions.length,
+      itemBuilder: (context, index) {
+        final t = reorderedTransactions[index];
+        final tDate = DateTime(t.date.year, t.date.month, t.date.day);
+        final isToday = tDate.isAtSameMomentAs(today);
+        final isYesterday = tDate.isAtSameMomentAs(yesterday);
+
+        // Check if this is the first transaction of a new date group
+        bool isFirstOfDateGroup = index == 0 ||
+            !DateTime(
+                    reorderedTransactions[index - 1].date.year,
+                    reorderedTransactions[index - 1].date.month,
+                    reorderedTransactions[index - 1].date.day)
+                .isAtSameMomentAs(tDate);
+
+        String dateLabel = '';
+        if (isFirstOfDateGroup) {
+          if (isToday) {
+            dateLabel = 'Today';
+          } else if (isYesterday) {
+            dateLabel = 'Yesterday';
+          } else {
+            dateLabel = DateFormat('dd MMM yyyy').format(t.date);
+          }
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (dateLabel.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 4),
+                child: Text(
+                  dateLabel,
+                  style: TextStyle(
+                    color: isToday ? Colors.green.shade700 : textColor.withOpacity(0.6),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            buildTransactionRow(
+              context,
+              t,
+              DateFormat('dd/MM/yyyy hh:mm a').format(t.date),
+              t.type,
+              cardColor,
+              borderColor,
+              textColor,
+            ),
+          ],
+        );
+      },
     );
   }
 

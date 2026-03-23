@@ -154,6 +154,7 @@ class CommonFormState extends State<CommonForm> {
 
   late TextEditingController studentIdController;
   late TextEditingController fullNameController;
+  late TextEditingController emailController;
   late TextEditingController guardianNameController;
   late TextEditingController dobController;
   late TextEditingController mobileNumberController;
@@ -202,6 +203,7 @@ class CommonFormState extends State<CommonForm> {
     // Initialize all controllers
     studentIdController = TextEditingController();
     fullNameController = TextEditingController();
+    emailController = TextEditingController();
     guardianNameController = TextEditingController();
     dobController = TextEditingController();
     mobileNumberController = TextEditingController();
@@ -244,6 +246,8 @@ class CommonFormState extends State<CommonForm> {
         text: widget.initialValues?['studentId']?.toString() ?? '');
     fullNameController = TextEditingController(
         text: widget.initialValues?['fullName']?.toString() ?? '');
+    emailController = TextEditingController(
+        text: widget.initialValues?['email']?.toString() ?? '');
     guardianNameController = TextEditingController(
         text: widget.initialValues?['guardianName']?.toString() ?? '');
 
@@ -531,6 +535,7 @@ class CommonFormState extends State<CommonForm> {
   void dispose() {
     studentIdController.dispose();
     fullNameController.dispose();
+    emailController.dispose();
     guardianNameController.dispose();
     dobController.dispose();
     mobileNumberController.dispose();
@@ -649,6 +654,7 @@ class CommonFormState extends State<CommonForm> {
       Map<String, dynamic> student = {
         'studentId': studentIdController.text,
         'fullName': fullNameController.text,
+        'email': emailController.text.trim().isEmpty ? null : emailController.text.trim(),
         'guardianName': guardianNameController.text,
         'dob': AppDateUtils.formatDateForStorage(dobController.text),
         'mobileNumber': mobileNumberController.text,
@@ -831,6 +837,9 @@ class CommonFormState extends State<CommonForm> {
     return buildSection('Personal Details', [
       buildTextField(
           'Full Name', fullNameController, 'Enter Full Name', textColor),
+      buildTextField('Email Address', emailController,
+          'Enter Email (Optional)', textColor,
+          keyboardType: TextInputType.emailAddress),
       buildTextField('Guardian Name', guardianNameController,
           'Enter Guardian Name', textColor),
       buildDateField('DOB', dobController, 'DD-MM-YYYY', textColor,
@@ -1189,6 +1198,13 @@ class CommonFormState extends State<CommonForm> {
                     if (normalizedLabel.contains('pin')) {
                       if (!RegExp(r'^\d{6}$').hasMatch(v)) {
                         return 'Invalid PIN';
+                      }
+                      return null;
+                    }
+                    if (normalizedLabel.contains('email')) {
+                      if (v.isEmpty) return null;
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(v)) {
+                        return 'Invalid Email';
                       }
                       return null;
                     }

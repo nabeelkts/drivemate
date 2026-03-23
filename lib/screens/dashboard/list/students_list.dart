@@ -24,6 +24,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:drivemate/services/excel_import_service.dart';
 import 'package:drivemate/screens/dashboard/import/import_screen.dart';
 import 'package:drivemate/screens/dashboard/export/export_screen.dart';
+import 'package:drivemate/services/email_service.dart';
 
 class StudentList extends StatefulWidget {
   final String userId;
@@ -433,6 +434,14 @@ class _StudentListState extends State<StudentList> {
           'testStatus': status,
           'testDate': DateTime.now().toIso8601String(),
         });
+      }
+
+      if (studentData['email'] != null && studentData['email'].toString().isNotEmpty) {
+        EmailService.sendTestResultEmail(
+          studentData['email'].toString(),
+          studentData['fullName']?.toString() ?? 'Student',
+          status,
+        );
       }
     }
   }

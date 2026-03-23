@@ -81,8 +81,8 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         'category': _selectedCategoryId,
         'categoryLabel': categoryLabel,
         'amount': amount,
-        'date': DateFormat('yyyy-MM-dd').format(_selectedDate),
-        'timestamp': Timestamp.fromDate(_selectedDate),
+        'date': DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now()),
+        'timestamp': Timestamp.fromDate(DateTime.now()),
         'note': _noteController.text.trim(),
         'createdAt': FieldValue.serverTimestamp(),
         'targetId': targetId,
@@ -236,3 +236,4 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     );
   }
 }
+

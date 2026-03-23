@@ -66,6 +66,16 @@ class OrganizationManagementPage extends StatelessWidget {
             branchData = branch;
           } else if (staffBranchData.isNotEmpty) {
             branchData = staffBranchData;
+          } else if (companyData.isNotEmpty) {
+            // For staff connected to a branch: use companyData as fallback
+            branchData = {
+              'id': branchId,
+              'branchName': companyData['branchName'] ?? companyData['companyName'] ?? 'Branch',
+              'logoUrl': companyData['logoUrl'] ?? companyData['companyLogo'],
+              'location': companyData['location'] ?? companyData['companyAddress'],
+              'contactPhone': companyData['contactPhone'] ?? companyData['companyPhone'],
+              'contactEmail': companyData['contactEmail'] ?? companyData['companyEmail'],
+            };
           }
         }
         

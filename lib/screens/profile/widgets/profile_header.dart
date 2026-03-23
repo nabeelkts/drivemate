@@ -93,7 +93,7 @@ class ProfileHeader extends StatelessWidget {
         ),
       ),
       child: CircleAvatar(
-        radius: 38,
+        radius: 30,
         backgroundColor: kPrimaryColor.withOpacity(0.1),
         backgroundImage: currentUser?.photoURL != null
             ? CachedNetworkImageProvider(currentUser!.photoURL!)
@@ -109,7 +109,7 @@ class ProfileHeader extends StatelessWidget {
                           : '?'),
                   style: TextStyle(
                     color: textColor,
-                    fontSize: 24,
+                    fontSize: 20,
                     fontWeight: FontWeight.bold,
                   ),
                 );
@@ -131,9 +131,12 @@ class ProfileHeader extends StatelessWidget {
                   'User',
               style: TextStyle(
                 color: textColor,
-                fontSize: 18,
+                fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
+              softWrap: true,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             );
           }),
           const SizedBox(height: 4),

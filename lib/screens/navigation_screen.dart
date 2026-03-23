@@ -440,6 +440,13 @@ class _StudentDetailsScreenLoaderState
 
   Future<void> _loadStudentData() async {
     try {
+      // Wait for workspace controller to finish loading if it's still loading
+      int waitCount = 0;
+      while (_workspaceController.isLoading.value && waitCount < 50) {
+        await Future.delayed(const Duration(milliseconds: 100));
+        waitCount++;
+      }
+
       final schoolId = _workspaceController.currentSchoolId.value;
       final studentDocId = _workspaceController.studentDocId.value;
 

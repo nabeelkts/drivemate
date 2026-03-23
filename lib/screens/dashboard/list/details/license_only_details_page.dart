@@ -377,8 +377,8 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                 );
               },
               child: Container(
-                width: 90,
-                height: 90,
+                width: 80,
+                height: 80,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   border: Border.all(color: kAccentRed, width: 2),
@@ -413,7 +413,7 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                   licenseDetails['fullName'] ?? licenseDetails['name'] ?? 'N/A',
                   style: TextStyle(
                     color: textColor,
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                   softWrap: true,
@@ -1031,21 +1031,22 @@ class _LicenseOnlyDetailsPageState extends State<LicenseOnlyDetailsPage> {
                         Container(
                           margin: const EdgeInsets.only(right: 8),
                           child: TextButton(
-                            onPressed: () =>
-                                PaymentUtils.showCollectExtraFeeDialog(
-                                    context: context,
-                                    docRef: FirebaseFirestore.instance
-                                        .collection('users')
-                                        .doc(targetId)
-                                        .collection('licenseonly')
-                                        .doc(_docId),
-                                    feeDoc: doc,
-                                    targetId: targetId,
-                                    branchId: _workspaceController
-                                        .currentBranchId.value),
+                            onPressed:
+                                () =>
+                                    PaymentUtils.showCollectExtraFeeDialog(
+                                        context: context,
+                                        docRef: FirebaseFirestore.instance
+                                            .collection('users')
+                                            .doc(targetId)
+                                            .collection('licenseonly')
+                                            .doc(_docId),
+                                        feeDoc: doc,
+                                        targetId: targetId,
+                                        branchId: _workspaceController
+                                            .currentBranchId.value),
                             child: const Text('Collect',
-                                style:
-                                    TextStyle(color: Colors.green, fontSize: 12)),
+                                style: TextStyle(
+                                    color: Colors.green, fontSize: 12)),
                           ),
                         ),
                       PopupMenuButton<String>(

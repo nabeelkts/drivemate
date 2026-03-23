@@ -362,7 +362,7 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
                 Text(vehicleDetails['vehicleNumber'] ?? 'N/A',
                     style: TextStyle(
                         color: textColor,
-                        fontSize: 20,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold),
                     softWrap: true,
                     maxLines: 3,
@@ -950,9 +950,58 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
       await LoadingUtils.wrapWithLoading(context, () async {
         final workspace = Get.find<WorkspaceController>();
         final companyData = workspace.companyData;
+
+        // Get targetId for querying
+        final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+            ? _workspaceController.currentSchoolId.value
+            : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
+        // Get selected payments
         final selectedPayments = _cachedPayments
             .where((p) => _selectedTransactionIds.contains(p['id']))
             .toList();
+
+        // Also fetch extra fees that match the selected IDs
+        final extraFeesQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('rc_services')
+            .doc(_docId)
+            .collection('extra_fees')
+            .where(FieldPath.documentId, whereIn: _selectedTransactionIds)
+            .get();
+
+        final extraFeesData = extraFeesQuery.docs.map((d) {
+          final data = d.data();
+          return {
+            'id': d.id,
+            'amount': data['amount'],
+            'description': data['description'] ?? 'Additional Fee',
+            'mode': data['paymentMode'] ?? 'Cash',
+            'date': data['paymentDate'] ?? data['date'],
+            'note': data['paymentNote'] ?? data['note'],
+            'isExtraFee': true,
+          };
+        }).toList();
+
+        // Combine payments and extra fees
+        final allTransactions = [...selectedPayments, ...extraFeesData];
+
+        // Sort by date
+        allTransactions.sort((a, b) {
+          final dateA = a['date'] is DateTime
+              ? a['date']
+              : (a['date'] is Timestamp
+                  ? (a['date'] as Timestamp).toDate()
+                  : DateTime.now());
+          final dateB = b['date'] is DateTime
+              ? b['date']
+              : (b['date'] is Timestamp
+                  ? (b['date'] as Timestamp).toDate()
+                  : DateTime.now());
+          return dateB.compareTo(dateA);
+        });
+
         Uint8List? logoBytes;
         if (companyData['hasCompanyProfile'] == true &&
             companyData['companyLogo'] != null) {
@@ -962,7 +1011,7 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
         final pdfBytes = await PdfService.generateReceipt(
           companyData: companyData,
           studentDetails: vehicleDetails,
-          transactions: selectedPayments,
+          transactions: allTransactions,
           companyLogoBytes: logoBytes,
         );
         _showPdfPreview(context, pdfBytes);
@@ -1023,19 +1072,18 @@ class _RCDetailsPageState extends State<RCDetailsPage> {
                         Container(
                           margin: const EdgeInsets.only(right: 8),
                           child: TextButton(
-                              onPressed:
-                                  () =>
-                                      PaymentUtils.showCollectExtraFeeDialog(
-                                          context: context,
-                                          docRef: FirebaseFirestore.instance
-                                              .collection('users')
-                                              .doc(targetId)
-                                              .collection('rc_services')
-                                              .doc(_docId),
-                                          feeDoc: doc,
-                                          targetId: targetId,
-                                          branchId: _workspaceController
-                                              .currentBranchId.value),
+                              onPressed: () =>
+                                  PaymentUtils.showCollectExtraFeeDialog(
+                                      context: context,
+                                      docRef: FirebaseFirestore.instance
+                                          .collection('users')
+                                          .doc(targetId)
+                                          .collection('rc_services')
+                                          .doc(_docId),
+                                      feeDoc: doc,
+                                      targetId: targetId,
+                                      branchId: _workspaceController
+                                          .currentBranchId.value),
                               child: const Text('Collect')),
                         ),
                       IconButton(

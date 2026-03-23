@@ -1,11 +1,14 @@
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
-import 'package:drivemate/constants/colors.dart';
+import 'package:get/get.dart';
+import 'package:drivemate/controller/workspace_controller.dart';
 import 'package:drivemate/services/pdf_service.dart';
 import 'package:drivemate/screens/dashboard/list/details/pdf_preview_screen.dart';
 import 'package:drivemate/screens/profile/dialog_box.dart';
+import 'package:drivemate/services/email_service.dart';
 
 class PaymentUtils {
   static Future<void> showReceiveMoneyDialog({
@@ -118,7 +121,7 @@ class PaymentUtils {
       ),
       confirmText: 'Save',
       cancelText: 'Cancel',
-      onConfirm: () async {
+      onConfirmAsync: () async {
         final amount = double.tryParse(amountController.text.trim());
         if (amount == null || amount <= 0) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -268,8 +271,46 @@ class PaymentUtils {
           );
           await finalBatch.commit();
 
+          // Send Email Receipt with PDF Attachment
+          if (data['email'] != null && data['email'].toString().isNotEmpty) {
+            try {
+              final workspaceCtrl = Get.find<WorkspaceController>();
+              final pdfBytes = await PdfService.generateReceipt(
+                companyData: workspaceCtrl.companyData,
+                studentDetails: data,
+                transactions: [
+                  {
+                    'amount': amount,
+                    'mode': selectedMode,
+                    'date': Timestamp.fromDate(combinedDateTime),
+                    'description': description,
+                  }
+                ]
+              );
+
+              EmailService.sendPaymentReceipt(
+                data['email'].toString(),
+                name,
+                amount,
+                dateStr,
+                pdfBytes: pdfBytes,
+                paymentMode: selectedMode,
+              );
+            } catch (e) {
+              if (kDebugMode) print('Failed to attach PDF to email: $e');
+              // Fallback to sending without PDF if something fails
+              EmailService.sendPaymentReceipt(
+                data['email'].toString(),
+                name,
+                amount,
+                dateStr,
+                paymentMode: selectedMode,
+              );
+            }
+          }
+
+          // Success - dialog will close automatically
           if (context.mounted) {
-            Navigator.pop(context);
             ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('Payment recorded')));
           }
@@ -1515,7 +1556,7 @@ class PaymentUtils {
       ),
       confirmText: 'Collect',
       cancelText: 'Cancel',
-      onConfirm: () async {
+      onConfirmAsync: () async {
         final combinedDateTime = DateTime(
           selectedDate.year,
           selectedDate.month,
@@ -1578,29 +1619,34 @@ class PaymentUtils {
           );
           await finalBatch.commit();
 
-          if (generateReceipt && context.mounted) {
-            try {
-              final companySnap = await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(targetId)
-                  .get();
-              final companyData = companySnap.data() ?? {};
+          if (context.mounted) {
+            // Show success message
+            ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Fee collected successfully')));
 
-              final txData = {
-                'amount': feeAmount,
-                'description': feeDescription,
-                'mode': selectedMode,
-                'date': combinedDateTime,
-                'note': noteController.text.trim(),
-              };
+            if (generateReceipt) {
+              try {
+                final companySnap = await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(targetId)
+                    .get();
+                final companyData = companySnap.data() ?? {};
 
-              final Uint8List pdfBytes = await PdfService.generateReceipt(
-                companyData: companyData,
-                studentDetails: parentData,
-                transactions: [txData],
-              );
+                final txData = {
+                  'amount': feeAmount,
+                  'description': feeDescription,
+                  'mode': selectedMode,
+                  'date': combinedDateTime,
+                  'note': noteController.text.trim(),
+                };
 
-              if (context.mounted) {
+                final Uint8List pdfBytes = await PdfService.generateReceipt(
+                  companyData: companyData,
+                  studentDetails: parentData,
+                  transactions: [txData],
+                );
+
+                Navigator.pop(context); // Close dialog
                 Navigator.push(
                   context,
                   MaterialPageRoute(
@@ -1611,22 +1657,17 @@ class PaymentUtils {
                     ),
                   ),
                 );
+              } catch (pdfError) {
+                Navigator.pop(context); // Close dialog even on error
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error generating PDF: $pdfError')),
+                  );
+                }
               }
-            } catch (pdfError) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Error generating PDF: $pdfError')),
-                );
-              }
-            }
-          }
-
-          if (context.mounted) {
-            if (!generateReceipt) {
+            } else {
               Navigator.pop(context);
             }
-            ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Fee collected successfully')));
           }
         } catch (e) {
           if (context.mounted) {

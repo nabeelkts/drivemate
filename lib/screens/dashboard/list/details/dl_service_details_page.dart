@@ -393,8 +393,8 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
               );
             },
             child: Container(
-              width: 100,
-              height: 100,
+              width: 80,
+              height: 80,
               decoration: BoxDecoration(
                 color: kAccentRed,
                 shape: BoxShape.circle,
@@ -434,7 +434,7 @@ class _DlServiceDetailsPageState extends State<DlServiceDetailsPage> {
                   serviceDetails['fullName'] ?? serviceDetails['name'] ?? 'N/A',
                   style: TextStyle(
                     color: textColor,
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                   softWrap: true,

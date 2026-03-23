@@ -17,6 +17,7 @@ import 'package:provider/provider.dart';
 import 'package:drivemate/screens/profile/edit_company_profile.dart';
 import 'package:drivemate/screens/authentication/role_selection_page.dart';
 import 'package:drivemate/services/security_service.dart';
+import 'package:drivemate/services/email_service.dart';
 import 'package:get/get.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -167,6 +168,12 @@ class _SignUpPageState extends State<SignUpPage> {
                 false, // User needs to select role after verification
             'registrationDate': DateTime.now().toIso8601String(),
           }, user.uid);
+
+          // Trigger Welcome Email
+          EmailService.sendWelcomeEmail(
+            emailController.text.trim(),
+            nameController.text.trim(),
+          );
 
           if (mounted) {
             setState(() {

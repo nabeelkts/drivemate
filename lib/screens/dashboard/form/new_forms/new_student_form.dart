@@ -10,6 +10,9 @@ import 'package:drivemate/screens/dashboard/list/details/students_details_page.d
 import 'package:drivemate/screens/widget/common_form.dart';
 import 'package:drivemate/screens/widget/custom_back_button.dart';
 import 'package:drivemate/screens/widget/utils.dart';
+import 'package:drivemate/services/email_service.dart';
+import 'package:drivemate/services/pdf_service.dart';
+import 'package:drivemate/utils/date_utils.dart';
 
 class NewStudent extends StatefulWidget {
   const NewStudent({super.key});
@@ -183,9 +186,51 @@ class _NewStudentState extends State<NewStudent> {
 
             // Execute operations in parallel WITHOUT awaiting them all to prevent UI hang
             // Firestore persistence will handle the background synchronization.
-            unawaited(Future.wait(operations).then((_) {
+            unawaited(Future.wait(operations).then((_) async {
               if (kDebugMode) {
                 print('All background sync operations initiated successfully');
+              }
+              if (student['email'] != null && student['email'].toString().isNotEmpty) {
+                EmailService.sendStudentWelcomeEmail(
+                  student['email'].toString(),
+                  fullName,
+                  studentId!,
+                );
+                
+                final advance = double.tryParse(student['advanceAmount']?.toString() ?? '0') ?? 0;
+                if (advance > 0) {
+                  try {
+                    final workspaceCtrl = Get.find<WorkspaceController>();
+                    final pdfBytes = await PdfService.generateReceipt(
+                      companyData: workspaceCtrl.companyData,
+                      studentDetails: student,
+                      transactions: [
+                        {
+                          'amount': advance,
+                          'mode': 'Advance', // Or whatever default mode you capture
+                          'date': Timestamp.now(),
+                          'description': 'Initial Advance during Registration',
+                        }
+                      ],
+                    );
+
+                    EmailService.sendPaymentReceipt(
+                      student['email'].toString(),
+                      fullName,
+                      advance,
+                      formattedDate,
+                      pdfBytes: pdfBytes,
+                    );
+                  } catch (e) {
+                    if (kDebugMode) print('Failed to attach PDF to email: $e');
+                    EmailService.sendPaymentReceipt(
+                      student['email'].toString(),
+                      fullName,
+                      advance,
+                      formattedDate,
+                    );
+                  }
+                }
               }
             }).catchError((e) {
               if (kDebugMode) {

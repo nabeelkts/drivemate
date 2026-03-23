@@ -372,8 +372,8 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                   }
                 },
                 child: Container(
-                  width: 100,
-                  height: 100,
+                  width: 80,
+                  height: 80,
                   decoration: BoxDecoration(
                       color: kAccentRed.withOpacity(0.1),
                       shape: BoxShape.circle,
@@ -409,7 +409,7 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
                 Text(endorsementDetails['fullName'] ?? 'N/A',
                     style: TextStyle(
                         color: textColor,
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.bold),
                     softWrap: true,
                     maxLines: 3,
@@ -824,110 +824,111 @@ class _EndorsementDetailsPageState extends State<EndorsementDetailsPage> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            ...docs.map((doc) {
-              final data = doc.data() as Map<String, dynamic>;
-              final date = (data['date'] as Timestamp).toDate();
-              final isPaid =
-                  (data['status']?.toString() ?? '').toLowerCase() == 'paid';
+            ...docs.map(
+              (doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final date = (data['date'] as Timestamp).toDate();
+                final isPaid =
+                    (data['status']?.toString() ?? '').toLowerCase() == 'paid';
 
-              return Card(
-                elevation: 0,
-                margin: const EdgeInsets.only(bottom: 8),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(
-                      color: isPaid
-                          ? Colors.green.withOpacity(0.5)
-                          : Colors.grey[200]!),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: _selectedTransactionIds.contains(doc.id),
-                        onChanged: isPaid
-                            ? (val) {
-                                setState(() {
-                                  if (val == true)
-                                    _selectedTransactionIds.add(doc.id);
-                                  else
-                                    _selectedTransactionIds.remove(doc.id);
-                                });
-                              }
-                            : null,
-                      ),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(data['description'] ?? 'Fee',
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.bold)),
-                            Text('Rs. ${data['amount']}',
-                                style: const TextStyle(
-                                    color: kAccentRed,
-                                    fontWeight: FontWeight.bold)),
-                            Text(DateFormat('dd MMM yyyy').format(date),
-                                style: TextStyle(
-                                    color: subTextColor, fontSize: 11)),
-                          ],
+                return Card(
+                  elevation: 0,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                        color: isPaid
+                            ? Colors.green.withOpacity(0.5)
+                            : Colors.grey[200]!),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12.0),
+                    child: Row(
+                      children: [
+                        Checkbox(
+                          value: _selectedTransactionIds.contains(doc.id),
+                          onChanged: isPaid
+                              ? (val) {
+                                  setState(() {
+                                    if (val == true)
+                                      _selectedTransactionIds.add(doc.id);
+                                    else
+                                      _selectedTransactionIds.remove(doc.id);
+                                  });
+                                }
+                              : null,
                         ),
-                      ),
-                      if (!isPaid)
-                        Container(
-                          margin: const EdgeInsets.only(right: 8),
-                          child: TextButton(
-                            onPressed: () =>
-                                PaymentUtils.showCollectExtraFeeDialog(
-                              context: context,
-                              docRef: FirebaseFirestore.instance
-                                  .collection('users')
-                                  .doc(targetId)
-                                  .collection('endorsement')
-                                  .doc(_docId),
-                              feeDoc: doc,
-                              targetId: targetId,
-                              branchId:
-                                  _workspaceController.currentBranchId.value,
-                            ),
-                            child: const Text('Collect'),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(data['description'] ?? 'Fee',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold)),
+                              Text('Rs. ${data['amount']}',
+                                  style: const TextStyle(
+                                      color: kAccentRed,
+                                      fontWeight: FontWeight.bold)),
+                              Text(DateFormat('dd MMM yyyy').format(date),
+                                  style: TextStyle(
+                                      color: subTextColor, fontSize: 11)),
+                            ],
                           ),
                         ),
-                      IconButton(
-                        icon: const Icon(Icons.edit_outlined,
-                            color: Colors.blue, size: 20),
-                        onPressed: () => PaymentUtils.showEditExtraFeeDialog(
-                          context: context,
-                          docRef: FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(targetId)
-                              .collection('endorsement')
-                              .doc(_docId),
-                          feeDoc: doc,
-                          targetId: targetId,
-                          category: 'endorsement',
+                        if (!isPaid)
+                          Container(
+                            margin: const EdgeInsets.only(right: 8),
+                            child: TextButton(
+                              onPressed: () =>
+                                  PaymentUtils.showCollectExtraFeeDialog(
+                                context: context,
+                                docRef: FirebaseFirestore.instance
+                                    .collection('users')
+                                    .doc(targetId)
+                                    .collection('endorsement')
+                                    .doc(_docId),
+                                feeDoc: doc,
+                                targetId: targetId,
+                                branchId:
+                                    _workspaceController.currentBranchId.value,
+                              ),
+                              child: const Text('Collect'),
+                            ),
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.edit_outlined,
+                              color: Colors.blue, size: 20),
+                          onPressed: () => PaymentUtils.showEditExtraFeeDialog(
+                            context: context,
+                            docRef: FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(targetId)
+                                .collection('endorsement')
+                                .doc(_docId),
+                            feeDoc: doc,
+                            targetId: targetId,
+                            category: 'endorsement',
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline,
-                            color: Colors.red, size: 20),
-                        onPressed: () => PaymentUtils.deleteExtraFee(
-                          context: context,
-                          docRef: FirebaseFirestore.instance
-                              .collection('users')
-                              .doc(targetId)
-                              .collection('endorsement')
-                              .doc(_docId),
-                          feeDoc: doc,
-                          targetId: targetId,
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red, size: 20),
+                          onPressed: () => PaymentUtils.deleteExtraFee(
+                            context: context,
+                            docRef: FirebaseFirestore.instance
+                                .collection('users')
+                                .doc(targetId)
+                                .collection('endorsement')
+                                .doc(_docId),
+                            feeDoc: doc,
+                            targetId: targetId,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              );
-            },
+                );
+              },
             ),
           ],
         );

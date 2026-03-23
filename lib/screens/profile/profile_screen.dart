@@ -23,7 +23,6 @@ import 'package:drivemate/screens/profile/settings_page.dart';
 import 'package:drivemate/screens/profile/about_page.dart'; // ← new
 import 'package:drivemate/screens/profile/all_services_page.dart'; // ← new
 import 'package:drivemate/screens/recycle_bin/recycle_bin_screen.dart'; // Recycle Bin
-import 'package:drivemate/screens/chat/contact_support_screen.dart'; // Chat Support
 
 class ProfileScreen extends StatefulWidget {
   final VoidCallback? onSubscriptionRenewed;
@@ -362,20 +361,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                   borderColor: borderColor,
                   children: [
                     _MenuRow(
-                      icon: Icons.support_agent,
-                      iconColor: kPrimaryColor,
-                      label: 'Contact Support',
-                      subtitle: 'Chat with support team',
-                      textColor: textColor,
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => const ContactSupportScreen(),
-                        ),
-                      ),
-                    ),
-                    _Divider(color: borderColor),
-                    _MenuRow(
                       icon: Icons.settings_outlined,
                       iconColor: Colors.grey,
                       label: 'Settings',
@@ -587,7 +572,7 @@ class _ProfileScreenState extends State<ProfileScreen>
         children: [
           const SizedBox(height: 8),
           const Text(
-            'Enter the School ID provided by your administrator.',
+            'Enter the School ID provided by your admin.',
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),

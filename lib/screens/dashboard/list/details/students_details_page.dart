@@ -419,8 +419,8 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 100,
-            height: 100,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               color: kAccentRed,
               shape: BoxShape.circle,
@@ -445,8 +445,8 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                     ? PersistentCachedImage(
                         imageUrl: studentDetails['image'],
                         fit: BoxFit.cover,
-                        memCacheWidth: 300,
-                        memCacheHeight: 300,
+                        memCacheWidth: 200,
+                        memCacheHeight: 200,
                         placeholder: Shimmer.fromColors(
                           baseColor:
                               isDark ? Colors.grey[800]! : Colors.grey[300]!,
@@ -469,7 +469,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                   studentDetails['fullName'] ?? 'N/A',
                   style: TextStyle(
                     color: textColor,
-                    fontSize: 18,
+                    fontSize: 16,
                     fontWeight: FontWeight.bold,
                   ),
                   softWrap: true,
@@ -477,6 +477,15 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                   overflow: TextOverflow.visible,
                 ),
                 const SizedBox(height: 4),
+                if (studentDetails['email'] != null && studentDetails['email'].toString().isNotEmpty) ...[
+                  Text(
+                    studentDetails['email'].toString(),
+                    style: TextStyle(color: subTextColor, fontSize: 13, fontWeight: FontWeight.w500),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Text(
                   'Student ID: ${studentDetails['studentId'] ?? 'N/A'}',
                   style: TextStyle(color: subTextColor, fontSize: 13),
@@ -2163,9 +2172,58 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
       final pdfBytes = await LoadingUtils.wrapWithLoading(context, () async {
         final workspace = Get.find<WorkspaceController>();
         final companyData = workspace.companyData;
+
+        // Get targetId for querying
+        final targetId = _workspaceController.currentSchoolId.value.isNotEmpty
+            ? _workspaceController.currentSchoolId.value
+            : (FirebaseAuth.instance.currentUser?.uid ?? '');
+
+        // Get selected payments
         final selectedPayments = _cachedPayments
             .where((p) => _selectedTransactionIds.contains(p['id']))
             .toList();
+
+        // Also fetch extra fees that match the selected IDs
+        final extraFeesQuery = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(targetId)
+            .collection('students')
+            .doc(_docId)
+            .collection('extra_fees')
+            .where(FieldPath.documentId, whereIn: _selectedTransactionIds)
+            .get();
+
+        final extraFeesData = extraFeesQuery.docs.map((d) {
+          final data = d.data();
+          return {
+            'id': d.id,
+            'amount': data['amount'],
+            'description': data['description'] ?? 'Additional Fee',
+            'mode': data['paymentMode'] ?? 'Cash',
+            'date': data['paymentDate'] ?? data['date'],
+            'note': data['paymentNote'] ?? data['note'],
+            'isExtraFee': true,
+          };
+        }).toList();
+
+        // Combine payments and extra fees
+        final allTransactions = [...selectedPayments, ...extraFeesData];
+
+        // Sort by date
+        allTransactions.sort((a, b) {
+          final dateA = a['date'] is DateTime
+              ? a['date']
+              : (a['date'] is Timestamp
+                  ? (a['date'] as Timestamp).toDate()
+                  : DateTime.now());
+          final dateB = b['date'] is DateTime
+              ? b['date']
+              : (b['date'] is Timestamp
+                  ? (b['date'] as Timestamp).toDate()
+                  : DateTime.now());
+          return dateB.compareTo(dateA);
+        });
+
         Uint8List? logoBytes;
         if (companyData['hasCompanyProfile'] == true &&
             companyData['companyLogo'] != null) {
@@ -2175,7 +2233,7 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
         return await PdfService.generateReceipt(
           companyData: companyData,
           studentDetails: studentDetails,
-          transactions: selectedPayments,
+          transactions: allTransactions,
           companyLogoBytes: logoBytes,
         );
       });
@@ -2765,7 +2823,8 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                           });
                         },
                       )
-                    : const Icon(Icons.label_important_outline, color: Colors.blue),
+                    : const Icon(Icons.label_important_outline,
+                        color: Colors.blue),
                 title: Text(data['description'] ?? 'No Description',
                     style: const TextStyle(fontWeight: FontWeight.w500)),
                 subtitle: Text(DateFormat('dd MMM yyyy').format(date)),
@@ -2794,10 +2853,12 @@ class _StudentDetailsPageState extends State<StudentDetailsPage> {
                                 _workspaceController.currentBranchId.value,
                           ),
                           child: const Text('Collect',
-                              style: TextStyle(color: Colors.green, fontSize: 12)),
+                              style:
+                                  TextStyle(color: Colors.green, fontSize: 12)),
                         ),
                       ),
-                    if (!widget.isStudentView && !isPaid)
+                    // Show edit/delete for all fees (both paid and unpaid) for staff/owner
+                    if (!widget.isStudentView)
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_vert, size: 20),
                         onSelected: (value) =>
